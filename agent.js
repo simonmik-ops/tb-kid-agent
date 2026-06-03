@@ -2,7 +2,9 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const FORMATS = require("./formats");
 
-const client = new Anthropic();
+const client = new Anthropic({
+  apiKey: (process.env.ANTHROPIC_API_KEY || "").replace(/\s/g, "")
+});
 
 async function analyzeVisual(imageBase64, mediaType) {
   // Krok 1: Analyzuj vizuál

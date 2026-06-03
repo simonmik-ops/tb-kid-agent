@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #fff; padding: 20px; font-size: 13px; color: #1a1a1a; }
+    h1 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .sub { font-size: 12px; color: #888; margin-bottom: 20px; }
+    label { font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px; margin-top: 14px; color: #444; }
+    input, select { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; outline: none; }
+    input:focus, select:focus { border-color: #18a0fb; }
+    .drop { border: 2px dashed #e0e0e0; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; margin-top: 5px; transition: border-color 0.15s; background: #fafafa; }
+    .drop:hover, .drop.active { border-color: #18a0fb; background: #f0f9ff; }
+    .drop-icon { font-size: 24px; margin-bottom: 6px; }
+    .drop-text { font-size: 12px; color: #666; }
+    .drop-hint { font-size: 11px; color: #aaa; margin-top: 3px; }
+    .preview { width: 100%; max-height: 120px; object-fit: cover; border-radius: 6px; margin-top: 8px; display: none; }
+    button.primary { width: 100%; margin-top: 18px; padding: 11px; background: #18a0fb; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    button.primary:hover { background: #0d8ee0; }
+    button.primary:disabled { background: #c0c0c0; cursor: not-allowed; }
+    .progress { margin-top: 14px; display: none; }
+    .progress-bar-wrap { background: #f0f0f0; border-radius: 4px; height: 6px; overflow: hidden; margin-top: 6px; }
+    .progress-bar { background: #18a0fb; height: 100%; width: 0%; transition: width 0.2s; border-radius: 4px; }
+    .status { font-size: 12px; color: #666; margin-top: 6px; min-height: 16px; }
+    .result { margin-top: 14px; padding: 12px; background: #f0fff4; border-radius: 8px; display: none; border: 1px solid #b7ebc8; }
+    .result-title { font-size: 13px; font-weight: 600; color: #1a7a3a; margin-bottom: 4px; }
+    .result-sub { font-size: 12px; color: #555; }
+    .error { margin-top: 14px; padding: 10px; background: #fff0f0; border-radius: 8px; display: none; border: 1px solid #ffc0c0; font-size: 12px; color: #c00; }
+    .server-url { font-size: 11px; color: #aaa; margin-top: 16px; display: flex; align-items: center; gap: 6px; }
+    .server-url input { font-size: 11px; padding: 4px 8px; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>TB KID 2026</h1>
+  <p class="sub">Nahraj vizuál → agent naplánuje layouty → frames sa vytvoria tu vo Figme</p>
+
+  <label>Vizuál (jpg / png)</label>
+  <div class="drop" id="drop" onclick="document.getElementById('fileInput').click()">
+    <div class="drop-icon">📁</div>
+    <div class="drop-text" id="dropText">Pretiahni sem alebo klikni</div>
+    <div class="drop-hint">jpg / png, min. 1200px odporúčané</div>
+  </div>
+  <input type="file" id="fileInput" accept="image/jpeg,image/png" style="display:none">
+  <img id="preview" class="preview" alt="preview">
+
+  <label>Headline (voliteľné)</label>
+  <input type="text" id="headline" placeholder="napr. KID — Kontokorent do 24 hodín">
+
+  <label>Typ kampane</label>
+  <select id="adType">
+    <option value="awareness">Awareness</option>
+    <option value="hardsell">Hardsell</option>
+    <option value="remarketing">Remarketing</option>
+  </select>
+
+  <button class="primary" id="btn" onclick="generate()">Generovať vo Figme</button>
+
+  <div class="progress" id="progress">
+    <div class="status" id="status">Analyzujem vizuál...</div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-sub" id="resultSub"></div>
+  </div>
+
+  <div class="error" id="errorBox"></div>
+
+  <div class="server-url">
+    <span>Server:</span>
+    <input type="text" id="serverUrl" value="http://192.168.182.109:3000">
+  </div>
+
+<script>
+  let selectedFile = null;
+  let totalFormats = 0;
+
+  // Drag & drop
+  const drop = document.getElementById("drop");
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("active"); };
+  drop.ondragleave = () => drop.classList.remove("active");
+  drop.ondrop = (e) => {
+    e.preventDefault();
+    drop.classList.remove("active");
+    const file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+  };
+
+  document.getElementById("fileInput").onchange = (e) => {
+    if (e.target.files[0]) setFile(e.target.files[0]);
+  };
+
+  function setFile(file) {
+    selectedFile = file;
+    document.getElementById("dropText").textContent = file.name;
+    drop.classList.add("active");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const preview = document.getElementById("preview");
+      preview.src = e.target.result;
+      preview.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function generate() {
+    if (!selectedFile) { showError("Nahraj vizuál"); return; }
+
+    const btn = document.getElementById("btn");
+    const progress = document.getElementById("progress");
+    const errorBox = document.getElementById("errorBox");
+    const result = document.getElementById("result");
+
+    btn.disabled = true;
+    errorBox.style.display = "none";
+    result.style.display = "none";
+    progress.style.display = "block";
+    setStatus("Analyzujem vizuál...", 5);
+
+    const serverUrl = document.getElementById("serverUrl").value.trim();
+
+    try {
+      const formData = new FormData();
+      formData.append("visual", selectedFile);
+      formData.append("headline", document.getElementById("headline").value);
+      formData.append("adType", document.getElementById("adType").value);
+
+      setStatus("Claude plánuje layouty pre všetky formáty...", 20);
+
+      const res = await fetch(`${serverUrl}/analyze`, { method: "POST", body: formData });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Server error"); }
+
+      const data = await res.json();
+      totalFormats = data.formats.length;
+      setStatus(`Načítavam obrázok...`, 55);
+
+      // Načítaj obrázok ako bytes pre Figma Plugin API
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const imageBytes = Array.from(new Uint8Array(arrayBuffer));
+
+      setStatus(`Vytváram ${totalFormats} frames vo Figme...`, 60);
+
+      // Pošli dáta + obrázok do code.js (Figma plugin sandbox)
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes } } }, "*");
+
+    } catch (err) {
+      btn.disabled = false;
+      progress.style.display = "none";
+      showError(err.message);
+    }
+  }
+
+  // Správy z code.js
+  window.onmessage = (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === "progress") {
+      const pct = 60 + Math.floor((msg.done / msg.total) * 38);
+      setStatus(`Vytváram frame ${msg.done} / ${msg.total}...`, pct);
+    }
+
+    if (msg.type === "done") {
+      setStatus("Hotovo!", 100);
+      document.getElementById("result").style.display = "block";
+      document.getElementById("resultTitle").textContent = `${msg.formatCount} formátov vytvorených v ${msg.pageCount} pages`;
+      document.getElementById("resultSub").textContent = "Frames sú organizované podľa kanálu (Social, Meta, Google...). Skontroluj pages v ľavom paneli.";
+      document.getElementById("btn").disabled = false;
+    }
+
+    if (msg.type === "error") {
+      document.getElementById("progress").style.display = "none";
+      document.getElementById("btn").disabled = false;
+      showError(msg.message);
+    }
+  };
+
+  function setStatus(text, pct) {
+    document.getElementById("status").textContent = text;
+    document.getElementById("progressBar").style.width = pct + "%";
+  }
+
+  function showError(msg) {
+    const box = document.getElementById("errorBox");
+    box.textContent = "Chyba: " + msg;
+    box.style.display = "block";
+  }
+</script>
+</body>
+</html>

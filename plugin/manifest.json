@@ -1,0 +1,10 @@
+{
+  "name": "TB KID 2026 — Figma Generator",
+  "id": "com.tbkid.figma-generator",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": ["*"]
+  }
+}

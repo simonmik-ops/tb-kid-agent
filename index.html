@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8">
+  <title>TB KID 2026 — Figma Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: white; border-radius: 16px; padding: 40px; width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .sub { font-size: 13px; color: #888; margin-bottom: 32px; }
+    label { font-size: 13px; font-weight: 500; display: block; margin-bottom: 6px; margin-top: 20px; }
+    input, select { width: 100%; padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+    .drop { border: 2px dashed #e0e0e0; border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; margin-top: 6px; transition: border-color 0.2s; }
+    .drop:hover, .drop.active { border-color: #0084ff; }
+    .drop-label { font-size: 13px; color: #999; margin-top: 8px; }
+    button { width: 100%; margin-top: 28px; padding: 14px; background: #0084ff; color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .result { margin-top: 20px; padding: 16px; background: #f0fff4; border-radius: 8px; text-align: center; display: none; }
+    .result a { color: #0084ff; font-weight: 600; text-decoration: none; }
+    .status { font-size: 13px; color: #888; margin-top: 12px; text-align: center; min-height: 20px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>TB KID 2026 — Figma Generator</h1>
+  <p class="sub">Nahraj vizuál → agent vytvorí všetky formáty vo Figme</p>
+
+  <label>Vizuál (jpg / png)</label>
+  <div class="drop" id="drop" onclick="document.getElementById('fileInput').click()">
+    <div style="font-size: 32px">📁</div>
+    <div id="dropText">Pretiahni sem alebo klikni</div>
+    <div class="drop-label">jpg / png, odporúčané min. 1200px</div>
+  </div>
+  <input type="file" id="fileInput" accept="image/jpeg,image/png" style="display:none">
+
+  <label>Headline (voliteľné)</label>
+  <input type="text" id="headline" placeholder="napr. KID — Kontokorent do 24 hodín">
+
+  <label>Typ kampane</label>
+  <select id="adType">
+    <option value="awareness">Awareness</option>
+    <option value="hardsell">Hardsell</option>
+    <option value="remarketing">Remarketing</option>
+  </select>
+
+  <button id="btn" onclick="generate()">Generovať vo Figme</button>
+  <div class="status" id="status"></div>
+  <div class="result" id="result">
+    <div style="font-size: 13px; color: #2d6a4f; font-weight: 600;">Analýza dokončená</div>
+    <div id="resultMsg" style="font-size: 12px; color: #555; margin-top: 6px; line-height: 1.5;"></div>
+  </div>
+</div>
+
+<script>
+  let selectedFile = null;
+
+  document.getElementById("fileInput").onchange = (e) => {
+    selectedFile = e.target.files[0];
+    document.getElementById("dropText").textContent = selectedFile.name;
+    document.getElementById("drop").classList.add("active");
+  };
+
+  const drop = document.getElementById("drop");
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("active"); };
+  drop.ondragleave = () => drop.classList.remove("active");
+  drop.ondrop = (e) => {
+    e.preventDefault();
+    selectedFile = e.dataTransfer.files[0];
+    document.getElementById("dropText").textContent = selectedFile.name;
+  };
+
+  async function generate() {
+    if (!selectedFile) return alert("Nahraj vizuál");
+
+    const btn = document.getElementById("btn");
+    const status = document.getElementById("status");
+    btn.disabled = true;
+    status.textContent = "Analyzujem vizuál...";
+
+    const formData = new FormData();
+    formData.append("visual", selectedFile);
+    formData.append("headline", document.getElementById("headline").value);
+    formData.append("adType", document.getElementById("adType").value);
+
+    try {
+      status.textContent = "Agent plánuje layouty pre všetky formáty...";
+      const res = await fetch("/generate", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (data.success) {
+        status.textContent = `Analýza hotová — ${data.formatsGenerated} formátov pripravených`;
+        document.getElementById("resultMsg").textContent = data.message;
+        document.getElementById("result").style.display = "block";
+      } else {
+        status.textContent = "Chyba: " + data.error;
+      }
+    } catch (err) {
+      status.textContent = "Chyba: " + err.message;
+    }
+
+    btn.disabled = false;
+  }
+</script>
+</body>
+</html>

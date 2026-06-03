@@ -10,10 +10,12 @@ const upload = multer({ dest: "uploads/" });
 
 app.use(express.json());
 
-// CORS — plugin beží na figma.com doméne, potrebuje prístup k localhost
+// CORS — plugin beží na figma.com doméne, potrebuje prístup k serveru
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Headers", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
 });
 

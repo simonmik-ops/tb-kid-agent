@@ -132,8 +132,8 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
     frame.appendChild(photoRect);
   }
 
-  // Logo vľavo hore — max 40% výšky, max 55px
-  const logoH = Math.min(Math.round(format.height * 0.40), 55);
+  // Logo vľavo hore — max 45% výšky, max 64px
+  const logoH = Math.min(Math.round(format.height * 0.45), 64);
   const logoW = Math.round(logoH * 3.5);
   if (!format.noLogo) {
     placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
@@ -176,11 +176,20 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   }];
   frame.appendChild(gradRect);
 
-  // Logo hore vľavo
+  // Logo hore vľavo — s bielym pozadím pre viditeľnosť na tmavej foto
   const pad = Math.round(Math.min(format.width, format.height) * 0.04);
   if (!format.noLogo) {
-    const logoH = Math.min(Math.round(format.height * 0.09), 48);
+    const logoH = Math.min(Math.round(format.height * 0.09), 64);
     const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.42));
+    const logoBgPad = 6;
+    const logoBg = figma.createRectangle();
+    logoBg.name = "Logo pozadie";
+    logoBg.resize(logoW + logoBgPad * 2, logoH + logoBgPad * 2);
+    logoBg.x = pad - logoBgPad;
+    logoBg.y = pad - logoBgPad;
+    logoBg.cornerRadius = 6;
+    logoBg.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 }, opacity: 0.9 }];
+    frame.appendChild(logoBg);
     placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
   }
 
@@ -322,7 +331,8 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
     txt.fontName = { family: "Inter", style: "Bold" };
     txt.characters = headline;
     txt.fontSize = fontSize;
-    txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    // Pre Google logo formáty (transparentné pozadie) — tmavý text; inak biely
+    txt.fills = [{ type: "SOLID", color: isGoogleLogo ? BRAND_COLOR : { r: 1, g: 1, b: 1 } }];
     txt.resize(format.width - 24, format.height);
     txt.textAutoResize = "HEIGHT";
     txt.x = 12;

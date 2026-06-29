@@ -159,10 +159,27 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
     : [{ type: "SOLID", color: { r: 0.15, g: 0.15, b: 0.2 } }];
 
-  // Gradient scrim — iba dolná časť kde je text (nie celý obrázok)
-  const gradH = Math.round(format.height * 0.38);
+  // Horný gradient — tmavý prechod pre logo (top 28%)
+  const topGradH = Math.round(format.height * 0.28);
+  const topGradRect = figma.createRectangle();
+  topGradRect.name = "Top scrim";
+  topGradRect.resize(format.width, topGradH);
+  topGradRect.x = 0;
+  topGradRect.y = 0;
+  topGradRect.fills = [{
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[0, 1, 0.5], [1, 0, 0]],
+    gradientStops: [
+      { position: 0, color: { r: 0, g: 0, b: 0, a: 0.55 } },
+      { position: 1, color: { r: 0, g: 0, b: 0, a: 0 } }
+    ]
+  }];
+  frame.appendChild(topGradRect);
+
+  // Dolný gradient scrim — pre text (bottom 40%)
+  const gradH = Math.round(format.height * 0.40);
   const gradRect = figma.createRectangle();
-  gradRect.name = "Gradient scrim";
+  gradRect.name = "Bottom scrim";
   gradRect.resize(format.width, gradH);
   gradRect.x = 0;
   gradRect.y = format.height - gradH;
@@ -171,25 +188,16 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     gradientTransform: [[0, 1, 0.5], [1, 0, 0]],
     gradientStops: [
       { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
-      { position: 1, color: { r: 0, g: 0, b: 0, a: 0.72 } }
+      { position: 1, color: { r: 0, g: 0, b: 0, a: 0.78 } }
     ]
   }];
   frame.appendChild(gradRect);
 
-  // Logo hore vľavo — s bielym pozadím pre viditeľnosť na tmavej foto
+  // Logo hore vľavo — priamo na tmavom gradient scrimi (bez bielej karte)
   const pad = Math.round(Math.min(format.width, format.height) * 0.04);
   if (!format.noLogo) {
     const logoH = Math.min(Math.round(format.height * 0.09), 64);
     const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.42));
-    const logoBgPad = 6;
-    const logoBg = figma.createRectangle();
-    logoBg.name = "Logo pozadie";
-    logoBg.resize(logoW + logoBgPad * 2, logoH + logoBgPad * 2);
-    logoBg.x = pad - logoBgPad;
-    logoBg.y = pad - logoBgPad;
-    logoBg.cornerRadius = 6;
-    logoBg.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 }, opacity: 0.9 }];
-    frame.appendChild(logoBg);
     placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
   }
 

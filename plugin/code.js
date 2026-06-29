@@ -69,6 +69,8 @@ async function createAllFrames({ formats, headline, adType, imageBytes }) {
         buildSplitLayout(frame, format, layout, headline, figmaImage);
       } else if (layoutType === "stacked") {
         buildStackedLayout(frame, format, layout, headline, figmaImage);
+      } else if (layoutType === "blurred_bg") {
+        buildBlurredBgLayout(frame, format, layout, headline, figmaImage);
       } else if (layoutType === "logo_only") {
         buildLogoOnlyLayout(frame, format, layout, headline);
       } else {
@@ -253,6 +255,66 @@ function buildLogoOnlyLayout(frame, format, layout, headline) {
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   txt.x = 12;
   txt.y = Math.round((format.height - fontSize * 1.2) / 2);
+  frame.appendChild(txt);
+}
+
+// Blurované pozadie (FILL) + ostrý centrovaný objekt (FIT) + text zóna dole
+// Pre portrait formáty (9:16, 2:3, 1:2) kde vizuál je pripravený s objektom v strede
+function buildBlurredBgLayout(frame, format, layout, headline, figmaImage) {
+  frame.fills = [{ type: "SOLID", color: { r: 0.05, g: 0.05, b: 0.1 } }];
+
+  const overlayH = layout.text_area_height_px || Math.round(format.height * 0.22);
+
+  if (figmaImage) {
+    // Layer 1: Blurovaná fotka roztiahnutá na celý frame (FILL)
+    const bgRect = figma.createRectangle();
+    bgRect.name = "Blur pozadie";
+    bgRect.resize(format.width, format.height);
+    bgRect.x = 0;
+    bgRect.y = 0;
+    bgRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+    bgRect.effects = [{ type: "LAYER_BLUR", radius: 40, visible: true }];
+    frame.appendChild(bgRect);
+
+    // Layer 2: Tmavý overlay pre kontrast
+    const dimOverlay = figma.createRectangle();
+    dimOverlay.name = "Dim overlay";
+    dimOverlay.resize(format.width, format.height);
+    dimOverlay.x = 0;
+    dimOverlay.y = 0;
+    dimOverlay.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.20 }];
+    frame.appendChild(dimOverlay);
+
+    // Layer 3: Ostrá fotka (FIT) — objekt viditeľný celý, centrovaný v hornej časti
+    // FIT = celá fotka sa zmestí, priesvitné okraje ukážu blurované pozadie
+    const topPad = Math.round(format.height * 0.05);
+    const availH = format.height - overlayH - topPad;
+    const fgRect = figma.createRectangle();
+    fgRect.name = "Foto (ostr\u00e1, FIT)";
+    fgRect.resize(format.width, availH);
+    fgRect.x = 0;
+    fgRect.y = topPad;
+    fgRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FIT" }];
+    frame.appendChild(fgRect);
+  }
+
+  // Text zóna dole — brand farba
+  const textBg = figma.createRectangle();
+  textBg.name = "Text z\u00f3na";
+  textBg.resize(format.width, overlayH);
+  textBg.x = 0;
+  textBg.y = format.height - overlayH;
+  textBg.fills = [{ type: "SOLID", color: BRAND_COLOR, opacity: 0.88 }];
+  frame.appendChild(textBg);
+
+  const fontSize = Math.max(10, Math.min(layout.headline_size_px || 32, Math.floor(format.height * 0.06)));
+  const txt = figma.createText();
+  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.characters = headline || "HEADLINE";
+  txt.fontSize = fontSize;
+  txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  txt.x = 20;
+  txt.y = format.height - overlayH + Math.round((overlayH - fontSize * 1.2) / 2);
   frame.appendChild(txt);
 }
 

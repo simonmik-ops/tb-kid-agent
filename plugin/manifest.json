@@ -4,7 +4,8 @@
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
+  "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["*"]
+    "allowedDomains": ["https://tb-kid-agent-production.up.railway.app"]
   }
 }

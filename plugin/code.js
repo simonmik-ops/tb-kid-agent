@@ -319,26 +319,63 @@ function buildBlurredBgLayout(frame, format, layout, headline, figmaImage) {
 }
 
 function addSafeZones(frame, format) {
-  if (format.safeZones && format.safeZones.top > 0) {
-    const sz = figma.createRectangle();
-    sz.name = "Safe zone TOP";
-    sz.resize(format.width, format.safeZones.top);
-    sz.x = 0;
-    sz.y = 0;
-    sz.fills = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }];
-    sz.opacity = 0.08;
-    sz.locked = true;
-    frame.appendChild(sz);
+  const sz = format.safeZones;
+  if (!sz) return;
+
+  // Top / bottom no-go zóny (červené)
+  if (sz.top > 0) {
+    addNoGoRect(frame, "Safe zone TOP", 0, 0, format.width, sz.top);
   }
-  if (format.safeZones && format.safeZones.bottom > 0) {
-    const sz = figma.createRectangle();
-    sz.name = "Safe zone BOTTOM";
-    sz.resize(format.width, format.safeZones.bottom);
-    sz.x = 0;
-    sz.y = format.height - format.safeZones.bottom;
-    sz.fills = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }];
-    sz.opacity = 0.08;
-    sz.locked = true;
-    frame.appendChild(sz);
+  if (sz.bottom > 0) {
+    addNoGoRect(frame, "Safe zone BOTTOM", 0, format.height - sz.bottom, format.width, sz.bottom);
   }
+
+  // Bočné no-go zóny — ženské weby interscroller (sides: 50)
+  if (sz.sides > 0) {
+    addNoGoRect(frame, "Safe zone LEFT", 0, 0, sz.sides, format.height);
+    addNoGoRect(frame, "Safe zone RIGHT", format.width - sz.sides, 0, sz.sides, format.height);
+  }
+
+  // JOJ / Markíza branding — centerWidth + topOffset
+  // Červené: top pruh + ľavý a pravý okraj. Zelené: safe stred
+  if (sz.centerWidth && sz.topOffset !== undefined) {
+    const sideW = Math.round((format.width - sz.centerWidth) / 2);
+    addNoGoRect(frame, "No-go TOP", 0, 0, format.width, sz.topOffset);
+    addNoGoRect(frame, "No-go LEFT", 0, sz.topOffset, sideW, format.height - sz.topOffset);
+    addNoGoRect(frame, "No-go RIGHT", format.width - sideW, sz.topOffset, sideW, format.height - sz.topOffset);
+    addSafeRect(frame, "Safe z\u00f3na (obsah)", sideW, sz.topOffset, sz.centerWidth, format.height - sz.topOffset);
+  }
+
+  // Topky branding — safeInner: centrovaná vnútorná safe zóna (zelená)
+  if (sz.safeInner) {
+    const iw = sz.safeInner.width;
+    const ih = sz.safeInner.height;
+    const ix = Math.round((format.width - iw) / 2);
+    const iy = Math.round((format.height - ih) / 2);
+    addSafeRect(frame, "Safe z\u00f3na (inner " + iw + "\u00d7" + ih + ")", ix, iy, iw, ih);
+  }
+}
+
+// Červená polopriesvitná no-go zóna
+function addNoGoRect(frame, name, x, y, w, h) {
+  const r = figma.createRectangle();
+  r.name = name;
+  r.resize(w, h);
+  r.x = x;
+  r.y = y;
+  r.fills = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 }, opacity: 0.08 }];
+  r.locked = true;
+  frame.appendChild(r);
+}
+
+// Zelená polopriesvitná safe zóna
+function addSafeRect(frame, name, x, y, w, h) {
+  const r = figma.createRectangle();
+  r.name = name;
+  r.resize(w, h);
+  r.x = x;
+  r.y = y;
+  r.fills = [{ type: "SOLID", color: { r: 0, g: 0.75, b: 0.2 }, opacity: 0.10 }];
+  r.locked = true;
+  frame.appendChild(r);
 }

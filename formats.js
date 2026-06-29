@@ -307,6 +307,18 @@ const FORMATS = [
 
   // ─── MARKÍZA ─────────────────────────────────────────────────
   {
+    id: "markiza_branding_full",
+    name: "Markíza branding 2000×1400",
+    channel: "Markíza",
+    width: 2000,
+    height: 1400,
+    ratio: "10:7",
+    type: ["awareness"],
+    count: 1,
+    safeZones: { centerWidth: 1000, topOffset: 200 },
+    notes: "Full page branding. Safe zóna: 1000px stred, 200px od vrchu. Hlavný odkaz max 140px od okraja."
+  },
+  {
     id: "markiza_branding_leader",
     name: "Markíza branding 1000×200",
     channel: "Markíza",

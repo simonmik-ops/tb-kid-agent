@@ -55,28 +55,132 @@ function getLayoutStrategy(format, visualAnalysis) {
   const focalX = visualAnalysis.recommended_focal_x || 0.5;
   const focalY = visualAnalysis.recommended_focal_y || 0.5;
 
+  const base = {
+    image_fit: "fill",
+    photo_width_pct: 100,
+    crop_anchor_x: focalX,
+    crop_anchor_y: focalY,
+    headline_position: "bottom",
+    logo_position: "top-left",
+    brand_color_pct: 0,
+    show_headline: true,
+    show_logo: !format.noLogo,
+    safe_content: null
+  };
+
   // Logo assety — žiadna fotka, iba logo + farba (transparentné pozadie)
   if (format.id === "google_logo_wide" || format.id === "google_logo_square") {
     return {
+      ...base,
       layout_type: "logo_only",
       image_fit: "none",
       photo_width_pct: 0,
-      crop_anchor_x: focalX,
-      crop_anchor_y: focalY,
       headline_position: "center",
       logo_position: "center",
-      brand_color_pct: 0
+      brand_color_pct: 0,
+      show_headline: false,
+      show_logo: true
+    };
+  }
+
+  // Google RSA a Demand Gen image assety majú byť čisté obrázky bez textu a loga.
+  if (format.id.startsWith("google_rsa_") || format.id.startsWith("demandgen_")) {
+    return {
+      ...base,
+      layout_type: "clean_image",
+      show_headline: false,
+      show_logo: false
+    };
+  }
+
+  // Performance Max: obrázok môže niesť headline, logo/CTA dopĺňa systém.
+  if (format.id.startsWith("pmax_")) {
+    return {
+      ...base,
+      layout_type: "headline_only",
+      show_logo: false,
+      headline_position: ratio < 0.9 ? "bottom" : "left"
+    };
+  }
+
+  // Full page brandingy musia rešpektovať webový obsah v strede.
+  if (format.id === "markiza_branding_full" || format.id === "joj_branding") {
+    return {
+      ...base,
+      layout_type: "branding_skin",
+      image_fit: "fill",
+      photo_width_pct: 100,
+      headline_position: "sides",
+      logo_position: "top-sides",
+      safe_content: format.safeZones
+    };
+  }
+
+  // Samostatné bočné branding plochy: message/logo držať v úzkej safe zóne.
+  if (
+    format.id === "markiza_branding_side" ||
+    format.id === "zenske_branding_side" ||
+    format.id === "topky_branding"
+  ) {
+    return {
+      ...base,
+      layout_type: "side_safe",
+      image_fit: "fill",
+      headline_position: "center",
+      logo_position: "top",
+      safe_content: format.safeZones?.safeInner || { width: Math.min(format.width, 160), height: Math.min(format.height, 600) }
+    };
+  }
+
+  // Interscrollery z prezentácie majú stredovú čitateľnú zónu a no-go okraje/vrch/spodok.
+  if (format.id.includes("interscroller")) {
+    return {
+      ...base,
+      layout_type: "interscroller_safe",
+      image_fit: "fill",
+      headline_position: "safe-bottom",
+      logo_position: format.id === "topky_interscroller" ? "below-top-safe" : "safe-top",
+      safe_content: format.safeZones
+    };
+  }
+
+  if (format.id === "engerio_native") {
+    return {
+      ...base,
+      layout_type: "native_center",
+      show_logo: false,
+      headline_position: "bottom",
+      image_fit: "fill"
+    };
+  }
+
+  if (format.channel === "E-mail") {
+    return {
+      ...base,
+      layout_type: "email_layout",
+      image_fit: "fill",
+      headline_position: "below-image",
+      logo_position: "top"
+    };
+  }
+
+  if (format.id === "pinterest_pin") {
+    return {
+      ...base,
+      layout_type: "pinterest_pin",
+      headline_position: "bottom",
+      logo_position: "top",
+      safe_content: { maxTextAreaPct: 30 }
     };
   }
 
   // 320×50 — žiadna fotka, iba logo + farba + text
   if (format.width === 320 && format.height === 50) {
     return {
+      ...base,
       layout_type: "logo_only",
       image_fit: "none",
       photo_width_pct: 0,
-      crop_anchor_x: focalX,
-      crop_anchor_y: focalY,
       headline_position: "center",
       logo_position: "left",
       brand_color_pct: 100
@@ -87,11 +191,10 @@ function getLayoutStrategy(format, visualAnalysis) {
   // — brand farba pozadia, fotka vpravo (contain, max 30%), text+logo vľavo
   if (ratio > 3.5 && format.height < 300) {
     return {
+      ...base,
       layout_type: "strip",
       image_fit: "contain",
       photo_width_pct: 30,
-      crop_anchor_x: focalX,
-      crop_anchor_y: focalY,
       headline_position: "left",
       logo_position: "left",
       brand_color_pct: 100
@@ -101,11 +204,10 @@ function getLayoutStrategy(format, visualAnalysis) {
   // Ultra-široký (ratio > 3.5): split layout — fotka 40% vľavo cropnutá na focal point, zvyšok brandová farba + text
   if (ratio > 3.5) {
     return {
+      ...base,
       layout_type: "split",
       image_fit: "fill",
       photo_width_pct: 40,
-      crop_anchor_x: focalX,
-      crop_anchor_y: focalY,
       headline_position: "right",
       logo_position: "top-right",
       brand_color_pct: 60
@@ -115,11 +217,10 @@ function getLayoutStrategy(format, visualAnalysis) {
   // Úzky/vysoký (ratio < 0.3): stacked layout — logo hore, foto v strede, text dole
   if (ratio < 0.3) {
     return {
+      ...base,
       layout_type: "stacked",
       image_fit: "fill",
       photo_width_pct: 100,
-      crop_anchor_x: focalX,
-      crop_anchor_y: focalY,
       headline_position: "bottom",
       logo_position: "top",
       brand_color_pct: 0
@@ -130,11 +231,10 @@ function getLayoutStrategy(format, visualAnalysis) {
   // Blurred_bg sa nepoužíva — funguje len s transparentnými PNG cutoutmi
   if (ratio < 0.75) {
     return {
+      ...base,
       layout_type: "full_bleed",
       image_fit: "fill",
       photo_width_pct: 100,
-      crop_anchor_x: focalX,
-      crop_anchor_y: focalY,
       headline_position: "bottom",
       logo_position: "top-left",
       brand_color_pct: 0
@@ -143,11 +243,10 @@ function getLayoutStrategy(format, visualAnalysis) {
 
   // Štvorce a blízke pomery: full bleed s text overlay dole
   return {
+    ...base,
     layout_type: "full_bleed",
     image_fit: "fill",
     photo_width_pct: 100,
-    crop_anchor_x: focalX,
-    crop_anchor_y: focalY,
     headline_position: "bottom",
     logo_position: "top-left",
     brand_color_pct: 0
@@ -221,7 +320,10 @@ async function processAllFormats(imageBase64, mediaType, headline, adType) {
       bg_r: visualAnalysis.bg_r || 0.1,
       bg_g: visualAnalysis.bg_g || 0.1,
       bg_b: visualAnalysis.bg_b || 0.18,
-      is_complex_visual: visualAnalysis.is_complex_visual || false
+      is_complex_visual: visualAnalysis.is_complex_visual || false,
+      show_headline: strategy.show_headline !== false,
+      show_logo: strategy.show_logo !== false,
+      safe_content: strategy.safe_content || null
     };
     return { format, layout, visualAnalysis };
   });

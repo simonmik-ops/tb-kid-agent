@@ -68,7 +68,23 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
       frame.y = 0;
       frame.clipsContent = true;
 
-      if (layoutType === "strip") {
+      if (layoutType === "clean_image") {
+        buildCleanImageLayout(frame, format, layout, figmaImage);
+      } else if (layoutType === "headline_only") {
+        buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage);
+      } else if (layoutType === "branding_skin") {
+        buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+      } else if (layoutType === "side_safe") {
+        buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+      } else if (layoutType === "interscroller_safe") {
+        buildInterscrollerSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+      } else if (layoutType === "native_center") {
+        buildNativeCenterLayout(frame, format, layout, headline, figmaImage);
+      } else if (layoutType === "email_layout") {
+        buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+      } else if (layoutType === "pinterest_pin") {
+        buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+      } else if (layoutType === "strip") {
         buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo);
       } else if (layoutType === "split") {
         buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo);
@@ -112,6 +128,220 @@ function placeLogo(frame, figmaLogo, x, y, w, h) {
   frame.appendChild(logoRect);
 }
 
+function shouldShowHeadline(layout, headline) {
+  return layout.show_headline !== false && !!headline;
+}
+
+function shouldShowLogo(format, layout, figmaLogo) {
+  return !!figmaLogo && !format.noLogo && layout.show_logo !== false;
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function addImageRect(frame, figmaImage, name, x, y, w, h, scaleMode) {
+  const rect = figma.createRectangle();
+  rect.name = name;
+  rect.resize(w, h);
+  rect.x = x;
+  rect.y = y;
+  rect.fills = figmaImage
+    ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: scaleMode || "FILL" }]
+    : [{ type: "SOLID", color: { r: 0.86, g: 0.88, b: 0.92 } }];
+  frame.appendChild(rect);
+  return rect;
+}
+
+function addText(frame, headline, x, y, w, h, fontSize, color, align) {
+  const txt = figma.createText();
+  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.characters = headline || "HEADLINE";
+  txt.fontSize = fontSize;
+  txt.fills = [{ type: "SOLID", color: color || { r: 1, g: 1, b: 1 } }];
+  txt.textAlignHorizontal = align || "LEFT";
+  txt.textAutoResize = "HEIGHT";
+  txt.resize(w, h);
+  txt.x = x;
+  txt.y = y;
+  frame.appendChild(txt);
+  return txt;
+}
+
+function addSolidRect(frame, name, x, y, w, h, color, opacity) {
+  const rect = figma.createRectangle();
+  rect.name = name;
+  rect.resize(w, h);
+  rect.x = x;
+  rect.y = y;
+  rect.fills = [{ type: "SOLID", color, opacity: opacity === undefined ? 1 : opacity }];
+  frame.appendChild(rect);
+  return rect;
+}
+
+function getReadablePad(format) {
+  return Math.round(clamp(Math.min(format.width, format.height) * 0.055, 12, 64));
+}
+
+// Google RSA / Demand Gen image assets: no text, no logo.
+function buildCleanImageLayout(frame, format, layout, figmaImage) {
+  frame.fills = [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
+  addImageRect(frame, figmaImage, "Image asset - no text / no logo", 0, 0, format.width, format.height, layout.image_fit === "contain" ? "FIT" : "FILL");
+}
+
+// Performance Max: headline only, system adds CTA/logo.
+function buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage) {
+  buildCleanImageLayout(frame, format, layout, figmaImage);
+  if (!shouldShowHeadline(layout, headline)) return;
+
+  const pad = getReadablePad(format);
+  const isPortrait = format.height > format.width * 1.15;
+  const boxH = Math.round(format.height * (isPortrait ? 0.24 : 0.34));
+  const boxY = isPortrait ? format.height - boxH : Math.round(format.height * 0.12);
+  addSolidRect(frame, "Headline scrim", 0, boxY, format.width, boxH, BRAND_COLOR, 0.88);
+
+  const fontSize = Math.round(clamp(format.height * (isPortrait ? 0.045 : 0.085), 20, 62));
+  addText(frame, headline, pad, boxY + pad, format.width - pad * 2, boxH - pad * 2, fontSize, { r: 1, g: 1, b: 1 });
+}
+
+// Full page branding: keep central website content readable/empty.
+function buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+  addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
+  addSolidRect(frame, "Dim brand background", 0, 0, format.width, format.height, BRAND_COLOR, 0.34);
+
+  const topOffset = format.safeZones?.topOffset || 200;
+  const centerW = format.safeZones?.centerWidth || 1000;
+  const sideW = Math.round((format.width - centerW) / 2);
+  const pad = 44;
+  const logoH = 58;
+  const logoW = Math.min(Math.round(logoH * 3.5), sideW - pad * 2);
+
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    placeLogo(frame, figmaLogo, pad, 48, logoW, logoH);
+    placeLogo(frame, figmaLogo, format.width - sideW + pad, 48, logoW, logoH);
+  }
+
+  if (shouldShowHeadline(layout, headline)) {
+    const fontSize = 42;
+    const y = topOffset + 80;
+    addText(frame, headline, pad, y, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
+    addText(frame, headline, format.width - sideW + pad, y, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
+  }
+
+  addSolidRect(frame, "Website content reserved", sideW, topOffset, centerW, format.height - topOffset, { r: 1, g: 1, b: 1 }, 0.94);
+}
+
+function buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+  addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
+  addSolidRect(frame, "Brand overlay", 0, 0, format.width, format.height, BRAND_COLOR, 0.62);
+
+  const safe = layout.safe_content || {};
+  const contentW = Math.min(format.width, safe.width || 160);
+  const contentH = Math.min(format.height, safe.height || 600);
+  const x = Math.round((format.width - contentW) / 2);
+  const y = Math.round((format.height - contentH) / 2);
+  const pad = Math.round(clamp(contentW * 0.1, 10, 18));
+
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const logoH = Math.round(clamp(contentH * 0.08, 28, 52));
+    const logoW = Math.min(Math.round(logoH * 3.5), contentW - pad * 2);
+    placeLogo(frame, figmaLogo, x + pad, y + pad, logoW, logoH);
+  }
+
+  if (shouldShowHeadline(layout, headline)) {
+    const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));
+    const textY = y + Math.round(contentH * 0.28);
+    addText(frame, headline, x + pad, textY, contentW - pad * 2, contentH - (textY - y) - pad, fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
+  }
+}
+
+function getInterscrollerSafeBox(format) {
+  const top = format.safeZones?.top || 0;
+  const bottom = format.safeZones?.bottom || 0;
+  const sides = format.safeZones?.sides || 0;
+  return {
+    x: sides,
+    y: top,
+    w: format.width - sides * 2,
+    h: format.height - top - bottom
+  };
+}
+
+function buildInterscrollerSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  frame.fills = [{ type: "SOLID", color: { r: layout.bg_r || 0.05, g: layout.bg_g || 0.07, b: layout.bg_b || 0.16 } }];
+  addImageRect(frame, figmaImage, "Image background", 0, 0, format.width, format.height, "FILL");
+
+  const safe = getInterscrollerSafeBox(format);
+  const pad = Math.round(clamp(Math.min(safe.w, safe.h) * 0.06, 20, 54));
+  const panelH = Math.round(clamp(safe.h * 0.24, 140, 330));
+  const panelY = safe.y + safe.h - panelH - pad;
+  addSolidRect(frame, "Readable message panel", safe.x + pad, panelY, safe.w - pad * 2, panelH, BRAND_COLOR, 0.90);
+
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const logoH = Math.round(clamp(safe.h * 0.045, 34, 70));
+    const logoW = Math.min(Math.round(logoH * 3.5), safe.w - pad * 2);
+    placeLogo(frame, figmaLogo, safe.x + pad, safe.y + pad, logoW, logoH);
+  }
+
+  if (shouldShowHeadline(layout, headline)) {
+    const fontSize = Math.round(clamp(panelH * 0.20, 24, 58));
+    addText(frame, headline, safe.x + pad * 1.55, panelY + pad, safe.w - pad * 3.1, panelH - pad * 2, fontSize, { r: 1, g: 1, b: 1 });
+  }
+}
+
+function buildNativeCenterLayout(frame, format, layout, headline, figmaImage) {
+  frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  const pad = Math.round(format.width * 0.06);
+  const imageH = Math.round(format.height * 0.70);
+  addImageRect(frame, figmaImage, "Native image 4:3", pad, pad, format.width - pad * 2, imageH - pad, "FILL");
+
+  if (shouldShowHeadline(layout, headline)) {
+    const fontSize = Math.round(clamp(format.width * 0.055, 24, 38));
+    addText(frame, headline, pad, imageH + pad, format.width - pad * 2, format.height - imageH - pad * 2, fontSize, BRAND_COLOR);
+  }
+}
+
+function buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  const heroH = Math.round(format.height * 0.54);
+  addImageRect(frame, figmaImage, "Hero image", 0, 0, format.width, heroH, "FILL");
+  addSolidRect(frame, "Content area", 0, heroH, format.width, format.height - heroH, { r: 1, g: 1, b: 1 }, 1);
+
+  const pad = Math.round(clamp(format.width * 0.07, 28, 56));
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const logoH = Math.round(clamp(format.width * 0.08, 38, 62));
+    placeLogo(frame, figmaLogo, pad, heroH + pad, Math.round(logoH * 3.5), logoH);
+  }
+
+  if (shouldShowHeadline(layout, headline)) {
+    const fontSize = Math.round(clamp(format.width * 0.055, 28, 44));
+    const textY = heroH + pad + Math.round(format.width * 0.13);
+    addText(frame, headline, pad, textY, format.width - pad * 2, format.height - textY - pad, fontSize, BRAND_COLOR);
+  }
+}
+
+function buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  buildCleanImageLayout(frame, format, layout, figmaImage);
+  const pad = Math.round(format.width * 0.06);
+
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const logoH = Math.round(clamp(format.height * 0.045, 46, 72));
+    const logoW = Math.round(logoH * 3.5);
+    addSolidRect(frame, "Logo contrast", pad - 12, pad - 12, logoW + 24, logoH + 24, BRAND_COLOR, 0.82);
+    placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
+  }
+
+  if (shouldShowHeadline(layout, headline)) {
+    const textAreaH = Math.round(format.height * 0.24);
+    const y = format.height - textAreaH - pad;
+    addSolidRect(frame, "Text overlay max 30%", pad, y, format.width - pad * 2, textAreaH, BRAND_COLOR, 0.88);
+    const fontSize = Math.round(clamp(format.width * 0.062, 34, 58));
+    addText(frame, headline, pad * 1.5, y + pad, format.width - pad * 3, textAreaH - pad * 2, fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
+  }
+}
+
 // Brand farba pozadia, fotka vpravo (contain 30%), text+logo vľavo
 // Pre height < 300 — 728×90, 970×250, 1200×200
 function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
@@ -135,9 +365,11 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
   // Logo vľavo hore — max 45% výšky, max 64px
   const logoH = Math.min(Math.round(format.height * 0.45), 64);
   const logoW = Math.round(logoH * 3.5);
-  if (!format.noLogo) {
+  if (shouldShowLogo(format, layout, figmaLogo)) {
     placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
   }
+
+  if (!shouldShowHeadline(layout, headline)) return;
 
   // Headline pod logom — jasne oddelené
   const fontSize = Math.max(7, Math.min(layout.headline_size_px || 18, Math.floor(format.height * 0.20)));
@@ -195,11 +427,13 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
 
   // Logo hore vľavo — priamo na tmavom gradient scrimi (bez bielej karte)
   const pad = Math.round(Math.min(format.width, format.height) * 0.04);
-  if (!format.noLogo) {
+  if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoH = Math.min(Math.round(format.height * 0.09), 64);
     const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.42));
     placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
   }
+
+  if (!shouldShowHeadline(layout, headline)) return;
 
   // Headline dole
   const fontSize = Math.max(10, Math.min(layout.headline_size_px || 36, Math.floor(format.height * 0.07)));
@@ -247,9 +481,11 @@ function buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo
   const logoH = Math.min(Math.round(format.height * 0.10), 52);
   const logoW = Math.min(Math.round(logoH * 3.5), brandW - brandPad * 2);
   const logoTopY = Math.round(format.height * 0.07);
-  if (!format.noLogo) {
+  if (shouldShowLogo(format, layout, figmaLogo)) {
     placeLogo(frame, figmaLogo, photoW + brandPad, logoTopY, logoW, logoH);
   }
+
+  if (!shouldShowHeadline(layout, headline)) return;
 
   // Headline pod logom — s garantovaným oddelením
   const afterLogo = logoTopY + logoH + Math.round(format.height * 0.05);
@@ -284,7 +520,7 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
   frame.appendChild(logoZone);
 
   // Logo vycentrované v logo zóne (len ak formát logo povoluje)
-  if (!format.noLogo) {
+  if (shouldShowLogo(format, layout, figmaLogo)) {
     const lW = Math.round(Math.min(format.width * 0.55, logoH * 4));
     const lH = Math.round(logoH * 0.6);
     placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), Math.round((logoH - lH) / 2), lW, lH);
@@ -307,6 +543,8 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
   textRect.y = logoH + photoH;
   textRect.fills = [{ type: "SOLID", color: BRAND_COLOR }];
   frame.appendChild(textRect);
+
+  if (!shouldShowHeadline(layout, headline)) return;
 
   const fontSize = Math.max(8, Math.min(layout.headline_size_px || 14, Math.floor(format.width * 0.08)));
   const pad = Math.round(format.width * 0.06);
@@ -333,7 +571,7 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   const lPad = Math.round(format.height * 0.15);
   placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), lPad, lW, lH);
 
-  if (headline) {
+  if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.max(7, Math.min(Math.floor(format.height * 0.10), Math.floor(format.width * 0.06)));
     const txt = figma.createText();
     txt.fontName = { family: "Inter", style: "Bold" };
@@ -403,14 +641,16 @@ function buildBlurredBgLayout(frame, format, layout, headline, figmaImage, figma
   const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.48));
   const logoPad = 20;
 
-  if (!format.noLogo && format.logoPosition === "top") {
+  if (shouldShowLogo(format, layout, figmaLogo) && format.logoPosition === "top") {
     placeLogo(frame, figmaLogo, logoPad, logoPad, logoW, logoH);
-  } else if (!format.noLogo) {
+  } else if (shouldShowLogo(format, layout, figmaLogo)) {
     placeLogo(frame, figmaLogo, logoPad, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
   }
 
+  if (!shouldShowHeadline(layout, headline)) return;
+
   // Text: ak je logo v text zóne, text začína za ním
-  const hasLogoInZone = !format.noLogo && format.logoPosition !== "top";
+  const hasLogoInZone = shouldShowLogo(format, layout, figmaLogo) && format.logoPosition !== "top";
   const textX = hasLogoInZone ? logoPad + logoW + 14 : logoPad;
   const textW = format.width - textX - logoPad;
   const fontSize = Math.max(14, Math.min(layout.headline_size_px || 32, Math.floor(overlayH * 0.35)));

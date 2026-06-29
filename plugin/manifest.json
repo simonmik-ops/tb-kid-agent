@@ -6,6 +6,7 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["*"]
+    "allowedDomains": ["*"],
+    "reasoning": "Plugin komunikuje s Railway serverom pre AI analýzu vizuálu cez Claude API."
   }
 }

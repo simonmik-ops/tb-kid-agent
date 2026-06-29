@@ -220,23 +220,26 @@ function buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo
   const brandPad = Math.round(brandW * 0.08);
 
   // Logo hore v brand sekcii
+  const logoH = Math.min(Math.round(format.height * 0.10), 52);
+  const logoW = Math.min(Math.round(logoH * 3.5), brandW - brandPad * 2);
+  const logoTopY = Math.round(format.height * 0.07);
   if (!format.noLogo) {
-    const logoH = Math.min(Math.round(format.height * 0.10), 52);
-    const logoW = Math.round(logoH * 3.5);
-    placeLogo(frame, figmaLogo, photoW + brandPad, Math.round(format.height * 0.07), logoW, logoH);
+    placeLogo(frame, figmaLogo, photoW + brandPad, logoTopY, logoW, logoH);
   }
 
-  // Headline v strede brand sekcie — obmedzená šírka
-  const fontSize = Math.max(8, Math.min(layout.headline_size_px || 24, Math.floor(format.height * 0.10)));
+  // Headline pod logom — s garantovaným oddelením
+  const afterLogo = logoTopY + logoH + Math.round(format.height * 0.05);
+  const availTextH = format.height - afterLogo - Math.round(format.height * 0.05);
+  const fontSize = Math.max(8, Math.min(layout.headline_size_px || 24, Math.floor(availTextH * 0.45)));
   const txt = figma.createText();
   txt.fontName = { family: "Inter", style: "Bold" };
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.resize(brandW - brandPad * 2, format.height);
+  txt.resize(brandW - brandPad * 2, availTextH);
   txt.textAutoResize = "HEIGHT";
   txt.x = photoW + brandPad;
-  txt.y = Math.round(format.height * 0.35);
+  txt.y = afterLogo;
   frame.appendChild(txt);
 }
 
@@ -370,24 +373,30 @@ function buildBlurredBgLayout(frame, format, layout, headline, figmaImage, figma
   textBg.fills = [{ type: "SOLID", color: BRAND_COLOR, opacity: 0.88 }];
   frame.appendChild(textBg);
 
-  // Logo: Pinterest = hore (spec), ostatné = vľavo v text zóne dole
-  if (!format.noLogo) {
-    const logoH = Math.round(overlayH * 0.45);
-    const logoW = Math.round(logoH * 3.5);
-    if (format.logoPosition === "top") {
-      placeLogo(frame, figmaLogo, 20, 20, logoW, logoH);
-    } else {
-      placeLogo(frame, figmaLogo, 20, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
-    }
+  // Logo: Pinterest = hore nad fotkou, ostatné = vľavo v text zóne (max 56px výška)
+  const logoH = Math.min(Math.round(overlayH * 0.38), 56);
+  const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.48));
+  const logoPad = 20;
+
+  if (!format.noLogo && format.logoPosition === "top") {
+    placeLogo(frame, figmaLogo, logoPad, logoPad, logoW, logoH);
+  } else if (!format.noLogo) {
+    placeLogo(frame, figmaLogo, logoPad, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
   }
 
-  const fontSize = Math.max(10, Math.min(layout.headline_size_px || 32, Math.floor(format.height * 0.06)));
+  // Text: ak je logo v text zóne, text začína za ním
+  const hasLogoInZone = !format.noLogo && format.logoPosition !== "top";
+  const textX = hasLogoInZone ? logoPad + logoW + 14 : logoPad;
+  const textW = format.width - textX - logoPad;
+  const fontSize = Math.max(14, Math.min(layout.headline_size_px || 32, Math.floor(overlayH * 0.35)));
   const txt = figma.createText();
   txt.fontName = { family: "Inter", style: "Bold" };
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.x = 20;
+  txt.resize(textW, overlayH);
+  txt.textAutoResize = "HEIGHT";
+  txt.x = textX;
   txt.y = format.height - overlayH + Math.round((overlayH - fontSize * 1.2) / 2);
   frame.appendChild(txt);
 }

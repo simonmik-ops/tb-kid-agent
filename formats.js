@@ -25,6 +25,7 @@ const FORMATS = [
     ratio: "9:16",
     type: ["awareness"],
     count: 3,
+    noLogo: true,
     safeZones: { top: 269, bottom: 269 },
     notes: "Vizuál bez loga, iba headline. Voľná zóna ~14% hore aj dole."
   },
@@ -113,6 +114,7 @@ const FORMATS = [
     ratio: "2:3",
     type: ["awareness"],
     count: 3,
+    logoPosition: "top",
     safeZones: { top: 80, bottom: 80 },
     notes: "Logo viditeľné v hornej časti (nie spodný roh). Text overlay max 5 slov / 30% plochy. Cielenie: Ženy 30–50."
   },
@@ -493,6 +495,7 @@ const FORMATS = [
     ratio: "4:3",
     type: ["awareness", "hardsell"],
     count: 3,
+    noLogo: true,
     safeZones: { top: 0, bottom: 0 },
     notes: "Bez loga, centrovaný objekt. Min 375×250. Viac variantov pre A/B test."
   },

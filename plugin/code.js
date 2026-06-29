@@ -62,7 +62,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
       const layoutType = layout.layout_type || "full_bleed";
 
       const frame = figma.createFrame();
-      frame.name = format.name + " \u2014 " + adType.toUpperCase();
+      frame.name = format.name + " \u2014 " + adType.toUpperCase() + " [kid-062026]";
       frame.resize(format.width, format.height);
       frame.x = xOffset;
       frame.y = 0;
@@ -138,10 +138,12 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
     frame.appendChild(photoRect);
   }
 
-  // Logo vľavo hore
-  const logoH = Math.round(format.height * 0.35);
-  const logoW = Math.round(logoH * 3);
-  placeLogo(frame, figmaLogo, 12, Math.round((format.height - logoH) / 2) - Math.round(format.height * 0.15), logoW, logoH);
+  // Logo vľavo hore (len ak formát logo povoluje)
+  if (!format.noLogo) {
+    const logoH = Math.round(format.height * 0.35);
+    const logoW = Math.round(logoH * 3);
+    placeLogo(frame, figmaLogo, 12, Math.round((format.height - logoH) / 2) - Math.round(format.height * 0.15), logoW, logoH);
+  }
 
   // Headline vľavo — obmedzená šírka aby nepresahoval do foto zóny
   const textAreaW = format.width - photoW - 32;
@@ -175,10 +177,12 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   overlay.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.5 }];
   frame.appendChild(overlay);
 
-  // Logo vpravo hore (nad overlay zónou)
-  const logoH = Math.round(Math.min(overlayH * 0.55, format.width * 0.12));
-  const logoW = Math.round(logoH * 3.5);
-  placeLogo(frame, figmaLogo, format.width - logoW - 14, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
+  // Logo vpravo v overlay zóne (len ak formát logo povoluje)
+  if (!format.noLogo) {
+    const logoH = Math.round(Math.min(overlayH * 0.55, format.width * 0.12));
+    const logoW = Math.round(logoH * 3.5);
+    placeLogo(frame, figmaLogo, format.width - logoW - 14, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
+  }
 
   const fontSize = Math.max(10, Math.min(layout.headline_size_px || 36, Math.floor(format.height * 0.08)));
   const txt = figma.createText();
@@ -217,10 +221,12 @@ function buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo
 
   const brandW = format.width - photoW;
 
-  // Logo v hornej časti brand sekcie
-  const logoH = Math.round(Math.min(format.height * 0.12, 60));
-  const logoW = Math.round(logoH * 3.5);
-  placeLogo(frame, figmaLogo, photoW + Math.round((brandW - logoW) / 2), Math.round(format.height * 0.08), logoW, logoH);
+  // Logo v hornej časti brand sekcie (len ak formát logo povoluje)
+  if (!format.noLogo) {
+    const logoH = Math.round(Math.min(format.height * 0.12, 60));
+    const logoW = Math.round(logoH * 3.5);
+    placeLogo(frame, figmaLogo, photoW + Math.round((brandW - logoW) / 2), Math.round(format.height * 0.08), logoW, logoH);
+  }
 
   const fontSize = Math.max(8, Math.min(layout.headline_size_px || 24, Math.floor(format.height * 0.30)));
   const txt = figma.createText();
@@ -249,10 +255,12 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
   logoZone.fills = [{ type: "SOLID", color: BRAND_COLOR }];
   frame.appendChild(logoZone);
 
-  // Logo vycentrované v logo zóne
-  const lW = Math.round(Math.min(format.width * 0.55, logoH * 4));
-  const lH = Math.round(logoH * 0.6);
-  placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), Math.round((logoH - lH) / 2), lW, lH);
+  // Logo vycentrované v logo zóne (len ak formát logo povoluje)
+  if (!format.noLogo) {
+    const lW = Math.round(Math.min(format.width * 0.55, logoH * 4));
+    const lH = Math.round(logoH * 0.6);
+    placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), Math.round((logoH - lH) / 2), lW, lH);
+  }
 
   const photoRect = figma.createRectangle();
   photoRect.name = "Foto";
@@ -283,9 +291,10 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
   frame.appendChild(txt);
 }
 
-// Žiadna fotka — brand farba + logo + text
+// Žiadna fotka — logo + text. Google logo formáty majú transparentné pozadie.
 function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
-  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+  const isGoogleLogo = format.id === "google_logo_square" || format.id === "google_logo_wide";
+  frame.fills = isGoogleLogo ? [] : [{ type: "SOLID", color: BRAND_COLOR }];
 
   // Logo vycentrované v hornej polovici
   const lH = Math.round(Math.min(format.height * 0.40, format.width * 0.25));
@@ -352,10 +361,16 @@ function buildBlurredBgLayout(frame, format, layout, headline, figmaImage, figma
   textBg.fills = [{ type: "SOLID", color: BRAND_COLOR, opacity: 0.88 }];
   frame.appendChild(textBg);
 
-  // Logo vľavo v text zóne
-  const logoH = Math.round(overlayH * 0.45);
-  const logoW = Math.round(logoH * 3.5);
-  placeLogo(frame, figmaLogo, 20, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
+  // Logo: Pinterest = hore (spec), ostatné = vľavo v text zóne dole
+  if (!format.noLogo) {
+    const logoH = Math.round(overlayH * 0.45);
+    const logoW = Math.round(logoH * 3.5);
+    if (format.logoPosition === "top") {
+      placeLogo(frame, figmaLogo, 20, 20, logoW, logoH);
+    } else {
+      placeLogo(frame, figmaLogo, 20, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
+    }
+  }
 
   const fontSize = Math.max(10, Math.min(layout.headline_size_px || 32, Math.floor(format.height * 0.06)));
   const txt = figma.createText();

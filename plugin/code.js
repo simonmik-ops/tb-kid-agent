@@ -153,42 +153,50 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
   frame.appendChild(txt);
 }
 
-// Celý obrázok + brand overlay dole s textom + logo hore vľavo
+// Celý obrázok + čistý gradient dole + logo hore vľavo + text dole
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  if (figmaImage) {
-    frame.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
-  } else {
-    frame.fills = [{ type: "SOLID", color: { r: 0.9, g: 0.9, b: 0.9 } }];
-  }
+  frame.fills = figmaImage
+    ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
+    : [{ type: "SOLID", color: { r: 0.15, g: 0.15, b: 0.2 } }];
 
-  // Logo hore vľavo — mimo overlay, nekonflikuje s textom
+  // Gradient scrim — transparentný hore, tmavý dole
+  // gradientTransform [[0,1,0.5],[1,0,0]] = top→bottom
+  const gradRect = figma.createRectangle();
+  gradRect.name = "Gradient scrim";
+  gradRect.resize(format.width, format.height);
+  gradRect.x = 0;
+  gradRect.y = 0;
+  gradRect.fills = [{
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[0, 1, 0.5], [1, 0, 0]],
+    gradientStops: [
+      { position: 0,    color: { r: 0, g: 0, b: 0, a: 0 } },
+      { position: 0.42, color: { r: 0, g: 0, b: 0, a: 0 } },
+      { position: 1,    color: { r: 0, g: 0, b: 0, a: 0.72 } }
+    ]
+  }];
+  frame.appendChild(gradRect);
+
+  // Logo hore vľavo
+  const pad = Math.round(Math.min(format.width, format.height) * 0.04);
   if (!format.noLogo) {
-    const logoH = Math.min(Math.round(format.height * 0.10), 48);
-    const logoW = Math.round(logoH * 3.5);
-    const logoPad = Math.round(format.height * 0.04);
-    placeLogo(frame, figmaLogo, logoPad, logoPad, logoW, logoH);
+    const logoH = Math.min(Math.round(format.height * 0.09), 48);
+    const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.42));
+    placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
   }
 
-  // Brand overlay dole
-  const overlayH = layout.text_area_height_px || Math.round(format.height * 0.25);
-  const overlay = figma.createRectangle();
-  overlay.name = "Text overlay";
-  overlay.resize(format.width, overlayH);
-  overlay.x = 0;
-  overlay.y = format.height - overlayH;
-  overlay.fills = [{ type: "SOLID", color: BRAND_COLOR, opacity: 0.88 }];
-  frame.appendChild(overlay);
-
-  const fontSize = Math.max(10, Math.min(layout.headline_size_px || 36, Math.floor(format.height * 0.08)));
+  // Headline dole
+  const fontSize = Math.max(10, Math.min(layout.headline_size_px || 36, Math.floor(format.height * 0.07)));
+  const textBottomPad = Math.round(format.height * 0.06);
   const txt = figma.createText();
   txt.fontName = { family: "Inter", style: "Bold" };
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.resize(Math.round(format.width * 0.85), overlayH);
+  txt.resize(format.width - pad * 2, Math.round(format.height * 0.4));
   txt.textAutoResize = "HEIGHT";
-  txt.x = 16;
-  txt.y = format.height - overlayH + Math.round((overlayH - fontSize * 1.2) / 2);
+  txt.x = pad;
+  txt.y = format.height - textBottomPad - fontSize * 1.3;
   frame.appendChild(txt);
 }
 

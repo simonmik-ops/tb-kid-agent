@@ -126,17 +126,17 @@ function getLayoutStrategy(format, visualAnalysis) {
     };
   }
 
-  // Portrait formáty (ratio 0.3–0.75): blurred_bg — rozmazané pozadie + ostrý centrovaný objekt
-  // 9:16 stories, 2:3, 1:2 — vizuál je pripravený s objektom v strede
+  // Portrait formáty (ratio 0.3–0.75): full_bleed — FILL mode centruje subjekt, brand overlay dole
+  // Blurred_bg sa nepoužíva — funguje len s transparentnými PNG cutoutmi
   if (ratio < 0.75) {
     return {
-      layout_type: "blurred_bg",
-      image_fit: "fit",
+      layout_type: "full_bleed",
+      image_fit: "fill",
       photo_width_pct: 100,
-      crop_anchor_x: 0.5,
-      crop_anchor_y: 0.5,
+      crop_anchor_x: focalX,
+      crop_anchor_y: focalY,
       headline_position: "bottom",
-      logo_position: "top",
+      logo_position: "top-left",
       brand_color_pct: 0
     };
   }

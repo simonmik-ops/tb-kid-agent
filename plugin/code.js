@@ -159,20 +159,19 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
     : [{ type: "SOLID", color: { r: 0.15, g: 0.15, b: 0.2 } }];
 
-  // Gradient scrim — transparentný hore, tmavý dole
-  // gradientTransform [[0,1,0.5],[1,0,0]] = top→bottom
+  // Gradient scrim — iba dolná časť kde je text (nie celý obrázok)
+  const gradH = Math.round(format.height * 0.38);
   const gradRect = figma.createRectangle();
   gradRect.name = "Gradient scrim";
-  gradRect.resize(format.width, format.height);
+  gradRect.resize(format.width, gradH);
   gradRect.x = 0;
-  gradRect.y = 0;
+  gradRect.y = format.height - gradH;
   gradRect.fills = [{
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0.5], [1, 0, 0]],
     gradientStops: [
-      { position: 0,    color: { r: 0, g: 0, b: 0, a: 0 } },
-      { position: 0.42, color: { r: 0, g: 0, b: 0, a: 0 } },
-      { position: 1,    color: { r: 0, g: 0, b: 0, a: 0.72 } }
+      { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
+      { position: 1, color: { r: 0, g: 0, b: 0, a: 0.72 } }
     ]
   }];
   frame.appendChild(gradRect);

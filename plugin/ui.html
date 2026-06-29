@@ -44,6 +44,15 @@
   <input type="file" id="fileInput" accept="image/jpeg,image/png" style="display:none">
   <img id="preview" class="preview" alt="preview">
 
+  <label>Logo (png, transparentné pozadie)</label>
+  <div class="drop" id="dropLogo" onclick="document.getElementById('logoInput').click()">
+    <div class="drop-icon">🏷️</div>
+    <div class="drop-text" id="logoDropText">Pretiahni sem alebo klikni</div>
+    <div class="drop-hint">png s transparentným pozadím</div>
+  </div>
+  <input type="file" id="logoInput" accept="image/png" style="display:none">
+  <img id="logoPreview" class="preview" alt="logo preview">
+
   <label>Headline (voliteľné)</label>
   <input type="text" id="headline" placeholder="napr. KID — Kontokorent do 24 hodín">
 
@@ -75,9 +84,10 @@
 
 <script>
   let selectedFile = null;
+  let selectedLogo = null;
   let totalFormats = 0;
 
-  // Drag & drop
+  // Drag & drop — vizuál
   const drop = document.getElementById("drop");
   drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("active"); };
   drop.ondragleave = () => drop.classList.remove("active");
@@ -99,6 +109,34 @@
     const reader = new FileReader();
     reader.onload = (e) => {
       const preview = document.getElementById("preview");
+      preview.src = e.target.result;
+      preview.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Drag & drop — logo
+  const dropLogo = document.getElementById("dropLogo");
+  dropLogo.ondragover = (e) => { e.preventDefault(); dropLogo.classList.add("active"); };
+  dropLogo.ondragleave = () => dropLogo.classList.remove("active");
+  dropLogo.ondrop = (e) => {
+    e.preventDefault();
+    dropLogo.classList.remove("active");
+    const file = e.dataTransfer.files[0];
+    if (file) setLogo(file);
+  };
+
+  document.getElementById("logoInput").onchange = (e) => {
+    if (e.target.files[0]) setLogo(e.target.files[0]);
+  };
+
+  function setLogo(file) {
+    selectedLogo = file;
+    document.getElementById("logoDropText").textContent = file.name;
+    dropLogo.classList.add("active");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const preview = document.getElementById("logoPreview");
       preview.src = e.target.result;
       preview.style.display = "block";
     };
@@ -136,14 +174,21 @@
       totalFormats = data.formats.length;
       setStatus(`Načítavam obrázok...`, 55);
 
-      // Načítaj obrázok ako bytes pre Figma Plugin API
+      // Načítaj vizuál ako bytes
       const arrayBuffer = await selectedFile.arrayBuffer();
       const imageBytes = Array.from(new Uint8Array(arrayBuffer));
 
+      // Načítaj logo ako bytes (ak bolo nahrané)
+      let logoBytes = null;
+      if (selectedLogo) {
+        const logoBuffer = await selectedLogo.arrayBuffer();
+        logoBytes = Array.from(new Uint8Array(logoBuffer));
+      }
+
       setStatus(`Vytváram ${totalFormats} frames vo Figme...`, 60);
 
-      // Pošli dáta + obrázok do code.js (Figma plugin sandbox)
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes } } }, "*");
+      // Pošli dáta + obrázok + logo do code.js
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes } } }, "*");
 
     } catch (err) {
       btn.disabled = false;

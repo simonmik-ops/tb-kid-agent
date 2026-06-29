@@ -115,52 +115,45 @@ function placeLogo(frame, figmaLogo, x, y, w, h) {
 // Brand farba pozadia, fotka vpravo (contain 30%), text+logo vľavo
 // Pre height < 300 — 728×90, 970×250, 1200×200
 function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  // TB paleta: červená #C8102E alebo tmavomodrá #1A1A2E
-  // Použijeme extrahovanú farbu z vizuálu, fallback na tmavomodrú
-  const bgColor = {
-    r: layout.bg_r || 0.10,
-    g: layout.bg_g || 0.10,
-    b: layout.bg_b || 0.18
-  };
-  frame.fills = [{ type: "SOLID", color: bgColor }];
+  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
 
-  const photoW = Math.round(format.width * 0.30);
+  const pad = Math.round(format.height * 0.12);
+  const photoW = Math.round(format.width * 0.35);
+  const textZoneW = format.width - photoW - pad * 2;
 
-  // Fotka vpravo — len ak vizuál nie je príliš komplikovaný
-  if (figmaImage && !layout.is_complex_visual) {
+  // Fotka vpravo — FILL mode (oreže na plochu, bez čiernych okrajov)
+  if (figmaImage) {
     const photoRect = figma.createRectangle();
-    photoRect.name = "Foto (contain)";
+    photoRect.name = "Foto";
     photoRect.resize(photoW, format.height);
     photoRect.x = format.width - photoW;
     photoRect.y = 0;
-    // FIT = object-fit: contain — celá fotka viditeľná, tváre neodrezané
-    photoRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FIT" }];
+    photoRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
     frame.appendChild(photoRect);
   }
 
-  // Logo vľavo hore (len ak formát logo povoluje)
+  // Logo vľavo hore — max 40% výšky, max 55px
+  const logoH = Math.min(Math.round(format.height * 0.40), 55);
+  const logoW = Math.round(logoH * 3.5);
   if (!format.noLogo) {
-    const logoH = Math.round(format.height * 0.35);
-    const logoW = Math.round(logoH * 3);
-    placeLogo(frame, figmaLogo, 12, Math.round((format.height - logoH) / 2) - Math.round(format.height * 0.15), logoW, logoH);
+    placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
   }
 
-  // Headline vľavo — obmedzená šírka aby nepresahoval do foto zóny
-  const textAreaW = format.width - photoW - 32;
-  const fontSize = Math.max(7, Math.min(layout.headline_size_px || 18, Math.floor(format.height * 0.25)));
+  // Headline pod logom — jasne oddelené
+  const fontSize = Math.max(7, Math.min(layout.headline_size_px || 18, Math.floor(format.height * 0.20)));
   const txt = figma.createText();
   txt.fontName = { family: "Inter", style: "Bold" };
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.resize(textAreaW, format.height);
+  txt.resize(textZoneW, format.height);
   txt.textAutoResize = "HEIGHT";
-  txt.x = 16;
-  txt.y = Math.round((format.height - fontSize * 1.2) / 2);
+  txt.x = pad;
+  txt.y = pad + logoH + Math.round(format.height * 0.08);
   frame.appendChild(txt);
 }
 
-// Celý obrázok + tmavý overlay + text dole
+// Celý obrázok + brand overlay dole s textom + logo hore vľavo
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
   if (figmaImage) {
     frame.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
@@ -168,21 +161,23 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     frame.fills = [{ type: "SOLID", color: { r: 0.9, g: 0.9, b: 0.9 } }];
   }
 
+  // Logo hore vľavo — mimo overlay, nekonflikuje s textom
+  if (!format.noLogo) {
+    const logoH = Math.min(Math.round(format.height * 0.10), 48);
+    const logoW = Math.round(logoH * 3.5);
+    const logoPad = Math.round(format.height * 0.04);
+    placeLogo(frame, figmaLogo, logoPad, logoPad, logoW, logoH);
+  }
+
+  // Brand overlay dole
   const overlayH = layout.text_area_height_px || Math.round(format.height * 0.25);
   const overlay = figma.createRectangle();
   overlay.name = "Text overlay";
   overlay.resize(format.width, overlayH);
   overlay.x = 0;
   overlay.y = format.height - overlayH;
-  overlay.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.5 }];
+  overlay.fills = [{ type: "SOLID", color: BRAND_COLOR, opacity: 0.88 }];
   frame.appendChild(overlay);
-
-  // Logo vpravo v overlay zóne (len ak formát logo povoluje)
-  if (!format.noLogo) {
-    const logoH = Math.round(Math.min(overlayH * 0.55, format.width * 0.12));
-    const logoW = Math.round(logoH * 3.5);
-    placeLogo(frame, figmaLogo, format.width - logoW - 14, format.height - overlayH + Math.round((overlayH - logoH) / 2), logoW, logoH);
-  }
 
   const fontSize = Math.max(10, Math.min(layout.headline_size_px || 36, Math.floor(format.height * 0.08)));
   const txt = figma.createText();
@@ -190,6 +185,8 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  txt.resize(Math.round(format.width * 0.85), overlayH);
+  txt.textAutoResize = "HEIGHT";
   txt.x = 16;
   txt.y = format.height - overlayH + Math.round((overlayH - fontSize * 1.2) / 2);
   frame.appendChild(txt);
@@ -220,22 +217,26 @@ function buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo
   frame.appendChild(brandRect);
 
   const brandW = format.width - photoW;
+  const brandPad = Math.round(brandW * 0.08);
 
-  // Logo v hornej časti brand sekcie (len ak formát logo povoluje)
+  // Logo hore v brand sekcii
   if (!format.noLogo) {
-    const logoH = Math.round(Math.min(format.height * 0.12, 60));
+    const logoH = Math.min(Math.round(format.height * 0.10), 52);
     const logoW = Math.round(logoH * 3.5);
-    placeLogo(frame, figmaLogo, photoW + Math.round((brandW - logoW) / 2), Math.round(format.height * 0.08), logoW, logoH);
+    placeLogo(frame, figmaLogo, photoW + brandPad, Math.round(format.height * 0.07), logoW, logoH);
   }
 
-  const fontSize = Math.max(8, Math.min(layout.headline_size_px || 24, Math.floor(format.height * 0.30)));
+  // Headline v strede brand sekcie — obmedzená šírka
+  const fontSize = Math.max(8, Math.min(layout.headline_size_px || 24, Math.floor(format.height * 0.10)));
   const txt = figma.createText();
   txt.fontName = { family: "Inter", style: "Bold" };
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.x = photoW + 12;
-  txt.y = Math.round((format.height - fontSize * 1.2) / 2);
+  txt.resize(brandW - brandPad * 2, format.height);
+  txt.textAutoResize = "HEIGHT";
+  txt.x = photoW + brandPad;
+  txt.y = Math.round(format.height * 0.35);
   frame.appendChild(txt);
 }
 
@@ -277,16 +278,19 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
   textRect.resize(format.width, textH);
   textRect.x = 0;
   textRect.y = logoH + photoH;
-  textRect.fills = [{ type: "SOLID", color: { r: 0.95, g: 0.95, b: 0.95 } }];
+  textRect.fills = [{ type: "SOLID", color: BRAND_COLOR }];
   frame.appendChild(textRect);
 
-  const fontSize = Math.max(8, Math.min(layout.headline_size_px || 14, Math.floor(format.width * 0.10)));
+  const fontSize = Math.max(8, Math.min(layout.headline_size_px || 14, Math.floor(format.width * 0.08)));
+  const pad = Math.round(format.width * 0.06);
   const txt = figma.createText();
   txt.fontName = { family: "Inter", style: "Bold" };
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
-  txt.fills = [{ type: "SOLID", color: { r: 0.1, g: 0.1, b: 0.1 } }];
-  txt.x = Math.round(format.width * 0.08);
+  txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  txt.resize(format.width - pad * 2, textH);
+  txt.textAutoResize = "HEIGHT";
+  txt.x = pad;
   txt.y = logoH + photoH + Math.round((textH - fontSize * 1.4) / 2);
   frame.appendChild(txt);
 }
@@ -296,20 +300,25 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   const isGoogleLogo = format.id === "google_logo_square" || format.id === "google_logo_wide";
   frame.fills = isGoogleLogo ? [] : [{ type: "SOLID", color: BRAND_COLOR }];
 
-  // Logo vycentrované v hornej polovici
-  const lH = Math.round(Math.min(format.height * 0.40, format.width * 0.25));
+  // Logo vycentrované
+  const lH = Math.min(Math.round(format.height * 0.25), Math.round(format.width * 0.18), 80);
   const lW = Math.round(lH * 3.5);
-  placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), Math.round(format.height * 0.12), lW, lH);
+  const lPad = Math.round(format.height * 0.15);
+  placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), lPad, lW, lH);
 
-  const fontSize = Math.max(7, Math.floor(format.height * 0.18));
-  const txt = figma.createText();
-  txt.fontName = { family: "Inter", style: "Bold" };
-  txt.characters = headline || "HEADLINE";
-  txt.fontSize = fontSize;
-  txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.x = 12;
-  txt.y = Math.round(format.height * 0.65);
-  frame.appendChild(txt);
+  if (headline) {
+    const fontSize = Math.max(7, Math.min(Math.floor(format.height * 0.10), Math.floor(format.width * 0.06)));
+    const txt = figma.createText();
+    txt.fontName = { family: "Inter", style: "Bold" };
+    txt.characters = headline;
+    txt.fontSize = fontSize;
+    txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    txt.resize(format.width - 24, format.height);
+    txt.textAutoResize = "HEIGHT";
+    txt.x = 12;
+    txt.y = lPad + lH + Math.round(format.height * 0.06);
+    frame.appendChild(txt);
+  }
 }
 
 // Blurované pozadie (FILL) + ostrý centrovaný objekt (FIT) + text zóna dole

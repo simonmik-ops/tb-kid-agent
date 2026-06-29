@@ -6,6 +6,6 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["https://tb-kid-agent-production.up.railway.app"]
+    "allowedDomains": ["*"]
   }
 }

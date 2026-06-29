@@ -203,53 +203,28 @@ async function processAllFormats(imageBase64, mediaType, headline, adType) {
   const visualAnalysis = await analyzeVisual(imageBase64, mediaType);
   console.log("Analýza:", visualAnalysis);
 
-  const results = [];
-
-  // Filtruj formáty podľa typu (awareness/hardsell/remarketing)
   const relevantFormats = FORMATS.filter(f => f.type.includes(adType));
   console.log(`Relevantných formátov pre "${adType}": ${relevantFormats.length}`);
 
-  for (const format of relevantFormats) {
-    console.log(`Plánujem layout pre: ${format.name}`);
-    try {
-      const layout = await planLayout(visualAnalysis, format, headline, adType);
-      // Vždy nastav layout_type z deterministickej stratégie — Claude ho môže vynechať
-      const strategy = getLayoutStrategy(format, visualAnalysis);
-      layout.layout_type = strategy.layout_type;
-      layout.crop_anchor_x = strategy.crop_anchor_x;
-      layout.crop_anchor_y = strategy.crop_anchor_y;
-      layout.photo_width_pct = strategy.photo_width_pct;
-      // Pre strip: farba pozadia a info o komplexnosti
-      if (strategy.layout_type === "strip") {
-        layout.bg_r = visualAnalysis.bg_r || 0.1;
-        layout.bg_g = visualAnalysis.bg_g || 0.1;
-        layout.bg_b = visualAnalysis.bg_b || 0.18;
-        layout.is_complex_visual = visualAnalysis.is_complex_visual || false;
-      }
-      results.push({ format, layout, visualAnalysis });
-    } catch (err) {
-      console.error(`Chyba pri ${format.name}:`, err.message);
-      // Fallback layout
-      const fallbackStrategy = getLayoutStrategy(format, visualAnalysis);
-      results.push({
-        format,
-        layout: {
-          layout_type: fallbackStrategy.layout_type,
-          crop_anchor_x: fallbackStrategy.crop_anchor_x,
-          crop_anchor_y: fallbackStrategy.crop_anchor_y,
-          photo_width_pct: fallbackStrategy.photo_width_pct,
-          image_fit: "fill",
-          crop_anchor: "center",
-          headline_position: "bottom",
-          headline_size_px: Math.min(48, format.height * 0.08),
-          logo_position: "top-left",
-          text_area_height_px: 60,
-          reasoning: "fallback layout"
-        },
-        visualAnalysis
-      });
-    }
-  }
+  const results = relevantFormats.map(format => {
+    const strategy = getLayoutStrategy(format, visualAnalysis);
+    const layout = {
+      layout_type: strategy.layout_type,
+      image_fit: strategy.image_fit,
+      crop_anchor_x: strategy.crop_anchor_x,
+      crop_anchor_y: strategy.crop_anchor_y,
+      photo_width_pct: strategy.photo_width_pct,
+      headline_position: strategy.headline_position,
+      headline_size_px: Math.min(72, Math.max(10, Math.round(format.height * 0.07))),
+      logo_position: strategy.logo_position,
+      text_area_height_px: Math.round(format.height * 0.22),
+      bg_r: visualAnalysis.bg_r || 0.1,
+      bg_g: visualAnalysis.bg_g || 0.1,
+      bg_b: visualAnalysis.bg_b || 0.18,
+      is_complex_visual: visualAnalysis.is_complex_visual || false
+    };
+    return { format, layout, visualAnalysis };
+  });
 
   return results;
 }

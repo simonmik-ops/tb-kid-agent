@@ -14,11 +14,19 @@ function sleep(ms) {
 
 function isTransientAnthropicError(err) {
   const message = String(err && err.message ? err.message : err).toLowerCase();
+  const status = err && (err.status || err.statusCode || err.code);
+  const transientStatuses = new Set([408, 429, 500, 502, 503, 504, 529]);
+
+  if (transientStatuses.has(Number(status))) return true;
+
   return (
     message.includes("premature close") ||
     message.includes("socket hang up") ||
+    message.includes("connection terminated") ||
     message.includes("econnreset") ||
+    message.includes("econnrefused") ||
     message.includes("etimedout") ||
+    message.includes("timeout") ||
     message.includes("fetch failed") ||
     message.includes("network") ||
     message.includes("overloaded") ||

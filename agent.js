@@ -6,6 +6,51 @@ const client = new Anthropic({
   apiKey: (process.env.ANTHROPIC_API_KEY || "").replace(/\s/g, "")
 });
 
+const ANTHROPIC_MODEL = "claude-sonnet-4-5";
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isTransientAnthropicError(err) {
+  const message = String(err && err.message ? err.message : err).toLowerCase();
+  return (
+    message.includes("premature close") ||
+    message.includes("socket hang up") ||
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("overloaded") ||
+    message.includes("rate limit") ||
+    message.includes("529") ||
+    message.includes("500") ||
+    message.includes("502") ||
+    message.includes("503") ||
+    message.includes("504")
+  );
+}
+
+async function createMessageWithRetry(params, label) {
+  const maxAttempts = 3;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await client.messages.create(params);
+    } catch (err) {
+      lastError = err;
+      if (!isTransientAnthropicError(err) || attempt === maxAttempts) break;
+
+      const waitMs = 700 * attempt;
+      console.warn(`${label} zlyhalo (${attempt}/${maxAttempts}), skusam znova za ${waitMs} ms: ${err.message}`);
+      await sleep(waitMs);
+    }
+  }
+
+  throw new Error(`${label} zlyhalo po ${maxAttempts} pokusoch: ${lastError && lastError.message ? lastError.message : lastError}`);
+}
+
 const DEFAULT_VISUAL_RECIPE = {
   visualType: "centered_subject",
   subjectPosition: "center",
@@ -37,8 +82,8 @@ function recipeFocalPoint(recipe, visualAnalysis) {
 
 async function analyzeVisual(imageBase64, mediaType) {
   // Krok 1: Analyzuj vizuál
-  const analysis = await client.messages.create({
-    model: "claude-sonnet-4-5",
+  const analysis = await createMessageWithRetry({
+    model: ANTHROPIC_MODEL,
     max_tokens: 1000,
     messages: [{
       role: "user",
@@ -70,7 +115,7 @@ bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je t
         }
       ]
     }]
-  });
+  }, "Analyza vizualu");
 
   const text = analysis.content[0].text.trim();
   // Extrahuj JSON aj keby bol obalený v markdown bloku
@@ -323,8 +368,8 @@ async function planLayout(visualAnalysis, format, headline, adType, visualRecipe
   // Krok 2: Pre každý formát rozhodni o layoute
   const strategy = getLayoutStrategy(format, visualAnalysis, visualRecipe);
 
-  const plan = await client.messages.create({
-    model: "claude-sonnet-4-5",
+  const plan = await createMessageWithRetry({
+    model: ANTHROPIC_MODEL,
     max_tokens: 800,
     messages: [{
       role: "user",
@@ -355,7 +400,7 @@ Odpovedz VÝHRADNE v JSON bez akéhokoľvek iného textu:
   "reasoning": "krátke zdôvodnenie"
 }`
     }]
-  });
+  }, `Layout plan pre ${format.name}`);
 
   const text = plan.content[0].text.trim();
   const jsonMatch = text.match(/\{[\s\S]*\}/);

@@ -1,6 +1,6 @@
 // code.js
 try {
-  figma.showUI(__html__, { width: 500, height: 640 });
+  figma.showUI(__html__, { width: 500, height: 760 });
 } catch(e) {
   figma.closePlugin("Chyba pri štarte: " + e.message);
 }
@@ -23,7 +23,7 @@ figma.ui.onmessage = async (msg) => {
 
 const BRAND_COLOR = { r: 0.0, g: 0.18, b: 0.55 };
 
-async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes }) {
+async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe }) {
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
 
@@ -98,6 +98,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
         buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
       }
 
+      addRecipeTag(frame, layout.visual_recipe || visualRecipe);
       addSafeZones(frame, format);
 
       page.appendChild(frame);
@@ -113,6 +114,22 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
   if (allFrames.length > 0) figma.viewport.scrollAndZoomIntoView(allFrames.slice(0, 3));
 
   figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length });
+}
+
+function addRecipeTag(frame, recipe) {
+  if (!recipe) return;
+
+  const tag = figma.createText();
+  tag.name = "Recipe";
+  tag.fontName = { family: "Inter", style: "Regular" };
+  tag.characters = "Recipe: " + recipe.visualType + " / " + recipe.subjectPosition + " / " + recipe.cropMode;
+  tag.fontSize = Math.max(8, Math.min(13, Math.round(frame.height * 0.018)));
+  tag.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 }, opacity: 0.7 }];
+  tag.textAutoResize = "WIDTH_AND_HEIGHT";
+  tag.x = Math.round(Math.min(frame.width, frame.height) * 0.025);
+  tag.y = frame.height - Math.round(Math.min(frame.width, frame.height) * 0.025) - tag.height;
+  tag.locked = true;
+  frame.appendChild(tag);
 }
 
 // Pomocná funkcia: vloží logo do ľavého horného rohu (alebo inej pozície)
@@ -210,8 +227,8 @@ function buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, fi
   addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
   addSolidRect(frame, "Dim brand background", 0, 0, format.width, format.height, BRAND_COLOR, 0.34);
 
-  const topOffset = format.safeZones?.topOffset || 200;
-  const centerW = format.safeZones?.centerWidth || 1000;
+  const topOffset = (format.safeZones && format.safeZones.topOffset) || 200;
+  const centerW = (format.safeZones && format.safeZones.centerWidth) || 1000;
   const sideW = Math.round((format.width - centerW) / 2);
   const pad = 44;
   const logoH = 58;
@@ -229,7 +246,9 @@ function buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, fi
     addText(frame, headline, format.width - sideW + pad, y, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
   }
 
-  addSolidRect(frame, "Website content reserved", sideW, topOffset, centerW, format.height - topOffset, { r: 1, g: 1, b: 1 }, 0.94);
+  // Safe zóna stredového obsahu — jemná, len ako guide pre art directora
+  // (hlavné safe zone indikátory pridáva addSafeZones neskôr)
+  addSolidRect(frame, "Website content area", sideW, topOffset, centerW, format.height - topOffset, { r: 1, g: 1, b: 1 }, 0.08);
 }
 
 function buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
@@ -258,9 +277,9 @@ function buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaL
 }
 
 function getInterscrollerSafeBox(format) {
-  const top = format.safeZones?.top || 0;
-  const bottom = format.safeZones?.bottom || 0;
-  const sides = format.safeZones?.sides || 0;
+  const top = (format.safeZones && format.safeZones.top) || 0;
+  const bottom = (format.safeZones && format.safeZones.bottom) || 0;
+  const sides = (format.safeZones && format.safeZones.sides) || 0;
   return {
     x: sides,
     y: top,
@@ -358,7 +377,7 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
     photoRect.resize(photoW, format.height);
     photoRect.x = format.width - photoW;
     photoRect.y = 0;
-    photoRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+    photoRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: layout.image_fit === "contain" ? "FIT" : "FILL" }];
     frame.appendChild(photoRect);
   }
 
@@ -385,67 +404,57 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
   frame.appendChild(txt);
 }
 
-// Celý obrázok + čistý gradient dole + logo hore vľavo + text dole
+// Full bleed: foto na celý frame + brand blue gradient dole + logo hore + headline dole
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  frame.fills = figmaImage
-    ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
-    : [{ type: "SOLID", color: { r: 0.15, g: 0.15, b: 0.2 } }];
+  if (figmaImage && layout.image_fit === "contain") {
+    frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+    addImageRect(frame, figmaImage, "Foto - protected subject FIT", 0, 0, format.width, format.height, "FIT");
+  } else {
+    frame.fills = figmaImage
+      ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
+      : [{ type: "SOLID", color: { r: 0.1, g: 0.1, b: 0.18 } }];
+  }
 
-  // Horný gradient — tmavý prechod pre logo (top 28%)
-  const topGradH = Math.round(format.height * 0.28);
-  const topGradRect = figma.createRectangle();
-  topGradRect.name = "Top scrim";
-  topGradRect.resize(format.width, topGradH);
-  topGradRect.x = 0;
-  topGradRect.y = 0;
-  topGradRect.fills = [{
-    type: "GRADIENT_LINEAR",
-    gradientTransform: [[0, 1, 0.5], [1, 0, 0]],
-    gradientStops: [
-      { position: 0, color: { r: 0, g: 0, b: 0, a: 0.55 } },
-      { position: 1, color: { r: 0, g: 0, b: 0, a: 0 } }
-    ]
-  }];
-  frame.appendChild(topGradRect);
+  const pad = Math.round(clamp(Math.min(format.width, format.height) * 0.045, 12, 56));
 
-  // Dolný gradient scrim — pre text (bottom 40%)
-  const gradH = Math.round(format.height * 0.40);
+  // Brand blue gradient — 35% výšky od spodku, priehľadný hore → brand blue dole
+  const gradH = Math.round(format.height * 0.35);
   const gradRect = figma.createRectangle();
-  gradRect.name = "Bottom scrim";
+  gradRect.name = "Brand gradient";
   gradRect.resize(format.width, gradH);
   gradRect.x = 0;
   gradRect.y = format.height - gradH;
   gradRect.fills = [{
     type: "GRADIENT_LINEAR",
-    gradientTransform: [[0, 1, 0.5], [1, 0, 0]],
+    gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
-      { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
-      { position: 1, color: { r: 0, g: 0, b: 0, a: 0.78 } }
+      { position: 0, color: { r: 0, g: 0.18, b: 0.55, a: 0 } },
+      { position: 1, color: { r: 0, g: 0.18, b: 0.55, a: 0.94 } }
     ]
   }];
   frame.appendChild(gradRect);
 
-  // Logo hore vľavo — priamo na tmavom gradient scrimi (bez bielej karte)
-  const pad = Math.round(Math.min(format.width, format.height) * 0.04);
+  // Logo hore vľavo — fixný pad 5% šírky, výška 10% výšky (max 80px)
+  const logoPad = Math.round(clamp(format.width * 0.05, 14, 60));
   if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.min(Math.round(format.height * 0.09), 64);
-    const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.42));
-    placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
+    const logoH = Math.round(clamp(format.height * 0.10, 36, 80));
+    const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.50));
+    placeLogo(frame, figmaLogo, logoPad, logoPad, logoW, logoH);
   }
 
   if (!shouldShowHeadline(layout, headline)) return;
 
-  // Headline dole
-  const fontSize = Math.max(10, Math.min(layout.headline_size_px || 36, Math.floor(format.height * 0.07)));
-  const textBottomPad = Math.round(format.height * 0.06);
+  // Headline dole — v brand blue zóne
+  const fontSize = Math.round(clamp(format.height * 0.055, 12, 72));
+  const textBottomPad = Math.round(format.height * 0.055);
   const txt = figma.createText();
   txt.fontName = { family: "Inter", style: "Bold" };
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.resize(format.width - pad * 2, Math.round(format.height * 0.4));
+  txt.resize(format.width - logoPad * 2, Math.round(format.height * 0.35));
   txt.textAutoResize = "HEIGHT";
-  txt.x = pad;
+  txt.x = logoPad;
   txt.y = format.height - textBottomPad - fontSize * 1.3;
   frame.appendChild(txt);
 }
@@ -462,7 +471,7 @@ function buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo
   photoRect.x = 0;
   photoRect.y = 0;
   photoRect.fills = figmaImage
-    ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
+    ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: layout.image_fit === "contain" ? "FIT" : "FILL" }]
     : [{ type: "SOLID", color: { r: 0.85, g: 0.85, b: 0.85 } }];
   frame.appendChild(photoRect);
 
@@ -532,7 +541,7 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
   photoRect.x = 0;
   photoRect.y = logoH;
   photoRect.fills = figmaImage
-    ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
+    ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: layout.image_fit === "contain" ? "FIT" : "FILL" }]
     : [{ type: "SOLID", color: { r: 0.85, g: 0.85, b: 0.85 } }];
   frame.appendChild(photoRect);
 

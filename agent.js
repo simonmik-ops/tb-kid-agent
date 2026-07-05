@@ -6,6 +6,35 @@ const client = new Anthropic({
   apiKey: (process.env.ANTHROPIC_API_KEY || "").replace(/\s/g, "")
 });
 
+const DEFAULT_VISUAL_RECIPE = {
+  visualType: "centered_subject",
+  subjectPosition: "center",
+  cropMode: "protect_subject",
+  smallFormatMode: "brand_panel",
+  textMode: "auto",
+  logoMode: "auto"
+};
+
+function normalizeRecipe(visualRecipe) {
+  return { ...DEFAULT_VISUAL_RECIPE, ...(visualRecipe || {}) };
+}
+
+function recipeFocalPoint(recipe, visualAnalysis) {
+  const positions = {
+    center: [0.5, 0.5],
+    left: [0.32, 0.5],
+    right: [0.68, 0.5],
+    top: [0.5, 0.32],
+    bottom: [0.5, 0.68]
+  };
+
+  const fallback = positions[recipe.subjectPosition] || positions.center;
+  return {
+    x: visualAnalysis.recommended_focal_x || fallback[0],
+    y: visualAnalysis.recommended_focal_y || fallback[1]
+  };
+}
+
 async function analyzeVisual(imageBase64, mediaType) {
   // Krok 1: Analyzuj vizuál
   const analysis = await client.messages.create({
@@ -50,10 +79,15 @@ bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je t
   return JSON.parse(jsonMatch[0]);
 }
 
-function getLayoutStrategy(format, visualAnalysis) {
+function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
+  const recipe = normalizeRecipe(visualRecipe);
   const ratio = format.width / format.height;
-  const focalX = visualAnalysis.recommended_focal_x || 0.5;
-  const focalY = visualAnalysis.recommended_focal_y || 0.5;
+  const focal = recipeFocalPoint(recipe, visualAnalysis);
+  const focalX = focal.x;
+  const focalY = focal.y;
+  const protectSubject = recipe.cropMode !== "fill_frame" || recipe.visualType === "product_packshot" || recipe.visualType === "people_face";
+  const productLike = recipe.visualType === "product_packshot";
+  const typographyLed = recipe.visualType === "typography_led";
 
   const base = {
     image_fit: "fill",
@@ -63,9 +97,12 @@ function getLayoutStrategy(format, visualAnalysis) {
     headline_position: "bottom",
     logo_position: "top-left",
     brand_color_pct: 0,
-    show_headline: true,
+    show_headline: !typographyLed,
     show_logo: !format.noLogo,
-    safe_content: null
+    safe_content: null,
+    visual_recipe: recipe,
+    protect_subject: protectSubject,
+    risk_flags: []
   };
 
   // Logo assety — žiadna fotka, iba logo + farba (transparentné pozadie)
@@ -88,6 +125,7 @@ function getLayoutStrategy(format, visualAnalysis) {
     return {
       ...base,
       layout_type: "clean_image",
+      image_fit: productLike || protectSubject ? "contain" : "fill",
       show_headline: false,
       show_logo: false
     };
@@ -98,6 +136,7 @@ function getLayoutStrategy(format, visualAnalysis) {
     return {
       ...base,
       layout_type: "headline_only",
+      image_fit: productLike || protectSubject ? "contain" : "fill",
       show_logo: false,
       headline_position: ratio < 0.9 ? "bottom" : "left"
     };
@@ -187,13 +226,40 @@ function getLayoutStrategy(format, visualAnalysis) {
     };
   }
 
+  // Pri veľmi malých a úzkych banneroch je bezpečnejšie nepoužiť agresívny crop master vizuálu.
+  if (format.height <= 100 || (ratio > 4.5 && format.height <= 250)) {
+    if (recipe.smallFormatMode === "no_image") {
+      return {
+        ...base,
+        layout_type: "logo_only",
+        image_fit: "none",
+        photo_width_pct: 0,
+        headline_position: "center",
+        logo_position: "left",
+        brand_color_pct: 100,
+        risk_flags: ["small_format_no_image"]
+      };
+    }
+
+    return {
+      ...base,
+      layout_type: "strip",
+      image_fit: recipe.smallFormatMode === "detail" ? "fill" : "contain",
+      photo_width_pct: recipe.smallFormatMode === "detail" ? 28 : 22,
+      headline_position: "left",
+      logo_position: "left",
+      brand_color_pct: 100,
+      risk_flags: ["small_format_brand_panel"]
+    };
+  }
+
   // Ultra-široký A nízky (ratio > 3.5, height < 300): strip layout
   // — brand farba pozadia, fotka vpravo (contain, max 30%), text+logo vľavo
   if (ratio > 3.5 && format.height < 300) {
     return {
       ...base,
       layout_type: "strip",
-      image_fit: "contain",
+      image_fit: protectSubject ? "contain" : "fill",
       photo_width_pct: 30,
       headline_position: "left",
       logo_position: "left",
@@ -205,10 +271,10 @@ function getLayoutStrategy(format, visualAnalysis) {
   if (ratio > 3.5) {
     return {
       ...base,
-      layout_type: "split",
-      image_fit: "fill",
-      photo_width_pct: 40,
-      headline_position: "right",
+      layout_type: protectSubject ? "strip" : "split",
+      image_fit: protectSubject ? "contain" : "fill",
+      photo_width_pct: protectSubject ? 32 : 40,
+      headline_position: protectSubject ? "left" : "right",
       logo_position: "top-right",
       brand_color_pct: 60
     };
@@ -219,7 +285,7 @@ function getLayoutStrategy(format, visualAnalysis) {
     return {
       ...base,
       layout_type: "stacked",
-      image_fit: "fill",
+      image_fit: protectSubject ? "contain" : "fill",
       photo_width_pct: 100,
       headline_position: "bottom",
       logo_position: "top",
@@ -232,8 +298,8 @@ function getLayoutStrategy(format, visualAnalysis) {
   if (ratio < 0.75) {
     return {
       ...base,
-      layout_type: "full_bleed",
-      image_fit: "fill",
+      layout_type: protectSubject && productLike ? "blurred_bg" : "full_bleed",
+      image_fit: protectSubject ? "contain" : "fill",
       photo_width_pct: 100,
       headline_position: "bottom",
       logo_position: "top-left",
@@ -245,7 +311,7 @@ function getLayoutStrategy(format, visualAnalysis) {
   return {
     ...base,
     layout_type: "full_bleed",
-    image_fit: "fill",
+    image_fit: protectSubject && productLike ? "contain" : "fill",
     photo_width_pct: 100,
     headline_position: "bottom",
     logo_position: "top-left",
@@ -253,9 +319,9 @@ function getLayoutStrategy(format, visualAnalysis) {
   };
 }
 
-async function planLayout(visualAnalysis, format, headline, adType) {
+async function planLayout(visualAnalysis, format, headline, adType, visualRecipe) {
   // Krok 2: Pre každý formát rozhodni o layoute
-  const strategy = getLayoutStrategy(format, visualAnalysis);
+  const strategy = getLayoutStrategy(format, visualAnalysis, visualRecipe);
 
   const plan = await client.messages.create({
     model: "claude-sonnet-4-5",
@@ -297,16 +363,20 @@ Odpovedz VÝHRADNE v JSON bez akéhokoľvek iného textu:
   return JSON.parse(jsonMatch[0]);
 }
 
-async function processAllFormats(imageBase64, mediaType, headline, adType) {
+async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe) {
+  const recipe = normalizeRecipe(visualRecipe);
   console.log("Analyzujem vizuál...");
   const visualAnalysis = await analyzeVisual(imageBase64, mediaType);
+  visualAnalysis.recommended_focal_x = recipeFocalPoint(recipe, visualAnalysis).x;
+  visualAnalysis.recommended_focal_y = recipeFocalPoint(recipe, visualAnalysis).y;
+  visualAnalysis.visual_recipe = recipe;
   console.log("Analýza:", visualAnalysis);
 
   const relevantFormats = FORMATS.filter(f => f.type.includes(adType));
   console.log(`Relevantných formátov pre "${adType}": ${relevantFormats.length}`);
 
   const results = relevantFormats.map(format => {
-    const strategy = getLayoutStrategy(format, visualAnalysis);
+    const strategy = getLayoutStrategy(format, visualAnalysis, recipe);
     const layout = {
       layout_type: strategy.layout_type,
       image_fit: strategy.image_fit,
@@ -323,7 +393,10 @@ async function processAllFormats(imageBase64, mediaType, headline, adType) {
       is_complex_visual: visualAnalysis.is_complex_visual || false,
       show_headline: strategy.show_headline !== false,
       show_logo: strategy.show_logo !== false,
-      safe_content: strategy.safe_content || null
+      safe_content: strategy.safe_content || null,
+      visual_recipe: recipe,
+      protect_subject: strategy.protect_subject || false,
+      risk_flags: strategy.risk_flags || []
     };
     return { format, layout, visualAnalysis };
   });

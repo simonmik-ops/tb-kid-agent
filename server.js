@@ -23,6 +23,7 @@ app.use((req, res, next) => {
 app.post("/analyze", upload.single("visual"), async (req, res) => {
   try {
     const { headline, adType } = req.body;
+    const visualRecipe = parseVisualRecipe(req.body.visualRecipe);
     const file = req.file;
 
     if (!file) return res.status(400).json({ error: "Chýba vizuál" });
@@ -31,9 +32,9 @@ app.post("/analyze", upload.single("visual"), async (req, res) => {
     const base64 = imageData.toString("base64");
     const mediaType = file.mimetype;
 
-    console.log(`Analyzujem: "${headline}" | Typ: ${adType}`);
+    console.log(`Analyzujem: "${headline}" | Typ: ${adType} | Recipe: ${visualRecipe.visualType}`);
 
-    const formatResults = await processAllFormats(base64, mediaType, headline, adType);
+    const formatResults = await processAllFormats(base64, mediaType, headline, adType, visualRecipe);
 
     fs.unlinkSync(file.path);
 
@@ -43,6 +44,7 @@ app.post("/analyze", upload.single("visual"), async (req, res) => {
     res.json({
       headline,
       adType,
+      visualRecipe,
       formats: formatResults.map(({ format, layout }) => ({ format, layout }))
     });
 
@@ -51,6 +53,25 @@ app.post("/analyze", upload.single("visual"), async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+function parseVisualRecipe(raw) {
+  const fallback = {
+    visualType: "centered_subject",
+    subjectPosition: "center",
+    cropMode: "protect_subject",
+    smallFormatMode: "brand_panel",
+    textMode: "auto",
+    logoMode: "auto"
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    return { ...fallback, ...JSON.parse(raw) };
+  } catch (err) {
+    return fallback;
+  }
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`TB KID Agent beží na porte ${PORT}`));

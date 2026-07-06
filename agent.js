@@ -40,7 +40,7 @@ function isTransientAnthropicError(err) {
 }
 
 async function createMessageWithRetry(params, label) {
-  const maxAttempts = 3;
+  const maxAttempts = 5;
   let lastError = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -50,7 +50,7 @@ async function createMessageWithRetry(params, label) {
       lastError = err;
       if (!isTransientAnthropicError(err) || attempt === maxAttempts) break;
 
-      const waitMs = 700 * attempt;
+      const waitMs = Math.min(1000 * (2 ** (attempt - 1)), 8000) + Math.floor(Math.random() * 400);
       console.warn(`${label} zlyhalo (${attempt}/${maxAttempts}), skusam znova za ${waitMs} ms: ${err.message}`);
       await sleep(waitMs);
     }

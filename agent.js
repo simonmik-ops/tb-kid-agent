@@ -107,6 +107,7 @@ async function analyzeVisual(imageBase64, mediaType) {
   "subject_position": "kde je hlavný objekt (napr. center, left, right, bottom-right)",
   "focal_point": "čo je najdôležitejší vizuálny prvok",
   "has_text": true,
+  "has_logo": false,
   "background": "popis pozadia",
   "color_dominant": "dominantná farba pozadia slovom",
   "bg_r": 0.1,
@@ -119,7 +120,7 @@ async function analyzeVisual(imageBase64, mediaType) {
   "recommended_focal_x": 0.5,
   "recommended_focal_y": 0.5
 }
-bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je true ak je vizuál príliš detailný/rušný na použitie v malom priestore (napr. veľa postáv, rušné pozadie).`
+bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je true ak je vizuál príliš detailný/rušný na použitie v malom priestore (napr. veľa postáv, rušné pozadie). has_text je true ak je v obrázku už vypálený (natívny) text/headline. has_logo je true ak je v obrázku už viditeľné akékoľvek logo alebo brand mark (napr. VISA, značka produktu) — nepočíta sa Tatra banka logo, ktoré dopĺňa nástroj.`
         }
       ]
     }]
@@ -142,6 +143,26 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   const productLike = recipe.visualType === "product_packshot";
   const typographyLed = recipe.visualType === "typography_led";
 
+  // Vizuál môže už mať vypálený text/logo (napr. hotová kompozícia od tímu, VISA logo na fotke kreditky).
+  // Human input (recipe.textMode/logoMode) má prednosť; "auto" necháva rozhodnúť AI odhad z analyzeVisual,
+  // ale pridá risk_flag, aby si vedela, že ide o odhad, nie o istotu.
+  const riskFlags = [];
+
+  const textBakedIn = recipe.textMode === "baked_in" ||
+    (recipe.textMode === "auto" && visualAnalysis.has_text === true);
+  if (recipe.textMode === "auto" && visualAnalysis.has_text === true) {
+    riskFlags.push("ai_detected_baked_in_text");
+  }
+
+  const logoBakedIn = recipe.logoMode === "baked_in" ||
+    (recipe.logoMode === "auto" && visualAnalysis.has_logo === true);
+  if (recipe.logoMode === "auto" && visualAnalysis.has_logo === true) {
+    riskFlags.push("ai_detected_baked_in_logo");
+  }
+
+  const forceHeadline = recipe.textMode === "add";
+  const forceLogo = recipe.logoMode === "add";
+
   const base = {
     image_fit: "fill",
     photo_width_pct: 100,
@@ -150,12 +171,12 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     headline_position: "bottom",
     logo_position: "top-left",
     brand_color_pct: 0,
-    show_headline: !typographyLed,
-    show_logo: !format.noLogo,
+    show_headline: !typographyLed && (forceHeadline || !textBakedIn),
+    show_logo: !format.noLogo && (forceLogo || !logoBakedIn),
     safe_content: null,
     visual_recipe: recipe,
     protect_subject: protectSubject,
-    risk_flags: []
+    risk_flags: riskFlags
   };
 
   // Logo assety — žiadna fotka, iba logo + farba (transparentné pozadie)
@@ -208,9 +229,11 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     };
   }
 
-  // Samostatné bočné branding plochy: message/logo držať v úzkej safe zóne.
+  // Samostatné bočné/úzke branding plochy: message/logo držať v definovanej safe zóne (safeInner z formats.js),
+  // nie v generickom "malý formát" odhade.
   if (
     format.id === "markiza_branding_side" ||
+    format.id === "markiza_branding_leader" ||
     format.id === "zenske_branding_side" ||
     format.id === "topky_branding"
   ) {
@@ -290,7 +313,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
         headline_position: "center",
         logo_position: "left",
         brand_color_pct: 100,
-        risk_flags: ["small_format_no_image"]
+        risk_flags: [...riskFlags, "small_format_no_image"]
       };
     }
 
@@ -302,7 +325,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       headline_position: "left",
       logo_position: "left",
       brand_color_pct: 100,
-      risk_flags: ["small_format_brand_panel"]
+      risk_flags: [...riskFlags, "small_format_brand_panel"]
     };
   }
 

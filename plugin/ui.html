@@ -107,8 +107,24 @@
           <option value="detail">Detail fotky</option>
         </select>
       </div>
+      <div>
+        <label>Text v obrázku</label>
+        <select id="textMode">
+          <option value="auto">Auto (AI odhadne)</option>
+          <option value="baked_in">Už má text — nepridávaj</option>
+          <option value="add">Nemá text — vždy pridaj</option>
+        </select>
+      </div>
+      <div>
+        <label>Logo v obrázku</label>
+        <select id="logoMode">
+          <option value="auto">Auto (AI odhadne)</option>
+          <option value="baked_in">Už má logo — nepridávaj</option>
+          <option value="add">Nemá logo — vždy pridaj</option>
+        </select>
+      </div>
     </div>
-    <div class="hint">Default je stredový objekt. Plugin drží hlavný prvok v bezpečnej zóne a pri úzkych banneroch radšej použije brand panel.</div>
+    <div class="hint">Default je stredový objekt. Plugin drží hlavný prvok v bezpečnej zóne a pri úzkych banneroch radšej použije brand panel. Pri "Auto" si plugin sám odhadne, či je v obrázku už text/logo — takéto formáty označí oranžovým rámom na kontrolu.</div>
   </div>
 
   <button class="primary" id="btn" onclick="generate()">Generovať vo Figme</button>
@@ -261,7 +277,11 @@
       setStatus("Hotovo!", 100);
       document.getElementById("result").style.display = "block";
       document.getElementById("resultTitle").textContent = `${msg.formatCount} formátov vytvorených v ${msg.pageCount} pages`;
-      document.getElementById("resultSub").textContent = "Frames sú organizované podľa kanálu (Social, Meta, Google...). Skontroluj pages v ľavom paneli.";
+      let sub = "Frames sú organizované podľa kanálu (Social, Meta, Google...). Skontroluj pages v ľavom paneli.";
+      if (msg.riskFlaggedCount > 0) {
+        sub += ` ⚠ ${msg.riskFlaggedCount} formátov má oranžový rám — plugin si nebol istý (napr. možný text/logo už v obrázku) a treba ich skontrolovať manuálne.`;
+      }
+      document.getElementById("resultSub").textContent = sub;
       document.getElementById("btn").disabled = false;
     }
 
@@ -283,8 +303,8 @@
       subjectPosition: document.getElementById("subjectPosition").value,
       cropMode: document.getElementById("cropMode").value,
       smallFormatMode: document.getElementById("smallFormatMode").value,
-      textMode: "auto",
-      logoMode: "auto"
+      textMode: document.getElementById("textMode").value,
+      logoMode: document.getElementById("logoMode").value
     };
   }
 

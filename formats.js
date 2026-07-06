@@ -329,8 +329,8 @@ const FORMATS = [
     ratio: "5:1",
     type: ["awareness"],
     count: 1,
-    safeZones: { left: 0, right: 0 },
-    notes: "Hlavný odkaz max 140px od okraja. Časť brandingu."
+    safeZones: { safeInner: { width: 720, height: 200 } },
+    notes: "Hlavný odkaz max 140px od okraja (720px stred z 1000px šírky). Časť brandingu."
   },
   {
     id: "markiza_branding_side",
@@ -443,7 +443,7 @@ const FORMATS = [
     ratio: "4:15",
     type: ["awareness"],
     count: 2,
-    safeZones: { top: 0, bottom: 0 },
+    safeZones: { safeInner: { width: 120, height: 600 } },
     notes: "Message, logo a text v 120×600. Zvyšok — pozadie."
   },
   {

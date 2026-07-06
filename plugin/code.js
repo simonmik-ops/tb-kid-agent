@@ -46,6 +46,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
 
   const allFrames = [];
   const channels = Object.keys(byChannel);
+  let riskFlaggedCount = 0;
 
   for (const channel of channels) {
     const items = byChannel[channel];
@@ -100,6 +101,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
 
       addRecipeTag(frame, layout.visual_recipe || visualRecipe);
       addSafeZones(frame, format);
+      if (addRiskFlagBadge(frame, format, layout.risk_flags)) riskFlaggedCount++;
 
       page.appendChild(frame);
       allFrames.push(frame);
@@ -113,7 +115,52 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
   if (firstPage) figma.currentPage = firstPage;
   if (allFrames.length > 0) figma.viewport.scrollAndZoomIntoView(allFrames.slice(0, 3));
 
-  figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length });
+  figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length, riskFlaggedCount });
+}
+
+// Human-čitateľné popisky pre risk_flags z agent.js — musia sedieť s kódmi tam generovanými.
+const RISK_FLAG_LABELS = {
+  small_format_no_image: "Malý formát — bez fotky",
+  small_format_brand_panel: "Malý formát — brand panel",
+  ai_detected_baked_in_text: "AI odhadla, že vizuál už má text",
+  ai_detected_baked_in_logo: "AI odhadla, že vizuál už má logo"
+};
+
+// Vizuálne upozornenie na frame, keď plugin nie je istý (odhad, nie pravidlo).
+// Vracia true, ak bol frame oznacený, aby vedela zratať count na summary hlásenie.
+function addRiskFlagBadge(frame, format, flags) {
+  if (!flags || flags.length === 0) return false;
+
+  const WARN_COLOR = { r: 0.93, g: 0.52, b: 0.05 };
+  const labels = flags.map(f => RISK_FLAG_LABELS[f] || f);
+
+  frame.strokes = [{ type: "SOLID", color: WARN_COLOR }];
+  frame.strokeWeight = Math.max(2, Math.round(Math.min(format.width, format.height) * 0.012));
+  frame.strokeAlign = "INSIDE";
+
+  const badge = figma.createText();
+  badge.name = "Risk flag text";
+  badge.fontName = { family: "Inter", style: "Bold" };
+  badge.characters = "⚠ SKONTROLUJ: " + labels.join(", ");
+  badge.fontSize = Math.max(9, Math.min(14, Math.round(Math.min(format.width, format.height) * 0.03)));
+  badge.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  badge.textAutoResize = "WIDTH_AND_HEIGHT";
+  badge.locked = true;
+
+  const badgeBg = figma.createRectangle();
+  badgeBg.name = "Risk flag bg";
+  badgeBg.resize(badge.width + 16, badge.height + 10);
+  badgeBg.x = 4;
+  badgeBg.y = 4;
+  badgeBg.fills = [{ type: "SOLID", color: WARN_COLOR }];
+  badgeBg.locked = true;
+
+  badge.x = badgeBg.x + 8;
+  badge.y = badgeBg.y + 5;
+
+  frame.appendChild(badgeBg);
+  frame.appendChild(badge);
+  return true;
 }
 
 function addRecipeTag(frame, recipe) {

@@ -62,13 +62,17 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
       const layoutType = layout.layout_type || "full_bleed";
 
       const frame = figma.createFrame();
-      frame.name = format.name + " \u2014 " + adType.toUpperCase() + " [kid-062026]";
+      const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
+      const sideName = format.variantSide ? " " + format.variantSide.toUpperCase() : "";
+      frame.name = format.name + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [kid-062026]";
       frame.resize(format.width, format.height);
       frame.x = xOffset;
       frame.y = 0;
       frame.clipsContent = true;
 
-      if (layoutType === "clean_image") {
+      if (layoutType === "video_placeholder") {
+        buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+      } else if (layoutType === "clean_image") {
         buildCleanImageLayout(frame, format, layout, figmaImage);
       } else if (layoutType === "headline_only") {
         buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage);
@@ -99,6 +103,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
       }
 
       addRecipeTag(frame, layout.visual_recipe || visualRecipe);
+      addValidationBadge(frame, layout);
       addSafeZones(frame, format);
 
       page.appendChild(frame);
@@ -111,9 +116,93 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
 
   const firstPage = Array.from(figma.root.children).find(p => p.name === channels[0]);
   if (firstPage) figma.currentPage = firstPage;
+  createValidationReport(formats, headline, adType);
   if (allFrames.length > 0) figma.viewport.scrollAndZoomIntoView(allFrames.slice(0, 3));
 
   figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length });
+}
+
+function createValidationReport(formats, headline, adType) {
+  const rows = [];
+  for (const item of formats) {
+    const warnings = (item.layout && item.layout.validation_warnings) || [];
+    if (!warnings.length) continue;
+    const format = item.format;
+    rows.push({
+      name: format.name + (format.variantLabel ? " " + format.variantLabel : ""),
+      channel: format.channel,
+      warnings
+    });
+  }
+
+  let page = Array.from(figma.root.children).find(p => p.name === "Validation report");
+  if (!page) {
+    page = figma.createPage();
+    page.name = "Validation report";
+  }
+
+  const frame = figma.createFrame();
+  frame.name = "Validation report - " + adType.toUpperCase();
+  frame.resize(1100, Math.max(620, 180 + rows.length * 72));
+  frame.x = 0;
+  frame.y = 0;
+  frame.fills = [{ type: "SOLID", color: { r: 0.97, g: 0.98, b: 1 } }];
+  page.appendChild(frame);
+
+  addText(frame, "Kontrola exportov", 48, 40, 900, 48, 34, BRAND_COLOR);
+  addText(frame, headline || "Bez headline", 48, 92, 900, 36, 18, { r: 0.25, g: 0.28, b: 0.33 });
+
+  if (!rows.length) {
+    addText(frame, "Bez automatických upozornení. Stále skontroluj crop, čitateľnosť a logo pred exportom.", 48, 170, 900, 80, 20, { r: 0.15, g: 0.44, b: 0.24 });
+    return;
+  }
+
+  let y = 160;
+  for (const row of rows) {
+    addSolidRect(frame, "Warning row", 40, y - 10, 1020, 58, { r: 1, g: 1, b: 1 }, 1);
+    addText(frame, row.channel + " / " + row.name, 56, y, 320, 30, 15, BRAND_COLOR);
+    addText(frame, humanizeWarnings(row.warnings), 390, y, 640, 42, 13, { r: 0.32, g: 0.23, b: 0.08 });
+    y += 72;
+  }
+}
+
+function humanizeWarnings(warnings) {
+  const labels = {
+    video_needs_manual_motion: "Video: vytvorený je iba statický placeholder.",
+    static_thumbnail_only: "Skontrolovať thumbnail a ručný motion/export.",
+    video_format_requires_manual_animation_or_export: "Vyžaduje video export alebo animáciu mimo tohto pluginu.",
+    uploaded_visual_contains_text_but_this_asset_should_be_clean_image: "Google/DemandGen image asset má byť bez textu/loga.",
+    headline_may_overflow_small_format: "Headline môže byť dlhý pre malý formát.",
+    pinterest_text_over_5_words: "Pinterest text by mal mať max. 5 slov / 30% plochy.",
+    image_uses_fit_check_background_edges: "Obrázok je vo FIT režime, skontroluj okraje/pozadie.",
+    small_or_wide_format_check_readability: "Malý alebo veľmi široký formát, skontroluj čitateľnosť.",
+    safe_zone_overlay_present_check_final_export: "Je pridaná safe-zone vrstva, pred exportom skontroluj pravidlá."
+  };
+  return warnings.map(w => labels[w] || w).join(" ");
+}
+
+function addValidationBadge(frame, layout) {
+  const warnings = (layout && layout.validation_warnings) || [];
+  if (!warnings.length) return;
+
+  const pad = Math.round(clamp(Math.min(frame.width, frame.height) * 0.025, 8, 20));
+  const badgeW = Math.round(clamp(frame.width * 0.44, 120, 420));
+  const badgeH = Math.round(clamp(frame.height * 0.055, 28, 54));
+  addSolidRect(frame, "Validation warning badge", frame.width - badgeW - pad, pad, badgeW, badgeH, { r: 1, g: 0.78, b: 0.20 }, 0.92);
+
+  const text = figma.createText();
+  text.name = "Validation warning";
+  text.fontName = { family: "Inter", style: "Bold" };
+  text.characters = warnings.length + " check" + (warnings.length > 1 ? "s" : "");
+  text.fontSize = Math.round(clamp(badgeH * 0.42, 10, 18));
+  text.fills = [{ type: "SOLID", color: { r: 0.22, g: 0.16, b: 0.02 } }];
+  text.textAlignHorizontal = "CENTER";
+  text.textAutoResize = "HEIGHT";
+  text.resize(badgeW - 12, badgeH);
+  text.x = frame.width - badgeW - pad + 6;
+  text.y = pad + Math.round(badgeH * 0.25);
+  text.locked = true;
+  frame.appendChild(text);
 }
 
 function addRecipeTag(frame, recipe) {
@@ -196,6 +285,30 @@ function addSolidRect(frame, name, x, y, w, h, color, opacity) {
   return rect;
 }
 
+function buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+  addImageRect(frame, figmaImage, "Thumbnail base - manual video needed", 0, 0, format.width, format.height, "FILL");
+  addSolidRect(frame, "Video dim overlay", 0, 0, format.width, format.height, BRAND_COLOR, 0.46);
+
+  const topSafe = (format.safeZones && format.safeZones.top) || 0;
+  const bottomSafe = (format.safeZones && format.safeZones.bottom) || 0;
+  const pad = getReadablePad(format);
+  const safeY = topSafe + pad;
+  const safeH = format.height - topSafe - bottomSafe - pad * 2;
+
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const logoH = Math.round(clamp(format.height * 0.055, 42, 76));
+    const logoW = Math.min(Math.round(logoH * 3.5), format.width - pad * 2);
+    placeLogo(frame, figmaLogo, pad, safeY, logoW, logoH);
+  }
+
+  const panelH = Math.round(clamp(format.height * 0.18, 140, 260));
+  const panelY = topSafe + safeH - panelH;
+  addSolidRect(frame, "Manual video note panel", pad, panelY, format.width - pad * 2, panelH, { r: 1, g: 1, b: 1 }, 0.92);
+  addText(frame, "VIDEO PLACEHOLDER", pad * 1.6, panelY + pad, format.width - pad * 3.2, 34, Math.round(clamp(format.width * 0.038, 22, 42)), BRAND_COLOR, "CENTER");
+  addText(frame, headline || "Doplniť motion/storyboard", pad * 1.6, panelY + pad + 52, format.width - pad * 3.2, panelH - pad * 2 - 52, Math.round(clamp(format.width * 0.032, 18, 34)), { r: 0.12, g: 0.14, b: 0.18 }, "CENTER");
+}
+
 function getReadablePad(format) {
   return Math.round(clamp(Math.min(format.width, format.height) * 0.055, 12, 64));
 }
@@ -246,9 +359,17 @@ function buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, fi
     addText(frame, headline, format.width - sideW + pad, y, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
   }
 
-  // Safe zóna stredového obsahu — jemná, len ako guide pre art directora
-  // (hlavné safe zone indikátory pridáva addSafeZones neskôr)
-  addSolidRect(frame, "Website content area", sideW, topOffset, centerW, format.height - topOffset, { r: 1, g: 1, b: 1 }, 0.08);
+  const isJoj = format.id === "joj_branding";
+  addSolidRect(
+    frame,
+    isJoj ? "JOJ white website content area" : "Website content area guide",
+    sideW,
+    topOffset,
+    centerW,
+    format.height - topOffset,
+    { r: 1, g: 1, b: 1 },
+    isJoj ? 1 : 0.08
+  );
 }
 
 function buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo) {

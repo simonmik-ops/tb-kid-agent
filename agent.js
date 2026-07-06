@@ -83,9 +83,44 @@ function recipeFocalPoint(recipe, visualAnalysis) {
 
   const fallback = positions[recipe.subjectPosition] || positions.center;
   return {
-    x: visualAnalysis.recommended_focal_x || fallback[0],
-    y: visualAnalysis.recommended_focal_y || fallback[1]
+    x: fallback[0],
+    y: fallback[1],
+    source: "manual_recipe"
   };
+}
+
+function isVideoFormat(format) {
+  return format.id.includes("video") || format.id.includes("reels") || format.id.includes("tiktok");
+}
+
+function shouldContainImage(format, recipe, visualAnalysis) {
+  const ratio = format.width / format.height;
+  const imageIsHardToCrop = visualAnalysis.is_complex_visual || recipe.visualType === "product_packshot" || recipe.visualType === "people_face";
+  const narrowOrTiny = format.height <= 100 || ratio > 3.5 || ratio < 0.3;
+
+  if (recipe.cropMode === "fill_frame") return false;
+  if (recipe.cropMode === "contain_if_risky") return imageIsHardToCrop && narrowOrTiny;
+  if (recipe.visualType === "product_packshot") return true;
+  return imageIsHardToCrop && narrowOrTiny;
+}
+
+function expandFormatVariants(format) {
+  const count = Math.max(1, Number(format.count || 1));
+  return Array.from({ length: count }, (_, index) => {
+    const variantIndex = index + 1;
+    const variantSide = count === 2 && (format.id.includes("side") || format.id.includes("branding"))
+      ? (variantIndex === 1 ? "left" : "right")
+      : null;
+
+    return {
+      ...format,
+      variantIndex,
+      variantCount: count,
+      variantLabel: count > 1 ? `v${variantIndex}/${count}` : "",
+      variantSide,
+      baseId: format.id
+    };
+  });
 }
 
 async function analyzeVisual(imageBase64, mediaType) {
@@ -138,6 +173,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   const focal = recipeFocalPoint(recipe, visualAnalysis);
   const focalX = focal.x;
   const focalY = focal.y;
+  const containImage = shouldContainImage(format, recipe, visualAnalysis);
   const protectSubject = recipe.cropMode !== "fill_frame" || recipe.visualType === "product_packshot" || recipe.visualType === "people_face";
   const productLike = recipe.visualType === "product_packshot";
   const typographyLed = recipe.visualType === "typography_led";
@@ -155,8 +191,21 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     safe_content: null,
     visual_recipe: recipe,
     protect_subject: protectSubject,
+    focal_source: focal.source,
     risk_flags: []
   };
+
+  if (isVideoFormat(format)) {
+    return {
+      ...base,
+      layout_type: "video_placeholder",
+      image_fit: "fill",
+      headline_position: "safe-bottom",
+      logo_position: format.noLogo ? "none" : "safe-top",
+      show_logo: !format.noLogo,
+      risk_flags: ["video_needs_manual_motion", "static_thumbnail_only"]
+    };
+  }
 
   // Logo assety — žiadna fotka, iba logo + farba (transparentné pozadie)
   if (format.id === "google_logo_wide" || format.id === "google_logo_square") {
@@ -178,7 +227,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: "clean_image",
-      image_fit: productLike || protectSubject ? "contain" : "fill",
+      image_fit: containImage ? "contain" : "fill",
       show_headline: false,
       show_logo: false
     };
@@ -189,7 +238,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: "headline_only",
-      image_fit: productLike || protectSubject ? "contain" : "fill",
+      image_fit: containImage ? "contain" : "fill",
       show_logo: false,
       headline_position: ratio < 0.9 ? "bottom" : "left"
     };
@@ -217,7 +266,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: "side_safe",
-      image_fit: "fill",
+      image_fit: recipe.smallFormatMode === "detail" ? "fill" : "contain",
       headline_position: "center",
       logo_position: "top",
       safe_content: format.safeZones?.safeInner || { width: Math.min(format.width, 160), height: Math.min(format.height, 600) }
@@ -242,7 +291,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       layout_type: "native_center",
       show_logo: false,
       headline_position: "bottom",
-      image_fit: "fill"
+      image_fit: containImage ? "contain" : "fill"
     };
   }
 
@@ -312,7 +361,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: "strip",
-      image_fit: protectSubject ? "contain" : "fill",
+      image_fit: containImage ? "contain" : "fill",
       photo_width_pct: 30,
       headline_position: "left",
       logo_position: "left",
@@ -324,10 +373,10 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   if (ratio > 3.5) {
     return {
       ...base,
-      layout_type: protectSubject ? "strip" : "split",
-      image_fit: protectSubject ? "contain" : "fill",
-      photo_width_pct: protectSubject ? 32 : 40,
-      headline_position: protectSubject ? "left" : "right",
+      layout_type: containImage ? "strip" : "split",
+      image_fit: containImage ? "contain" : "fill",
+      photo_width_pct: containImage ? 32 : 40,
+      headline_position: containImage ? "left" : "right",
       logo_position: "top-right",
       brand_color_pct: 60
     };
@@ -338,7 +387,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: "stacked",
-      image_fit: protectSubject ? "contain" : "fill",
+      image_fit: containImage ? "contain" : "fill",
       photo_width_pct: 100,
       headline_position: "bottom",
       logo_position: "top",
@@ -352,7 +401,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: protectSubject && productLike ? "blurred_bg" : "full_bleed",
-      image_fit: protectSubject ? "contain" : "fill",
+      image_fit: containImage ? "contain" : "fill",
       photo_width_pct: 100,
       headline_position: "bottom",
       logo_position: "top-left",
@@ -364,12 +413,35 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   return {
     ...base,
     layout_type: "full_bleed",
-    image_fit: protectSubject && productLike ? "contain" : "fill",
+    image_fit: containImage ? "contain" : "fill",
     photo_width_pct: 100,
     headline_position: "bottom",
     logo_position: "top-left",
     brand_color_pct: 0
   };
+}
+
+function buildValidationWarnings(format, layout, visualAnalysis, headline) {
+  const warnings = [];
+  const ratio = format.width / format.height;
+  const safeZones = format.safeZones || {};
+  const hasMeaningfulSafeZone = Object.values(safeZones).some(value => {
+    if (typeof value === "number") return value > 0;
+    return value && typeof value === "object";
+  });
+
+  if (layout.risk_flags && layout.risk_flags.length) warnings.push(...layout.risk_flags);
+  if (isVideoFormat(format)) warnings.push("video_format_requires_manual_animation_or_export");
+  if ((format.id.startsWith("google_rsa_") || format.id.startsWith("demandgen_")) && visualAnalysis.has_text) {
+    warnings.push("uploaded_visual_contains_text_but_this_asset_should_be_clean_image");
+  }
+  if (headline && headline.length > 55 && format.width < 400) warnings.push("headline_may_overflow_small_format");
+  if (headline && headline.split(/\s+/).length > 5 && format.id === "pinterest_pin") warnings.push("pinterest_text_over_5_words");
+  if (layout.image_fit === "contain" && !format.id.startsWith("google_logo_")) warnings.push("image_uses_fit_check_background_edges");
+  if (ratio > 4.5 || format.height <= 100) warnings.push("small_or_wide_format_check_readability");
+  if (hasMeaningfulSafeZone) warnings.push("safe_zone_overlay_present_check_final_export");
+
+  return [...new Set(warnings)];
 }
 
 async function planLayout(visualAnalysis, format, headline, adType, visualRecipe) {
@@ -425,7 +497,7 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
   visualAnalysis.visual_recipe = recipe;
   console.log("Analýza:", visualAnalysis);
 
-  const relevantFormats = FORMATS.filter(f => f.type.includes(adType));
+  const relevantFormats = FORMATS.filter(f => f.type.includes(adType)).flatMap(expandFormatVariants);
   console.log(`Relevantných formátov pre "${adType}": ${relevantFormats.length}`);
 
   const results = relevantFormats.map(format => {
@@ -451,6 +523,7 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
       protect_subject: strategy.protect_subject || false,
       risk_flags: strategy.risk_flags || []
     };
+    layout.validation_warnings = buildValidationWarnings(format, layout, visualAnalysis, headline);
     return { format, layout, visualAnalysis };
   });
 

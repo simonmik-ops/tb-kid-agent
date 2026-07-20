@@ -120,6 +120,12 @@
     <div class="hint">Default je stredový objekt. Plugin drží hlavný prvok v bezpečnej zóne a pri úzkych banneroch radšej použije brand panel.</div>
   </div>
 
+  <label style="display:flex;align-items:center;gap:8px;margin-top:16px;cursor:pointer;font-weight:600;">
+    <input type="checkbox" id="showGuides" style="width:auto;">
+    Pridať pomôcky (safe zóny, štítky, report)
+  </label>
+  <div class="hint" style="margin-top:4px;">Vypnuté = čisté frames na prezentáciu/export. Zapnuté = s vodiacimi vrstvami na kontrolu.</div>
+
   <button class="primary" id="btn" onclick="generate()">Generovať vo Figme</button>
 
   <div class="progress" id="progress">
@@ -248,7 +254,8 @@
       setStatus(`Vytváram ${totalFormats} frames vo Figme...`, 60);
 
       // Pošli dáta + obrázok + logo do code.js
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes, visualRecipe } } }, "*");
+      const showGuides = document.getElementById("showGuides").checked;
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes, visualRecipe, showGuides } } }, "*");
 
     } catch (err) {
       btn.disabled = false;

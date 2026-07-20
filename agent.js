@@ -207,6 +207,55 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     };
   }
 
+  // ── ROLE branch ────────────────────────────────────────────────
+  // Nové kampane (KK Visa, Hypotéka, BSU, Tiger) deklarujú správanie
+  // explicitne cez format.role, aby nezáviseli od id-string matchingu.
+  // Existujúce KID formáty rolu nemajú → padnú do pôvodnej logiky nižšie.
+  if (format.role) {
+    const r = format.role;
+    if (r === "logo_only") {
+      return { ...base, layout_type: "logo_only", image_fit: "none", photo_width_pct: 0,
+        headline_position: "center", logo_position: "center", brand_color_pct: 0,
+        show_headline: false, show_logo: true };
+    }
+    if (r === "clean_image") {
+      return { ...base, layout_type: "clean_image", image_fit: containImage ? "contain" : "fill",
+        show_headline: false, show_logo: false };
+    }
+    if (r === "headline_only") {
+      return { ...base, layout_type: "headline_only", image_fit: containImage ? "contain" : "fill",
+        show_logo: false, headline_position: ratio < 0.9 ? "bottom" : "left" };
+    }
+    if (r === "branding_full") {
+      return { ...base, layout_type: "branding_skin", image_fit: "fill", photo_width_pct: 100,
+        headline_position: "sides", logo_position: "top-sides", safe_content: format.safeZones };
+    }
+    if (r === "branding_side") {
+      return { ...base, layout_type: "side_safe",
+        image_fit: recipe.smallFormatMode === "detail" ? "fill" : "contain",
+        headline_position: "center", logo_position: "top",
+        safe_content: format.safeZones?.safeInner || { width: Math.min(format.width, 160), height: Math.min(format.height, 600) } };
+    }
+    if (r === "interscroller") {
+      return { ...base, layout_type: "interscroller_safe", image_fit: "fill",
+        headline_position: "safe-bottom", logo_position: "safe-top", safe_content: format.safeZones };
+    }
+    if (r === "native") {
+      return { ...base, layout_type: "native_center", show_logo: false,
+        headline_position: "bottom", image_fit: containImage ? "contain" : "fill" };
+    }
+    if (r === "email") {
+      return { ...base, layout_type: "email_layout", image_fit: "fill",
+        headline_position: "below-image", logo_position: "top" };
+    }
+    if (r === "pinterest") {
+      return { ...base, layout_type: "pinterest_pin", headline_position: "bottom",
+        logo_position: "top", safe_content: { maxTextAreaPct: 30 } };
+    }
+    // r === "full_creative" alebo neznáme → padne do ratio logiky nižšie
+    // (fotka fill + headline + logo podľa pomeru strán)
+  }
+
   // Logo assety — žiadna fotka, iba logo + farba (transparentné pozadie)
   if (format.id === "google_logo_wide" || format.id === "google_logo_square") {
     return {
@@ -488,8 +537,10 @@ Odpovedz VÝHRADNE v JSON bez akéhokoľvek iného textu:
   return JSON.parse(jsonMatch[0]);
 }
 
-async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe) {
+async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe, campaign) {
   const recipe = normalizeRecipe(visualRecipe);
+  // Spätná kompatibilita: keď kampaň nepríde, správame sa ako predtým (KID).
+  const activeCampaign = campaign || "kid";
   console.log("Analyzujem vizuál...");
   const visualAnalysis = await analyzeVisual(imageBase64, mediaType);
   visualAnalysis.recommended_focal_x = recipeFocalPoint(recipe, visualAnalysis).x;
@@ -497,8 +548,10 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
   visualAnalysis.visual_recipe = recipe;
   console.log("Analýza:", visualAnalysis);
 
-  const relevantFormats = FORMATS.filter(f => f.type.includes(adType)).flatMap(expandFormatVariants);
-  console.log(`Relevantných formátov pre "${adType}": ${relevantFormats.length}`);
+  const relevantFormats = FORMATS
+    .filter(f => (f.campaign || "kid") === activeCampaign && f.type.includes(adType))
+    .flatMap(expandFormatVariants);
+  console.log(`Relevantných formátov pre "${activeCampaign}" / "${adType}": ${relevantFormats.length}`);
 
   const results = relevantFormats.map(format => {
     const strategy = getLayoutStrategy(format, visualAnalysis, recipe);

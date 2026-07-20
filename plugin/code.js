@@ -23,7 +23,8 @@ figma.ui.onmessage = async (msg) => {
 
 const BRAND_COLOR = { r: 0.0, g: 0.18, b: 0.55 };
 
-async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe }) {
+async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging }) {
+  const campaignTag = tagging || "kid-062026";
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
 
@@ -64,7 +65,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
       const sideName = format.variantSide ? " " + format.variantSide.toUpperCase() : "";
-      frame.name = format.name + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [kid-062026]";
+      frame.name = format.name + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
       frame.resize(format.width, format.height);
       frame.x = xOffset;
       frame.y = 0;

@@ -4,6 +4,8 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const { processAllFormats } = require("./agent");
+const FORMATS = require("./formats");
+const CAMPAIGNS = FORMATS.campaigns || {};
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
@@ -23,6 +25,7 @@ app.use((req, res, next) => {
 app.post("/analyze", upload.single("visual"), async (req, res) => {
   try {
     const { headline, adType } = req.body;
+    const campaign = req.body.campaign || "kid"; // spätná kompatibilita
     const visualRecipe = parseVisualRecipe(req.body.visualRecipe);
     const file = req.file;
 
@@ -32,18 +35,21 @@ app.post("/analyze", upload.single("visual"), async (req, res) => {
     const base64 = imageData.toString("base64");
     const mediaType = file.mimetype;
 
-    console.log(`Analyzujem: "${headline}" | Typ: ${adType} | Recipe: ${visualRecipe.visualType}`);
+    console.log(`Analyzujem: "${headline}" | Kampaň: ${campaign} | Typ: ${adType} | Recipe: ${visualRecipe.visualType}`);
 
-    const formatResults = await processAllFormats(base64, mediaType, headline, adType, visualRecipe);
+    const formatResults = await processAllFormats(base64, mediaType, headline, adType, visualRecipe, campaign);
 
     fs.unlinkSync(file.path);
 
-    console.log(`Hotovo — ${formatResults.length} formátov naplánovaných`);
+    const tagging = (CAMPAIGNS[campaign] && CAMPAIGNS[campaign].tagging) || "kid-062026";
+    console.log(`Hotovo — ${formatResults.length} formátov naplánovaných (${tagging})`);
 
     // Vráť dáta plugin-u — ten vytvorí frames priamo vo Figme
     res.json({
       headline,
       adType,
+      campaign,
+      tagging,
       visualRecipe,
       formats: formatResults.map(({ format, layout }) => ({ format, layout }))
     });

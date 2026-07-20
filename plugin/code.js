@@ -23,8 +23,11 @@ figma.ui.onmessage = async (msg) => {
 
 const BRAND_COLOR = { r: 0.0, g: 0.18, b: 0.55 };
 
-async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging }) {
+async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging, showGuides }) {
   const campaignTag = tagging || "kid-062026";
+  // Pomôcky (safe zóny, "Recipe" štítok, "checks" badge, validation report)
+  // sa dajú vypnúť pre čistý výstup na prezentáciu / export. Default = zapnuté.
+  const guides = showGuides !== false;
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
 
@@ -103,9 +106,11 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
         buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
       }
 
-      addRecipeTag(frame, layout.visual_recipe || visualRecipe);
-      addValidationBadge(frame, layout);
-      addSafeZones(frame, format);
+      if (guides) {
+        addRecipeTag(frame, layout.visual_recipe || visualRecipe);
+        addValidationBadge(frame, layout);
+        addSafeZones(frame, format);
+      }
 
       page.appendChild(frame);
       allFrames.push(frame);
@@ -117,7 +122,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
 
   const firstPage = Array.from(figma.root.children).find(p => p.name === channels[0]);
   if (firstPage) figma.currentPage = firstPage;
-  createValidationReport(formats, headline, adType);
+  if (guides) createValidationReport(formats, headline, adType);
   if (allFrames.length > 0) figma.viewport.scrollAndZoomIntoView(allFrames.slice(0, 3));
 
   figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length });

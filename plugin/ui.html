@@ -40,14 +40,32 @@
   <h1>TB KID 2026</h1>
   <p class="sub">Nahraj vizuál → agent naplánuje layouty → frames sa vytvoria tu vo Figme</p>
 
-  <label>Vizuál (jpg / png)</label>
+  <label>Vizuál — štvorec 1:1 (hlavný)</label>
   <div class="drop" id="drop" onclick="document.getElementById('fileInput').click()">
-    <div class="drop-icon">📁</div>
-    <div class="drop-text" id="dropText">Pretiahni sem alebo klikni</div>
-    <div class="drop-hint">jpg / png, min. 1200px odporúčané</div>
+    <div class="drop-icon">🟦</div>
+    <div class="drop-text" id="dropText">Štvorcový KV — klikni alebo pretiahni</div>
+    <div class="drop-hint">použije sa na 1:1 formáty (a ako záloha)</div>
   </div>
   <input type="file" id="fileInput" accept="image/jpeg,image/png" style="display:none">
   <img id="preview" class="preview" alt="preview">
+
+  <label>Vizuál — na výšku (voliteľné)</label>
+  <div class="drop" id="dropPortrait" onclick="document.getElementById('portraitInput').click()">
+    <div class="drop-icon">▯</div>
+    <div class="drop-text" id="portraitText">Vertikálny KV — klikni alebo pretiahni</div>
+    <div class="drop-hint">9:16, 4:5, skyscrapery, interscrollery</div>
+  </div>
+  <input type="file" id="portraitInput" accept="image/jpeg,image/png" style="display:none">
+  <img id="portraitPreview" class="preview" alt="portrait preview">
+
+  <label>Vizuál — na šírku (voliteľné)</label>
+  <div class="drop" id="dropLandscape" onclick="document.getElementById('landscapeInput').click()">
+    <div class="drop-icon">▭</div>
+    <div class="drop-text" id="landscapeText">Horizontálny KV — klikni alebo pretiahni</div>
+    <div class="drop-hint">1.91:1, leaderboardy, wide bannery</div>
+  </div>
+  <input type="file" id="landscapeInput" accept="image/jpeg,image/png" style="display:none">
+  <img id="landscapePreview" class="preview" alt="landscape preview">
 
   <label>Logo (png, transparentné pozadie)</label>
   <div class="drop" id="dropLogo" onclick="document.getElementById('logoInput').click()">
@@ -60,6 +78,9 @@
 
   <label>Headline (voliteľné)</label>
   <input type="text" id="headline" placeholder="napr. KID — Kontokorent do 24 hodín">
+
+  <label>Podnadpis (voliteľné)</label>
+  <input type="text" id="subheadline" placeholder="napr. Zistite viac o kreditke">
 
   <label>Kampaň</label>
   <select id="campaign">
@@ -212,6 +233,37 @@
     reader.readAsDataURL(file);
   }
 
+  // KV na výšku / na šírku (rovnaký overený vzor ako hlavný KV)
+  let selectedPortrait = null;
+  let selectedLandscape = null;
+
+  function previewInto(previewId, file) {
+    const r = new FileReader();
+    r.onload = (e) => { const p = document.getElementById(previewId); p.src = e.target.result; p.style.display = "block"; };
+    r.readAsDataURL(file);
+  }
+  function wireDrop(dropId, inputId, setter) {
+    const d = document.getElementById(dropId);
+    d.ondragover = (e) => { e.preventDefault(); d.classList.add("active"); };
+    d.ondragleave = () => d.classList.remove("active");
+    d.ondrop = (e) => { e.preventDefault(); d.classList.remove("active"); const f = e.dataTransfer.files[0]; if (f) setter(f); };
+    document.getElementById(inputId).onchange = (e) => { if (e.target.files[0]) setter(e.target.files[0]); };
+  }
+  function setPortrait(file) {
+    selectedPortrait = file;
+    document.getElementById("portraitText").textContent = file.name;
+    document.getElementById("dropPortrait").classList.add("active");
+    previewInto("portraitPreview", file);
+  }
+  function setLandscape(file) {
+    selectedLandscape = file;
+    document.getElementById("landscapeText").textContent = file.name;
+    document.getElementById("dropLandscape").classList.add("active");
+    previewInto("landscapePreview", file);
+  }
+  wireDrop("dropPortrait", "portraitInput", setPortrait);
+  wireDrop("dropLandscape", "landscapeInput", setLandscape);
+
   async function generate() {
     if (!selectedFile) { showError("Nahraj vizuál"); return; }
 
@@ -246,23 +298,24 @@
       totalFormats = data.formats.length;
       setStatus(`Načítavam obrázok...`, 55);
 
-      // Načítaj vizuál ako bytes
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      const imageBytes = Array.from(new Uint8Array(arrayBuffer));
-
-      // Načítaj logo ako bytes (ak bolo nahrané)
-      let logoBytes = null;
-      if (selectedLogo) {
-        const logoBuffer = await selectedLogo.arrayBuffer();
-        logoBytes = Array.from(new Uint8Array(logoBuffer));
+      // Načítaj všetky KV + logo ako bytes
+      async function toBytes(file) {
+        if (!file) return null;
+        const b = await file.arrayBuffer();
+        return Array.from(new Uint8Array(b));
       }
+      const kvSquareBytes = await toBytes(selectedFile);
+      const kvPortraitBytes = await toBytes(selectedPortrait);
+      const kvLandscapeBytes = await toBytes(selectedLandscape);
+      const logoBytes = await toBytes(selectedLogo);
 
       setStatus(`Vytváram ${totalFormats} frames vo Figme...`, 60);
 
-      // Pošli dáta + obrázok + logo do code.js
+      // Pošli dáta + KV (3 orientácie) + logo do code.js
       const showGuides = document.getElementById("showGuides").checked;
       const aiGenerated = document.getElementById("aiGenerated").checked;
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes, visualRecipe, showGuides, aiGenerated } } }, "*");
+      const subheadline = document.getElementById("subheadline").value;
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, subheadline, visualRecipe, showGuides, aiGenerated } } }, "*");
 
     } catch (err) {
       btn.disabled = false;

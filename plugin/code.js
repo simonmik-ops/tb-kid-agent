@@ -46,6 +46,12 @@ let FONT = { family: "Inter", style: "Bold" };
 // FILL vs CONTAIN podľa Surďovho pravidla „keď sa subjekt nezmestí → Contain".
 let KV_RATIO = null;
 
+// Podnadpis (Surď: prvok SUBHDL) — voliteľný, pod headlineom.
+let SUBHEAD = "";
+
+// Je AI disclosure zapnutá? (aby si text vyhradil miesto a neprekryl AI tag)
+let AI_ON = false;
+
 async function resolveBrandFont() {
   try {
     await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
@@ -81,30 +87,35 @@ function addAiNote(frame, format) {
   t.locked = true;
 }
 
-async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
+async function createAllFrames({ formats, headline, subheadline, adType, imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
+  SUBHEAD = (subheadline || "").trim();
   const campaignTag = tagging || "kid-062026";
-  // Pomôcky (safe zóny, "Recipe" štítok, "checks" badge, validation report)
-  // sa dajú vypnúť pre čistý výstup na prezentáciu / export. Default = zapnuté.
   const guides = showGuides !== false;
   const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
+  AI_ON = aiNote;
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
 
-  var figmaImage = null;
-  KV_RATIO = null;
-  if (imageBytes && imageBytes.length > 0) {
-    figmaImage = figma.createImage(new Uint8Array(imageBytes));
-    try {
-      const s = await figmaImage.getSizeAsync();
-      if (s && s.height) KV_RATIO = s.width / s.height;
-    } catch (e) { /* getSizeAsync nedostupné */ }
+  function mkImage(bytes) {
+    if (!bytes || !bytes.length) return null;
+    try { return figma.createImage(new Uint8Array(bytes)); } catch (e) { return null; }
+  }
+  // KV pre 3 orientácie; imageBytes = spätná kompatibilita (starý single vstup → štvorec)
+  const imgSquare = mkImage(kvSquareBytes || imageBytes);
+  const imgPortrait = mkImage(kvPortraitBytes);
+  const imgLandscape = mkImage(kvLandscapeBytes);
+
+  // Vyber KV podľa orientácie formátu — každý formát dostane vizuál pre svoj
+  // tvar, takže sa nič neoreže zle. Fallback na dostupné.
+  function pickKV(format) {
+    const r = format.width / format.height;
+    if (r >= 1.25) return imgLandscape || imgSquare || imgPortrait;
+    if (r <= 0.8) return imgPortrait || imgSquare || imgLandscape;
+    return imgSquare || imgPortrait || imgLandscape;
   }
 
-  var figmaLogo = null;
-  if (logoBytes && logoBytes.length > 0) {
-    figmaLogo = figma.createImage(new Uint8Array(logoBytes));
-  }
+  var figmaLogo = mkImage(logoBytes);
 
   const byChannel = {};
   for (const item of formats) {
@@ -129,6 +140,7 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
 
     for (const { format, layout } of items) {
       const layoutType = layout.layout_type || "full_bleed";
+      const figmaImage = pickKV(format); // KV podľa orientácie formátu
 
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
@@ -606,16 +618,12 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
 // Full bleed podľa Surďovej predlohy: KV na celý frame + jemný tmavý gradient
 // dole + headline biely vľavo dole (Tatra banka Sans) + logo VPRAVO DOLE.
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  // Surď: „keď sa subjekt nezmestí → Contain (celý vizuál viditeľný, okraje =
-  // brand farba)". Ak sa pomer strán KV a formátu líši výrazne, použijeme CONTAIN
-  // (celý KV vidno, žiadny orez), inak FILL (plný záber, Surďov look).
-  const frameRatio = format.width / format.height;
-  const mismatch = KV_RATIO ? Math.max(KV_RATIO / frameRatio, frameRatio / KV_RATIO) : 1;
-  const useContain = layout.image_fit === "contain" || mismatch > 1.35;
-
-  if (figmaImage && useContain) {
+  // FILL = plný záber (Surďov look pre surovú fotku). CONTAIN len keď to výslovne
+  // rozhodne engine. Pozn.: pri HOTOVEJ kompozícii (napálené číslo) žiadny režim
+  // nevyzerá dobre — správny vstup je SUROVÁ fotka.
+  if (figmaImage && layout.image_fit === "contain") {
     frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
-    addImageRect(frame, figmaImage, "KV - celý vizuál (contain)", 0, 0, format.width, format.height, "FIT");
+    addImageRect(frame, figmaImage, "KV (contain)", 0, 0, format.width, format.height, "FIT");
   } else {
     frame.fills = figmaImage
       ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
@@ -654,6 +662,27 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
 
   if (!shouldShowHeadline(layout, headline)) return;
 
+  const textW = Math.max(40, format.width - pad * 2 - (logoRight ? logoRight * 0.8 : 0));
+  let bottomY = format.height - pad; // spodná kotva textového bloku
+  // vyhraď miesto pre „AI generované" (vľavo dole), nech ho text neprekryje
+  if (AI_ON) bottomY -= Math.round(clamp(Math.min(format.width, format.height) * 0.028, 10, 22)) + Math.round(pad * 0.5);
+
+  // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho
+  if (SUBHEAD) {
+    const subSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct * 0.5));
+    const sub = figma.createText();
+    sub.fontName = FONT;
+    sub.characters = SUBHEAD;
+    sub.fontSize = subSize;
+    sub.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    sub.resize(textW, Math.round(format.height * 0.25));
+    sub.textAutoResize = "HEIGHT";
+    frame.appendChild(sub);
+    sub.x = pad;
+    sub.y = bottomY - sub.height;
+    bottomY = sub.y - Math.round(pad * 0.3);
+  }
+
   // Headline biely vľavo dole — nechá miesto logu vpravo
   const fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
   const txt = figma.createText();
@@ -662,14 +691,11 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   try { txt.letterSpacing = { value: -2, unit: "PERCENT" }; } catch (e) {}
-  const textW = format.width - pad * 2 - (logoRight ? logoRight * 0.8 : 0);
-  txt.resize(Math.max(40, textW), Math.round(format.height * 0.4));
+  txt.resize(textW, Math.round(format.height * 0.4));
   txt.textAutoResize = "HEIGHT";
   txt.x = pad;
-  txt.y = format.height - pad - txt.height;
+  txt.y = bottomY - txt.height;
   frame.appendChild(txt);
-  // po autoresize znovu ukotvi dole
-  txt.y = format.height - pad - txt.height;
 }
 
 // Fotka 40% vľavo, brand farba 60% vpravo, headline na pravej strane

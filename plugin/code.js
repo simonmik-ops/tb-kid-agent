@@ -52,6 +52,41 @@ let SUBHEAD = "";
 // Je AI disclosure zapnutá? (aby si text vyhradil miesto a neprekryl AI tag)
 let AI_ON = false;
 
+// ── Banka schválených textov z TP ──────────────────────────────────────────
+// DOSLOVNE prevzaté z TP dokumentov (žiadne vymýšľanie). Pri kampani, ktorá má
+// banku, plugin ROTUJE headliny (a podnadpisy) naprieč formátmi — voľba B.
+// Headliny sú vybrané tak, aby sa zmestili aj do najužšieho kanála (Meta titulok
+// ≤ 27 znakov), takže sú bezpečné pre všetky formáty.
+const CAMPAIGN_COPY = {
+  "kk-visa": {
+    headlines: [
+      "Získajte až 50 EUR späť",      // Meta titulok (TP)
+      "10 % z platieb späť",           // Meta titulok (TP)
+      "Kreditná karta digitálne",      // Meta titulok (TP)
+      "Získajte cashback až 50 EUR",   // Meta titulok (TP)
+      "Cashback až do 50 EUR",         // Meta titulok (TP)
+      "Kreditná karta s odmenou",      // RSA nadpis (TP)
+      "Objavujte svet výhodne",        // PMax nadpis (TP)
+      "Viac z každého cestovania"      // PMax nadpis (TP)
+    ],
+    subheads: [
+      "Zriaďte si kreditnú kartu digitálne", // Google nadpis (TP)
+      "Kreditná karta od Tatra banky",       // Google nadpis (TP)
+      "Objavujte svet s kreditnou kartou",   // dlhý nadpis (TP)
+      "Kreditná karta na vaše cesty"         // Google nadpis (TP)
+    ]
+  }
+};
+function copyBankFor(tag) {
+  const t = (tag || "").toLowerCase();
+  for (const k in CAMPAIGN_COPY) { if (t.indexOf(k) !== -1) return CAMPAIGN_COPY[k]; }
+  return null;
+}
+// Aktívna banka pre tento beh (null = ručný headline, napr. KID) + počítadlo
+// formátov na rotáciu.
+let COPY_BANK = null;
+let FRAME_IDX = 0;
+
 async function resolveBrandFont() {
   try {
     await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
@@ -87,12 +122,18 @@ function addAiNote(frame, format) {
   t.locked = true;
 }
 
-async function createAllFrames({ formats, headline, subheadline, adType, imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
+async function createAllFrames({ formats, headline, subheadline, adType, imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated, useTpCopy }) {
   SUBHEAD = (subheadline || "").trim();
   const campaignTag = tagging || "kid-062026";
   const guides = showGuides !== false;
   const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
   AI_ON = aiNote;
+  // Banka schválených textov z TP — rotuje sa LEN keď to výslovne zapneš
+  // (checkbox). Inak platí tvoj ručný headline + subheadline (default).
+  COPY_BANK = (useTpCopy === true) ? copyBankFor(campaignTag) : null;
+  FRAME_IDX = 0;
+  const manualHeadline = headline;
+  const manualSubhead = SUBHEAD;
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
@@ -142,6 +183,19 @@ async function createAllFrames({ formats, headline, subheadline, adType, imageBy
       const layoutType = layout.layout_type || "full_bleed";
       const figmaImage = pickKV(format); // KV podľa orientácie formátu
 
+      // Text pre TENTO formát. Default = tvoj ručný headline/subheadline.
+      // Ak je zapnutá rotácia z TP (COPY_BANK), každý formát dostane iný
+      // schválený text z banky. SUBHEAD sa nastaví pre tento frame.
+      let hl = manualHeadline;
+      SUBHEAD = manualSubhead;
+      if (COPY_BANK && COPY_BANK.headlines.length) {
+        hl = COPY_BANK.headlines[FRAME_IDX % COPY_BANK.headlines.length];
+        if (COPY_BANK.subheads && COPY_BANK.subheads.length) {
+          SUBHEAD = COPY_BANK.subheads[(FRAME_IDX + 2) % COPY_BANK.subheads.length];
+        }
+      }
+      FRAME_IDX++;
+
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
       const sideName = format.variantSide ? " " + format.variantSide.toUpperCase() : "";
@@ -152,35 +206,35 @@ async function createAllFrames({ formats, headline, subheadline, adType, imageBy
       frame.clipsContent = true;
 
       if (layoutType === "video_placeholder") {
-        buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildVideoPlaceholderLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "clean_image") {
         buildCleanImageLayout(frame, format, layout, figmaImage);
       } else if (layoutType === "headline_only") {
-        buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage);
+        buildHeadlineOnlyLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "branding_skin") {
-        buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildBrandingSkinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "side_safe") {
-        buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildSideSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "interscroller_safe") {
-        buildInterscrollerSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildInterscrollerSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "native_center") {
-        buildNativeCenterLayout(frame, format, layout, headline, figmaImage);
+        buildNativeCenterLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "email_layout") {
-        buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildEmailLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "pinterest_pin") {
-        buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildPinterestPinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "strip") {
-        buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildStripLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "split") {
-        buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildSplitLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "stacked") {
-        buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildStackedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "blurred_bg") {
-        buildBlurredBgLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildBlurredBgLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "logo_only") {
-        buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo);
+        buildLogoOnlyLayout(frame, format, layout, hl, figmaLogo);
       } else {
-        buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildFullBleedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       }
 
       // AI disclosure (vľavo dole) — mimo logo-only a native formátov
@@ -330,6 +384,16 @@ function shouldShowHeadline(layout, headline) {
 
 function shouldShowLogo(format, layout, figmaLogo) {
   return !!figmaLogo && !format.noLogo && layout.show_logo !== false;
+}
+
+// Subheadline dáme LEN tam, kde je naň priestor: veľké štvorcové/portrét formáty
+// (1:1, 4:5, 9:16, 2:3, veľké Google/interscroller). Na malých a širokých
+// bannerech (300×250, 728×90, 970×250, skyscrapery) headline stačí — subheadline
+// by sa tam netlačil. Engine navyše môže vynútiť show_subhead:false.
+function hasRoomForSubhead(format, layout) {
+  if (layout && layout.show_subhead === false) return false;
+  const minSide = Math.min(format.width, format.height);
+  return minSide >= 600 && format.height >= 600;
 }
 
 function clamp(n, min, max) {
@@ -654,8 +718,9 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   // vyhraď miesto pre „AI generované" (vľavo dole), nech ho text neprekryje
   if (AI_ON) bottomY -= Math.round(clamp(Math.min(format.width, format.height) * 0.028, 10, 22)) + Math.round(pad * 0.5);
 
-  // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho
-  if (SUBHEAD) {
+  // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho.
+  // Zobrazí sa LEN na formátoch, kde je naň priestor (per-formát rozhodnutie).
+  if (SUBHEAD && hasRoomForSubhead(format, layout)) {
     const subSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct * 0.5));
     const sub = figma.createText();
     sub.fontName = FONT;

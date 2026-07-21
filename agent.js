@@ -218,14 +218,9 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
         headline_position: "center", logo_position: "center", brand_color_pct: 0,
         show_headline: false, show_logo: true };
     }
-    if (r === "clean_image") {
-      return { ...base, layout_type: "clean_image", image_fit: containImage ? "contain" : "fill",
-        show_headline: false, show_logo: false };
-    }
-    if (r === "headline_only") {
-      return { ...base, layout_type: "headline_only", image_fit: containImage ? "contain" : "fill",
-        show_logo: false, headline_position: ratio < 0.9 ? "bottom" : "left" };
-    }
+    // POZN.: role "clean_image" a "headline_only" sa už špeciálne neriešia —
+    // podľa Surďovej Figmy majú RSA/DemandGen/PMax headline aj logo (full creative).
+    // Tieto role preto padnú do ratio logiky nižšie (full_bleed s headline+logo).
     if (r === "branding_full") {
       return { ...base, layout_type: "branding_skin", image_fit: "fill", photo_width_pct: 100,
         headline_position: "sides", logo_position: "top-sides", safe_content: format.safeZones };
@@ -271,27 +266,10 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     };
   }
 
-  // Google RSA a Demand Gen image assety majú byť čisté obrázky bez textu a loga.
-  if (format.id.startsWith("google_rsa_") || format.id.startsWith("demandgen_")) {
-    return {
-      ...base,
-      layout_type: "clean_image",
-      image_fit: containImage ? "contain" : "fill",
-      show_headline: false,
-      show_logo: false
-    };
-  }
-
-  // Performance Max: obrázok môže niesť headline, logo/CTA dopĺňa systém.
-  if (format.id.startsWith("pmax_")) {
-    return {
-      ...base,
-      layout_type: "headline_only",
-      image_fit: containImage ? "contain" : "fill",
-      show_logo: false,
-      headline_position: ratio < 0.9 ? "bottom" : "left"
-    };
-  }
+  // POZN. (rozhodnutie 21. 7.): Podľa Surďovej Figmy majú Google RSA, Demand Gen
+  // aj Performance Max headline AJ logo (full creative), nie čistý obrázok.
+  // Preto tu už nie sú špeciálne prípady — padnú do ratio logiky (full_bleed).
+  // Jediný textless/logoless formát ostáva Engerio native (nižšie).
 
   // Full page brandingy musia rešpektovať webový obsah v strede.
   if (format.id === "markiza_branding_full" || format.id === "joj_branding") {

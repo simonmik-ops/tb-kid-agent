@@ -90,8 +90,15 @@ function addAiNote(frame, format) {
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 8, 60));
   frame.appendChild(t);
-  t.x = pad;
-  t.y = format.height - t.height - pad;   // pohodlný odstup od spodného okraja
+  // Ukotvi tag na spodok SKUTOČNÉHO KV obrázka, nech je vždy NA vizuáli a nie
+  // v prázdnom brand páse pod ním. Keď KV vypĺňa celý frame (fill), obrázok je
+  // fill rámu (žiadny child) → padne na spodok frame-u ako doteraz.
+  let img = null;
+  try { img = frame.findChild(function (n) { return /^(KV|Foto)/i.test(n.name); }); } catch (e) {}
+  const imgBottom = img ? (img.y + img.height) : format.height;
+  const imgLeft = img ? img.x : 0;
+  t.x = Math.max(pad, Math.round(imgLeft) + pad);
+  t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
   t.locked = true;
 }
 

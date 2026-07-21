@@ -52,6 +52,12 @@ let SUBHEAD = "";
 // Je AI disclosure zapnutá? (aby si text vyhradil miesto a neprekryl AI tag)
 let AI_ON = false;
 
+// Rozmery aktuálne kresleného KV (nastaví sa v slučke cez getSizeAsync) —
+// slúžia na výpočet viditeľnej plochy pri CONTAIN, nech text/logo/AI sadnú
+// na obrázok a nie do brand pásu.
+let CUR_IMG_W = 0;
+let CUR_IMG_H = 0;
+
 async function resolveBrandFont() {
   try {
     await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });

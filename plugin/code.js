@@ -170,7 +170,10 @@ async function createAllFrames({ formats, headline, subheadline, adType, imageBy
 
     let xOffset = 0;
 
-    for (const { format, layout } of items) {
+    for (const item of items) {
+      const format = item.format;
+      // Excel cesta: keď layout nepríde zo servera, vyrieš ho lokálne z rozmerov.
+      const layout = item.layout || resolveLayoutLocal(format);
       const layoutType = layout.layout_type || "full_bleed";
       const figmaImage = pickKV(format); // KV podľa orientácie formátu
 
@@ -364,6 +367,26 @@ function placeLogo(frame, figmaLogo, x, y, w, h) {
   logoRect.y = y;
   logoRect.fills = [{ type: "IMAGE", imageHash: figmaLogo.hash, scaleMode: "FIT" }];
   frame.appendChild(logoRect);
+}
+
+// Lokálny layout resolver — použije sa pri Excel ceste (rozmery z tabuľky od
+// mediálky), keď layout nepríde zo servera. Deterministický, podľa pomeru strán
+// (mirror agent.js). Default FILL (žiadne brand pásy).
+function resolveLayoutLocal(format) {
+  const ratio = format.width / format.height;
+  const base = {
+    show_headline: true,
+    show_logo: true,
+    image_fit: "fill",
+    headline_size_px: Math.min(72, Math.max(10, Math.round(format.height * 0.07)))
+  };
+  if (format.height <= 100 || (ratio > 4.5 && format.height <= 250)) {
+    return Object.assign({}, base, { layout_type: "logo_only", image_fit: "none", show_headline: false });
+  }
+  if (ratio > 3.5 && format.height < 300) return Object.assign({}, base, { layout_type: "strip" });
+  if (ratio > 3.5) return Object.assign({}, base, { layout_type: "split" });
+  if (ratio < 0.3) return Object.assign({}, base, { layout_type: "stacked" });
+  return Object.assign({}, base, { layout_type: "full_bleed" }); // portrét, štvorec, landscape
 }
 
 function shouldShowHeadline(layout, headline) {

@@ -42,6 +42,10 @@ const STYLE = {
 // Rozlíšený font (nastaví sa v createAllFrames; fallback Inter)
 let FONT = { family: "Inter", style: "Bold" };
 
+// Pomer strán nahraného KV (nastaví sa v createAllFrames) — na rozhodnutie
+// FILL vs CONTAIN podľa Surďovho pravidla „keď sa subjekt nezmestí → Contain".
+let KV_RATIO = null;
+
 async function resolveBrandFont() {
   try {
     await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
@@ -88,8 +92,13 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
 
   var figmaImage = null;
+  KV_RATIO = null;
   if (imageBytes && imageBytes.length > 0) {
     figmaImage = figma.createImage(new Uint8Array(imageBytes));
+    try {
+      const s = await figmaImage.getSizeAsync();
+      if (s && s.height) KV_RATIO = s.width / s.height;
+    } catch (e) { /* getSizeAsync nedostupné */ }
   }
 
   var figmaLogo = null;
@@ -597,9 +606,16 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
 // Full bleed podľa Surďovej predlohy: KV na celý frame + jemný tmavý gradient
 // dole + headline biely vľavo dole (Tatra banka Sans) + logo VPRAVO DOLE.
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  if (figmaImage && layout.image_fit === "contain") {
+  // Surď: „keď sa subjekt nezmestí → Contain (celý vizuál viditeľný, okraje =
+  // brand farba)". Ak sa pomer strán KV a formátu líši výrazne, použijeme CONTAIN
+  // (celý KV vidno, žiadny orez), inak FILL (plný záber, Surďov look).
+  const frameRatio = format.width / format.height;
+  const mismatch = KV_RATIO ? Math.max(KV_RATIO / frameRatio, frameRatio / KV_RATIO) : 1;
+  const useContain = layout.image_fit === "contain" || mismatch > 1.35;
+
+  if (figmaImage && useContain) {
     frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
-    addImageRect(frame, figmaImage, "Foto - protected subject FIT", 0, 0, format.width, format.height, "FIT");
+    addImageRect(frame, figmaImage, "KV - celý vizuál (contain)", 0, 0, format.width, format.height, "FIT");
   } else {
     frame.fills = figmaImage
       ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]

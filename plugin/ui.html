@@ -153,12 +153,6 @@
   </label>
   <div class="hint" style="margin-top:4px;">Vypnuté = čisté frames na prezentáciu/export. Zapnuté = s vodiacimi vrstvami na kontrolu.</div>
 
-  <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;font-weight:600;">
-    <input type="checkbox" id="useTpCopy" style="width:auto;">
-    Rotovať schválené texty z TP (len KK Visa)
-  </label>
-  <div class="hint" style="margin-top:4px;">Zapnuté = plugin sám rozhádže reálne schválené headliny z TP naprieč formátmi (ignoruje ručný headline). Vypnuté = použije tvoj text hore.</div>
-
   <button class="primary" id="btn" onclick="generate()">Generovať vo Figme</button>
 
   <div class="progress" id="progress">
@@ -320,9 +314,8 @@
       // Pošli dáta + KV (3 orientácie) + logo do code.js
       const showGuides = document.getElementById("showGuides").checked;
       const aiGenerated = document.getElementById("aiGenerated").checked;
-      const useTpCopy = document.getElementById("useTpCopy").checked;
       const subheadline = document.getElementById("subheadline").value;
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, subheadline, visualRecipe, showGuides, aiGenerated, useTpCopy } } }, "*");
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, subheadline, visualRecipe, showGuides, aiGenerated } } }, "*");
 
     } catch (err) {
       btn.disabled = false;

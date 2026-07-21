@@ -52,41 +52,6 @@ let SUBHEAD = "";
 // Je AI disclosure zapnutá? (aby si text vyhradil miesto a neprekryl AI tag)
 let AI_ON = false;
 
-// ── Banka schválených textov z TP ──────────────────────────────────────────
-// DOSLOVNE prevzaté z TP dokumentov (žiadne vymýšľanie). Pri kampani, ktorá má
-// banku, plugin ROTUJE headliny (a podnadpisy) naprieč formátmi — voľba B.
-// Headliny sú vybrané tak, aby sa zmestili aj do najužšieho kanála (Meta titulok
-// ≤ 27 znakov), takže sú bezpečné pre všetky formáty.
-const CAMPAIGN_COPY = {
-  "kk-visa": {
-    headlines: [
-      "Získajte až 50 EUR späť",      // Meta titulok (TP)
-      "10 % z platieb späť",           // Meta titulok (TP)
-      "Kreditná karta digitálne",      // Meta titulok (TP)
-      "Získajte cashback až 50 EUR",   // Meta titulok (TP)
-      "Cashback až do 50 EUR",         // Meta titulok (TP)
-      "Kreditná karta s odmenou",      // RSA nadpis (TP)
-      "Objavujte svet výhodne",        // PMax nadpis (TP)
-      "Viac z každého cestovania"      // PMax nadpis (TP)
-    ],
-    subheads: [
-      "Zriaďte si kreditnú kartu digitálne", // Google nadpis (TP)
-      "Kreditná karta od Tatra banky",       // Google nadpis (TP)
-      "Objavujte svet s kreditnou kartou",   // dlhý nadpis (TP)
-      "Kreditná karta na vaše cesty"         // Google nadpis (TP)
-    ]
-  }
-};
-function copyBankFor(tag) {
-  const t = (tag || "").toLowerCase();
-  for (const k in CAMPAIGN_COPY) { if (t.indexOf(k) !== -1) return CAMPAIGN_COPY[k]; }
-  return null;
-}
-// Aktívna banka pre tento beh (null = ručný headline, napr. KID) + počítadlo
-// formátov na rotáciu.
-let COPY_BANK = null;
-let FRAME_IDX = 0;
-
 async function resolveBrandFont() {
   try {
     await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
@@ -105,35 +70,37 @@ function brandColor(layout) {
   return BRAND_COLOR;
 }
 
-// AI disclosure — malý text vľavo dole (potvrdené z Figmy)
+// Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
+function aiNoteFontSize(format) {
+  return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 11, 18));
+}
+
+// AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
+// Ladený tak, aby pôsobil ako súčasť kompozície: nižšia sýtosť, jemný
+// letter-spacing, zarovnaný na rovnaký ľavý okraj ako headline.
 function addAiNote(frame, format) {
   const t = figma.createText();
   t.name = "AI generované";
   t.fontName = FONT;
   t.characters = STYLE.aiTagText;
-  t.fontSize = Math.round(clamp(Math.min(format.width, format.height) * 0.028, 10, 22));
+  t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  t.opacity = 0.9;
+  t.opacity = 0.72;                       // recede do vizuálu, nech nie je nalepený
+  try { t.letterSpacing = { value: 2, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 8, 60));
   frame.appendChild(t);
   t.x = pad;
-  t.y = format.height - t.height - Math.round(pad * 0.5);
+  t.y = format.height - t.height - pad;   // pohodlný odstup od spodného okraja
   t.locked = true;
 }
 
-async function createAllFrames({ formats, headline, subheadline, adType, imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated, useTpCopy }) {
+async function createAllFrames({ formats, headline, subheadline, adType, imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
   SUBHEAD = (subheadline || "").trim();
   const campaignTag = tagging || "kid-062026";
   const guides = showGuides !== false;
   const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
   AI_ON = aiNote;
-  // Banka schválených textov z TP — rotuje sa LEN keď to výslovne zapneš
-  // (checkbox). Inak platí tvoj ručný headline + subheadline (default).
-  COPY_BANK = (useTpCopy === true) ? copyBankFor(campaignTag) : null;
-  FRAME_IDX = 0;
-  const manualHeadline = headline;
-  const manualSubhead = SUBHEAD;
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
@@ -183,18 +150,9 @@ async function createAllFrames({ formats, headline, subheadline, adType, imageBy
       const layoutType = layout.layout_type || "full_bleed";
       const figmaImage = pickKV(format); // KV podľa orientácie formátu
 
-      // Text pre TENTO formát. Default = tvoj ručný headline/subheadline.
-      // Ak je zapnutá rotácia z TP (COPY_BANK), každý formát dostane iný
-      // schválený text z banky. SUBHEAD sa nastaví pre tento frame.
-      let hl = manualHeadline;
-      SUBHEAD = manualSubhead;
-      if (COPY_BANK && COPY_BANK.headlines.length) {
-        hl = COPY_BANK.headlines[FRAME_IDX % COPY_BANK.headlines.length];
-        if (COPY_BANK.subheads && COPY_BANK.subheads.length) {
-          SUBHEAD = COPY_BANK.subheads[(FRAME_IDX + 2) % COPY_BANK.subheads.length];
-        }
-      }
-      FRAME_IDX++;
+      // Headline pre tento formát = tvoj ručný text. Tool sám rozhodne (per
+      // formát), kde ho zobraziť a kde nie (show_headline / show_subhead).
+      const hl = headline;
 
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
@@ -715,8 +673,9 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
 
   const textW = Math.max(40, format.width - pad * 2 - (logoRight ? logoRight * 0.8 : 0));
   let bottomY = format.height - pad; // spodná kotva textového bloku
-  // vyhraď miesto pre „AI generované" (vľavo dole), nech ho text neprekryje
-  if (AI_ON) bottomY -= Math.round(clamp(Math.min(format.width, format.height) * 0.028, 10, 22)) + Math.round(pad * 0.5);
+  // vyhraď miesto pre „AI generované" (vľavo dole), nech ho text neprekryje —
+  // zladené s aiNoteFontSize() a jeho odsadením (pad), aby nič nekolidovalo.
+  if (AI_ON) bottomY -= aiNoteFontSize(format) + pad + Math.round(pad * 0.4);
 
   // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho.
   // Zobrazí sa LEN na formátoch, kde je naň priestor (per-formát rozhodnutie).

@@ -121,6 +121,12 @@
   </div>
 
   <label style="display:flex;align-items:center;gap:8px;margin-top:16px;cursor:pointer;font-weight:600;">
+    <input type="checkbox" id="aiGenerated" style="width:auto;">
+    Vizuál je AI-generovaný (pridať „AI generované")
+  </label>
+  <div class="hint" style="margin-top:4px;">Zaškrtni, ak je KV od AI — plugin doplní disclosure „AI generované" vľavo dole (povinné podľa Surďa).</div>
+
+  <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;font-weight:600;">
     <input type="checkbox" id="showGuides" style="width:auto;">
     Pridať pomôcky (safe zóny, štítky, report)
   </label>
@@ -255,7 +261,8 @@
 
       // Pošli dáta + obrázok + logo do code.js
       const showGuides = document.getElementById("showGuides").checked;
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes, visualRecipe, showGuides } } }, "*");
+      const aiGenerated = document.getElementById("aiGenerated").checked;
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes, visualRecipe, showGuides, aiGenerated } } }, "*");
 
     } catch (err) {
       btn.disabled = false;

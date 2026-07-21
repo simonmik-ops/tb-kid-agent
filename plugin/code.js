@@ -553,23 +553,10 @@ function buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo
 }
 
 function buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  buildCleanImageLayout(frame, format, layout, figmaImage);
-  const pad = Math.round(format.width * 0.06);
-
-  if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(format.height * 0.045, 46, 72));
-    const logoW = Math.round(logoH * 3.5);
-    addSolidRect(frame, "Logo contrast", pad - 12, pad - 12, logoW + 24, logoH + 24, BRAND_COLOR, 0.82);
-    placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
-  }
-
-  if (shouldShowHeadline(layout, headline)) {
-    const textAreaH = Math.round(format.height * 0.24);
-    const y = format.height - textAreaH - pad;
-    addSolidRect(frame, "Text overlay max 30%", pad, y, format.width - pad * 2, textAreaH, BRAND_COLOR, 0.88);
-    const fontSize = Math.round(clamp(format.width * 0.062, 34, 58));
-    addText(frame, headline, pad * 1.5, y + pad, format.width - pad * 3, textAreaH - pad * 2, fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
-  }
+  // Pinterest Pin (2:3) používa rovnaký Surďov full-bleed look ako ostatné
+  // portrét formáty: KV na celý frame + jemný gradient scrim + headline vľavo
+  // dole + logo vpravo dole. Žiadny tvrdý modrý panel.
+  buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
 }
 
 // Brand farba pozadia, fotka vpravo (contain 30%), text+logo vľavo
@@ -683,8 +670,12 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     bottomY = sub.y - Math.round(pad * 0.3);
   }
 
-  // Headline biely vľavo dole — nechá miesto logu vpravo
-  const fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
+  // Headline biely vľavo dole — nechá miesto logu vpravo.
+  // AUTO-FIT (Surď: „pri dlhom headline zmenším font"): začne na 6,6 % výšky
+  // a zmenšuje font po 1 px, kým sa zalomený text nezmestí do vyhradenej výšky
+  // (max ~32 % frame, čo ostane nad logom/AI tagom). Nikdy nepôjde pod 12 px.
+  let fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
+  const maxHeadlineH = Math.max(fontSize, Math.round((bottomY - format.height * 0.5)));
   const txt = figma.createText();
   txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
@@ -693,6 +684,13 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   try { txt.letterSpacing = { value: -2, unit: "PERCENT" }; } catch (e) {}
   txt.resize(textW, Math.round(format.height * 0.4));
   txt.textAutoResize = "HEIGHT";
+  frame.appendChild(txt);
+  // zmenšuj, kým zalomený headline presahuje vyhradenú výšku
+  let guard = 200;
+  while (txt.height > maxHeadlineH && fontSize > STYLE.minTextPx && guard-- > 0) {
+    fontSize = Math.max(STYLE.minTextPx, fontSize - 1);
+    txt.fontSize = fontSize;
+  }
   txt.x = pad;
   txt.y = bottomY - txt.height;
   frame.appendChild(txt);

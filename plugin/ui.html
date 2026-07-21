@@ -37,7 +37,7 @@
   </style>
 </head>
 <body>
-  <h1>TB KID 2026</h1>
+  <h1>TB — Generátor online formátov</h1>
   <p class="sub">Nahraj vizuál → agent naplánuje layouty → frames sa vytvoria tu vo Figme</p>
 
   <label>Vizuál — štvorec 1:1 (hlavný)</label>
@@ -77,19 +77,14 @@
   <img id="logoPreview" class="preview" alt="logo preview">
 
   <label>Headline (voliteľné)</label>
-  <input type="text" id="headline" placeholder="napr. KID — Kontokorent do 24 hodín">
+  <input type="text" id="headline" placeholder="napr. Získajte až 50 EUR späť">
 
   <label>Podnadpis (voliteľné)</label>
   <input type="text" id="subheadline" placeholder="napr. Zistite viac o kreditke">
 
-  <label>Kampaň</label>
-  <select id="campaign">
-    <option value="kid">TB KID 2026 (kid-062026)</option>
-    <option value="kkvisa">KK Visa — kreditné karty (kk-visa-072026)</option>
-    <option value="hypo">Digitálna hypotéka (hypo-052025)</option>
-    <option value="bsu">BSU — Bezúčelový úver (bsu-082025)</option>
-    <option value="tiger">Tiger — Aura 2026 (tiger-aura-2026)</option>
-  </select>
+  <label>Tagging kampane</label>
+  <input type="text" id="tagging" placeholder="z tabuľky od mediálky, napr. kk-visa-072026">
+  <div class="hint" style="margin-top:4px;">Označenie kampane z TP tabuľky — použije sa do názvov frame-ov pre export. Formáty sú štandardná opakujúca sa sada.</div>
 
   <label>Typ / fáza</label>
   <select id="adType">
@@ -285,7 +280,8 @@
       const visualRecipe = getVisualRecipe();
       formData.append("visual", selectedFile);
       formData.append("headline", document.getElementById("headline").value);
-      formData.append("campaign", document.getElementById("campaign").value);
+      // Štandardná opakujúca sa sada formátov (rozmery sa naprieč kampaňami opakujú).
+      formData.append("campaign", "kid");
       formData.append("adType", document.getElementById("adType").value);
       formData.append("visualRecipe", JSON.stringify(visualRecipe));
 
@@ -315,7 +311,10 @@
       const showGuides = document.getElementById("showGuides").checked;
       const aiGenerated = document.getElementById("aiGenerated").checked;
       const subheadline = document.getElementById("subheadline").value;
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, subheadline, visualRecipe, showGuides, aiGenerated } } }, "*");
+      // Tagging z políčka (z tabuľky od mediálky) — do názvov frame-ov. Ak prázdne, ponechá sa zo servera.
+      const taggingField = (document.getElementById("tagging").value || "").trim();
+      const tagging = taggingField || data.tagging;
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, tagging, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, subheadline, visualRecipe, showGuides, aiGenerated } } }, "*");
 
     } catch (err) {
       btn.disabled = false;

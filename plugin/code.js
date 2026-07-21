@@ -97,10 +97,21 @@ function addAiNote(frame, format) {
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 8, 60));
   frame.appendChild(t);
   // Ukotvi tag na spodok SKUTOČNÉHO KV obrázka, nech je vždy NA vizuáli a nie
-  // v prázdnom brand páse pod ním. Keď KV vypĺňa celý frame (fill), obrázok je
-  // fill rámu (žiadny child) → padne na spodok frame-u ako doteraz.
+  // v prázdnom brand páse pod ním. Nájde najväčší rect s IMAGE výplňou (mimo
+  // loga). Keď KV vypĺňa celý frame (fill), obrázok je fill rámu (žiadny child)
+  // → padne na spodok frame-u, čo je stále na obrázku.
   let img = null;
-  try { img = frame.findChild(function (n) { return /^(KV|Foto)/i.test(n.name); }); } catch (e) {}
+  try {
+    const kids = frame.children || [];
+    for (let i = 0; i < kids.length; i++) {
+      const n = kids[i];
+      if (n.name === "Logo") continue;
+      const fills = n.fills;
+      if (Array.isArray(fills) && fills.some(function (fl) { return fl.type === "IMAGE"; })) {
+        if (!img || (n.width * n.height > img.width * img.height)) img = n;
+      }
+    }
+  } catch (e) {}
   const imgBottom = img ? (img.y + img.height) : format.height;
   const imgLeft = img ? img.x : 0;
   t.x = Math.max(pad, Math.round(imgLeft) + pad);
@@ -166,6 +177,12 @@ async function createAllFrames({ formats, headline, subheadline, adType, imageBy
       // Headline pre tento formát = tvoj ručný text. Tool sám rozhodne (per
       // formát), kde ho zobraziť a kde nie (show_headline / show_subhead).
       const hl = headline;
+
+      // Rozmery zvoleného KV (na výpočet viditeľnej plochy pri contain).
+      CUR_IMG_W = 0; CUR_IMG_H = 0;
+      if (figmaImage) {
+        try { const sz = await figmaImage.getSizeAsync(); CUR_IMG_W = sz.width; CUR_IMG_H = sz.height; } catch (e) {}
+      }
 
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
@@ -643,9 +660,18 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   // FILL = plný záber (Surďov look pre surovú fotku). CONTAIN len keď to výslovne
   // rozhodne engine. Pozn.: pri HOTOVEJ kompozícii (napálené číslo) žiadny režim
   // nevyzerá dobre — správny vstup je SUROVÁ fotka.
+  // Viditeľná plocha vizuálu. Pri CONTAIN nakreslíme obrázok PRESNE na jeho
+  // fitovaný obdĺžnik (nie celo-rámovo s FIT), takže brand pás ostane čistý a
+  // všetok text/logo/AI sadne NA obrázok — nie do pásu (žiadna „čierna čiara").
+  let cTop = 0, cBottom = format.height, cLeft = 0, cRight = format.width;
   if (figmaImage && layout.image_fit === "contain") {
+    const iw = CUR_IMG_W || format.width, ih = CUR_IMG_H || format.height;
+    const s = Math.min(format.width / iw, format.height / ih);
+    const dw = Math.round(iw * s), dh = Math.round(ih * s);
+    const dx = Math.round((format.width - dw) / 2), dy = Math.round((format.height - dh) / 2);
     frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
-    addImageRect(frame, figmaImage, "KV (contain)", 0, 0, format.width, format.height, "FIT");
+    addImageRect(frame, figmaImage, "KV (contain)", dx, dy, dw, dh, "FILL");
+    cTop = dy; cBottom = dy + dh; cLeft = dx; cRight = dx + dw;
   } else {
     frame.fills = figmaImage
       ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
@@ -653,14 +679,16 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   }
 
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 10, 60));
+  const cW = cRight - cLeft, cH = cBottom - cTop;
 
-  // Jemný tmavý gradient dole — priehľadný hore → tmavý dole (čitateľnosť textu)
-  const gradH = Math.round(format.height * STYLE.scrimHeightPct);
+  // Jemný tmavý gradient dole — ukotvený na spodok VIZUÁLU (pri contain končí na
+  // spodku obrázka, nie frame-u), aby čitateľnosť textu bola presne tam.
+  const gradH = Math.round(cH * STYLE.scrimHeightPct);
   const gradRect = figma.createRectangle();
   gradRect.name = "Gradient scrim";
-  gradRect.resize(format.width, gradH);
-  gradRect.x = 0;
-  gradRect.y = format.height - gradH;
+  gradRect.resize(cW, gradH);
+  gradRect.x = cLeft;
+  gradRect.y = cBottom - gradH;
   gradRect.fills = [{
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
@@ -671,21 +699,21 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   }];
   frame.appendChild(gradRect);
 
-  // Logo VPRAVO DOLE (Surď) — ~15 % šírky, min 50 px
+  // Logo VPRAVO DOLE (Surď) — na spodku vizuálu (nie frame-u)
   let logoRight = 0;
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoW = Math.max(STYLE.minLogoPx, Math.round(format.width * STYLE.logoWidthPct));
     const logoH = Math.round(logoW * 0.95); // TB square lockup ~1:0.95
-    const lx = format.width - logoW - pad;
-    const ly = format.height - logoH - pad;
+    const lx = cRight - logoW - pad;
+    const ly = cBottom - logoH - pad;
     placeLogo(frame, figmaLogo, lx, ly, logoW, logoH);
     logoRight = logoW + pad; // koľko miesta vpravo zabrať headlinu
   }
 
   if (!shouldShowHeadline(layout, headline)) return;
 
-  const textW = Math.max(40, format.width - pad * 2 - (logoRight ? logoRight * 0.8 : 0));
-  let bottomY = format.height - pad; // spodná kotva textového bloku
+  const textW = Math.max(40, cW - pad * 2 - (logoRight ? logoRight * 0.8 : 0));
+  let bottomY = cBottom - pad; // spodná kotva textového bloku = spodok vizuálu
   // vyhraď miesto pre „AI generované" (vľavo dole), nech ho text neprekryje —
   // zladené s aiNoteFontSize() a jeho odsadením (pad), aby nič nekolidovalo.
   if (AI_ON) bottomY -= aiNoteFontSize(format) + pad + Math.round(pad * 0.4);
@@ -702,7 +730,7 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     sub.resize(textW, Math.round(format.height * 0.25));
     sub.textAutoResize = "HEIGHT";
     frame.appendChild(sub);
-    sub.x = pad;
+    sub.x = cLeft + pad;
     sub.y = bottomY - sub.height;
     bottomY = sub.y - Math.round(pad * 0.3);
   }
@@ -712,7 +740,7 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   // a zmenšuje font po 1 px, kým sa zalomený text nezmestí do vyhradenej výšky
   // (max ~32 % frame, čo ostane nad logom/AI tagom). Nikdy nepôjde pod 12 px.
   let fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
-  const maxHeadlineH = Math.max(fontSize, Math.round((bottomY - format.height * 0.5)));
+  const maxHeadlineH = Math.max(fontSize, Math.round((bottomY - (cTop + cH * 0.5))));
   const txt = figma.createText();
   txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
@@ -728,7 +756,7 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     fontSize = Math.max(STYLE.minTextPx, fontSize - 1);
     txt.fontSize = fontSize;
   }
-  txt.x = pad;
+  txt.x = cLeft + pad;
   txt.y = bottomY - txt.height;
   frame.appendChild(txt);
 }

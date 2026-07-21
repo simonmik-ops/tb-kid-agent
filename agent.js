@@ -449,11 +449,12 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   if (ratio < 0.75) {
     return {
       ...base,
-      layout_type: protectSubject && productLike ? "blurred_bg" : "full_bleed",
+      // Surď (dotazník): blurred background NIKDY → vždy full_bleed
+      layout_type: "full_bleed",
       image_fit: containImage ? "contain" : "fill",
       photo_width_pct: 100,
       headline_position: "bottom",
-      logo_position: "top-left",
+      logo_position: "bottom-right",
       brand_color_pct: 0
     };
   }
@@ -549,7 +550,8 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
   console.log("Analýza:", visualAnalysis);
 
   const relevantFormats = FORMATS
-    .filter(f => (f.campaign || "kid") === activeCampaign && f.type.includes(adType))
+    // Surď (dotazník): video formáty úplne vynechať z generovania
+    .filter(f => (f.campaign || "kid") === activeCampaign && f.type.includes(adType) && !isVideoFormat(f))
     .flatMap(expandFormatVariants);
   console.log(`Relevantných formátov pre "${activeCampaign}" / "${adType}": ${relevantFormats.length}`);
 

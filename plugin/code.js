@@ -23,13 +23,69 @@ figma.ui.onmessage = async (msg) => {
 
 const BRAND_COLOR = { r: 0.0, g: 0.18, b: 0.55 };
 
-async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging, showGuides }) {
+// ── ŠTÝLOVÉ TOKENY — odčítané zo Surďovej Figmy (InvestQ predloha) ──────
+// Cesta A: plugin kreslí, ale podľa reálnych hodnôt z dizajnu, nie od oka.
+const STYLE = {
+  fontFamily: "Tatra banka Sans",   // hlavný font; fallback Inter ak nie je vo Figme
+  headlineStyle: "Bold",
+  minTextPx: 12,                     // dotazník: min. 12 px
+  minLogoPx: 50,                     // dotazník: nikdy pod 50 px
+  paddingPct: 0.05,                  // Surď: band padding 5 % (60px / 1200)
+  logoWidthPct: 0.15,                // Surď: logo ~180px / 1200 = 15 %, vpravo dole
+  headlinePct: 0.066,                // Surď: headline ~80px / 1200
+  scrimHeightPct: 0.42,              // gradient dole ~42 %
+  scrimOpacity: 0.55,               // tmavý gradient pre čitateľnosť (Surď: jemný)
+  aiTagText: "AI generované",        // vľavo dole (potvrdené z Figmy)
+  ctaText: "Zistiť viac >"           // dotazník: vždy rovnaké CTA
+};
+
+// Rozlíšený font (nastaví sa v createAllFrames; fallback Inter)
+let FONT = { family: "Inter", style: "Bold" };
+
+async function resolveBrandFont() {
+  try {
+    await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
+    FONT = { family: STYLE.fontFamily, style: STYLE.headlineStyle };
+  } catch (e) {
+    FONT = { family: "Inter", style: "Bold" }; // Tatra banka Sans nie je vo Figme → Inter
+    figma.notify("Font „" + STYLE.fontFamily + "“ nie je vo Figme — použil sa Inter. Nainštaluj font pre finál.", { timeout: 4000 });
+  }
+}
+
+// Farba brand plochy = z analýzy vizuálu (nie natvrdo modrá); fallback brand blue
+function brandColor(layout) {
+  if (layout && typeof layout.bg_r === "number") {
+    return { r: layout.bg_r, g: layout.bg_g, b: layout.bg_b };
+  }
+  return BRAND_COLOR;
+}
+
+// AI disclosure — malý text vľavo dole (potvrdené z Figmy)
+function addAiNote(frame, format) {
+  const t = figma.createText();
+  t.name = "AI generované";
+  t.fontName = FONT;
+  t.characters = STYLE.aiTagText;
+  t.fontSize = Math.round(clamp(Math.min(format.width, format.height) * 0.028, 10, 22));
+  t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  t.opacity = 0.9;
+  t.textAutoResize = "WIDTH_AND_HEIGHT";
+  const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 8, 60));
+  frame.appendChild(t);
+  t.x = pad;
+  t.y = format.height - t.height - Math.round(pad * 0.5);
+  t.locked = true;
+}
+
+async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
   const campaignTag = tagging || "kid-062026";
   // Pomôcky (safe zóny, "Recipe" štítok, "checks" badge, validation report)
   // sa dajú vypnúť pre čistý výstup na prezentáciu / export. Default = zapnuté.
   const guides = showGuides !== false;
+  const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
+  await resolveBrandFont(); // Tatra banka Sans, fallback Inter
 
   var figmaImage = null;
   if (imageBytes && imageBytes.length > 0) {
@@ -104,6 +160,11 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
         buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo);
       } else {
         buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+      }
+
+      // AI disclosure (vľavo dole) — mimo logo-only a native formátov
+      if (aiNote && layoutType !== "logo_only" && layoutType !== "clean_image") {
+        addAiNote(frame, format);
       }
 
       if (guides) {
@@ -198,7 +259,7 @@ function addValidationBadge(frame, layout) {
 
   const text = figma.createText();
   text.name = "Validation warning";
-  text.fontName = { family: "Inter", style: "Bold" };
+  text.fontName = FONT;
   text.characters = warnings.length + " check" + (warnings.length > 1 ? "s" : "");
   text.fontSize = Math.round(clamp(badgeH * 0.42, 10, 18));
   text.fills = [{ type: "SOLID", color: { r: 0.22, g: 0.16, b: 0.02 } }];
@@ -231,6 +292,8 @@ function addRecipeTag(frame, recipe) {
 // logoH = výška logo rectu, pad = vnútorný padding
 function placeLogo(frame, figmaLogo, x, y, w, h) {
   if (!figmaLogo) return;
+  // min. veľkosť loga 50 px (dotazník) — proporčne dorovnaj
+  if (w < STYLE.minLogoPx) { const k = STYLE.minLogoPx / w; w = Math.round(w * k); h = Math.round(h * k); }
   const logoRect = figma.createRectangle();
   logoRect.name = "Logo";
   logoRect.resize(w, h);
@@ -267,7 +330,7 @@ function addImageRect(frame, figmaImage, name, x, y, w, h, scaleMode) {
 
 function addText(frame, headline, x, y, w, h, fontSize, color, align) {
   const txt = figma.createText();
-  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: color || { r: 1, g: 1, b: 1 } }];
@@ -520,7 +583,7 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
   // Headline pod logom — jasne oddelené
   const fontSize = Math.max(7, Math.min(layout.headline_size_px || 18, Math.floor(format.height * 0.20)));
   const txt = figma.createText();
-  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
@@ -531,23 +594,24 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
   frame.appendChild(txt);
 }
 
-// Full bleed: foto na celý frame + brand blue gradient dole + logo hore + headline dole
+// Full bleed podľa Surďovej predlohy: KV na celý frame + jemný tmavý gradient
+// dole + headline biely vľavo dole (Tatra banka Sans) + logo VPRAVO DOLE.
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
   if (figmaImage && layout.image_fit === "contain") {
-    frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+    frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
     addImageRect(frame, figmaImage, "Foto - protected subject FIT", 0, 0, format.width, format.height, "FIT");
   } else {
     frame.fills = figmaImage
       ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
-      : [{ type: "SOLID", color: { r: 0.1, g: 0.1, b: 0.18 } }];
+      : [{ type: "SOLID", color: brandColor(layout) }];
   }
 
-  const pad = Math.round(clamp(Math.min(format.width, format.height) * 0.045, 12, 56));
+  const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 10, 60));
 
-  // Brand blue gradient — 35% výšky od spodku, priehľadný hore → brand blue dole
-  const gradH = Math.round(format.height * 0.35);
+  // Jemný tmavý gradient dole — priehľadný hore → tmavý dole (čitateľnosť textu)
+  const gradH = Math.round(format.height * STYLE.scrimHeightPct);
   const gradRect = figma.createRectangle();
-  gradRect.name = "Brand gradient";
+  gradRect.name = "Gradient scrim";
   gradRect.resize(format.width, gradH);
   gradRect.x = 0;
   gradRect.y = format.height - gradH;
@@ -555,35 +619,41 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
-      { position: 0, color: { r: 0, g: 0.18, b: 0.55, a: 0 } },
-      { position: 1, color: { r: 0, g: 0.18, b: 0.55, a: 0.94 } }
+      { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
+      { position: 1, color: { r: 0, g: 0, b: 0, a: STYLE.scrimOpacity } }
     ]
   }];
   frame.appendChild(gradRect);
 
-  // Logo hore vľavo — fixný pad 5% šírky, výška 10% výšky (max 80px)
-  const logoPad = Math.round(clamp(format.width * 0.05, 14, 60));
+  // Logo VPRAVO DOLE (Surď) — ~15 % šírky, min 50 px
+  let logoRight = 0;
   if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(format.height * 0.10, 36, 80));
-    const logoW = Math.min(Math.round(logoH * 3.5), Math.round(format.width * 0.50));
-    placeLogo(frame, figmaLogo, logoPad, logoPad, logoW, logoH);
+    const logoW = Math.max(STYLE.minLogoPx, Math.round(format.width * STYLE.logoWidthPct));
+    const logoH = Math.round(logoW * 0.95); // TB square lockup ~1:0.95
+    const lx = format.width - logoW - pad;
+    const ly = format.height - logoH - pad;
+    placeLogo(frame, figmaLogo, lx, ly, logoW, logoH);
+    logoRight = logoW + pad; // koľko miesta vpravo zabrať headlinu
   }
 
   if (!shouldShowHeadline(layout, headline)) return;
 
-  // Headline dole — v brand blue zóne
-  const fontSize = Math.round(clamp(format.height * 0.055, 12, 72));
-  const textBottomPad = Math.round(format.height * 0.055);
+  // Headline biely vľavo dole — nechá miesto logu vpravo
+  const fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
   const txt = figma.createText();
-  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.resize(format.width - logoPad * 2, Math.round(format.height * 0.35));
+  try { txt.letterSpacing = { value: -2, unit: "PERCENT" }; } catch (e) {}
+  const textW = format.width - pad * 2 - (logoRight ? logoRight * 0.8 : 0);
+  txt.resize(Math.max(40, textW), Math.round(format.height * 0.4));
   txt.textAutoResize = "HEIGHT";
-  txt.x = logoPad;
-  txt.y = format.height - textBottomPad - fontSize * 1.3;
+  txt.x = pad;
+  txt.y = format.height - pad - txt.height;
   frame.appendChild(txt);
+  // po autoresize znovu ukotvi dole
+  txt.y = format.height - pad - txt.height;
 }
 
 // Fotka 40% vľavo, brand farba 60% vpravo, headline na pravej strane
@@ -628,7 +698,7 @@ function buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo
   const availTextH = format.height - afterLogo - Math.round(format.height * 0.05);
   const fontSize = Math.max(8, Math.min(layout.headline_size_px || 24, Math.floor(availTextH * 0.45)));
   const txt = figma.createText();
-  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
@@ -685,7 +755,7 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
   const fontSize = Math.max(8, Math.min(layout.headline_size_px || 14, Math.floor(format.width * 0.08)));
   const pad = Math.round(format.width * 0.06);
   const txt = figma.createText();
-  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
@@ -710,7 +780,7 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.max(7, Math.min(Math.floor(format.height * 0.10), Math.floor(format.width * 0.06)));
     const txt = figma.createText();
-    txt.fontName = { family: "Inter", style: "Bold" };
+    txt.fontName = FONT;
     txt.characters = headline;
     txt.fontSize = fontSize;
     // Pre Google logo formáty (transparentné pozadie) — tmavý text; inak biely
@@ -791,7 +861,7 @@ function buildBlurredBgLayout(frame, format, layout, headline, figmaImage, figma
   const textW = format.width - textX - logoPad;
   const fontSize = Math.max(14, Math.min(layout.headline_size_px || 32, Math.floor(overlayH * 0.35)));
   const txt = figma.createText();
-  txt.fontName = { family: "Inter", style: "Bold" };
+  txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];

@@ -122,7 +122,10 @@ async function createAllFrames({
     let xOffset = 0;
 
     for (const { format, layout } of items) {
-      const layoutType = layout.layout_type || "full_bleed";
+      // Lokálny plugin môže testovať PSD šablóny ešte pred nasadením nového
+      // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
+      const hasLocalAdformTemplate = Boolean(ADFORM_PSD_RULES[format.id]);
+      const layoutType = hasLocalAdformTemplate ? "adform_psd" : (layout.layout_type || "full_bleed");
 
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";

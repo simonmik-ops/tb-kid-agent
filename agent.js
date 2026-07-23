@@ -81,6 +81,18 @@ function recipeFocalPoint(recipe, visualAnalysis) {
     bottom: [0.5, 0.68]
   };
 
+  if (
+    recipe.subjectPosition === "auto" &&
+    visualAnalysis &&
+    typeof visualAnalysis.recommended_focal_x === "number" &&
+    typeof visualAnalysis.recommended_focal_y === "number"
+  ) {
+    return {
+      x: visualAnalysis.recommended_focal_x,
+      y: visualAnalysis.recommended_focal_y,
+      source: "ai_analysis"
+    };
+  }
   const fallback = positions[recipe.subjectPosition] || positions.center;
   return {
     x: fallback[0],

@@ -49,17 +49,29 @@
   <input type="file" id="fileInput" accept="image/jpeg,image/png" style="display:none">
   <img id="preview" class="preview" alt="preview">
 
-  <label>Logo (png, transparentné pozadie)</label>
+  <label>Tatra banka logo / lockup (png, transparentné pozadie)</label>
   <div class="drop" id="dropLogo" onclick="document.getElementById('logoInput').click()">
     <div class="drop-icon">🏷️</div>
     <div class="drop-text" id="logoDropText">Pretiahni sem alebo klikni</div>
-    <div class="drop-hint">png s transparentným pozadím</div>
+    <div class="drop-hint">Štvorcový TB lockup; „Myslite na seba“ doplní šablóna automaticky</div>
   </div>
   <input type="file" id="logoInput" accept="image/png" style="display:none">
   <img id="logoPreview" class="preview" alt="logo preview">
 
   <label>Headline (voliteľné)</label>
   <input type="text" id="headline" placeholder="napr. KID — Kontokorent do 24 hodín">
+
+  <label>Subheadline (voliteľné)</label>
+  <input type="text" id="subheadline" placeholder="Doplňujúca informácia pod headline">
+
+  <label>CTA</label>
+  <input type="text" id="ctaText" value="Zistiť viac">
+
+  <label>Právny text (voliteľné)</label>
+  <input type="text" id="legalText" placeholder="napr. Marketingové oznámenie. S investovaním sú spojené riziká.">
+
+  <label>Badge / prelepka (voliteľné)</label>
+  <input type="text" id="badgeText" placeholder="napr. Bez vstupných poplatkov">
 
   <label>Kampaň</label>
   <select id="campaign">
@@ -262,7 +274,18 @@
       // Pošli dáta + obrázok + logo do code.js
       const showGuides = document.getElementById("showGuides").checked;
       const aiGenerated = document.getElementById("aiGenerated").checked;
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes, visualRecipe, showGuides, aiGenerated } } }, "*");
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: {
+        ...data,
+        imageBytes,
+        logoBytes,
+        visualRecipe,
+        showGuides,
+        aiGenerated,
+        subheadline: document.getElementById("subheadline").value.trim(),
+        ctaText: document.getElementById("ctaText").value.trim(),
+        legalText: document.getElementById("legalText").value.trim(),
+        badgeText: document.getElementById("badgeText").value.trim()
+      } } }, "*");
 
     } catch (err) {
       btn.disabled = false;

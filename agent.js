@@ -195,6 +195,20 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     risk_flags: []
   };
 
+  // Referenčné kompozície odčítané z Adform_dievca.psd. Presnú polohu
+  // elementov rieši Figma generátor podľa rozmeru artboardu.
+  if (format.template === "adform_psd_reference") {
+    return {
+      ...base,
+      layout_type: "adform_psd",
+      image_fit: "fill",
+      show_headline: true,
+      show_logo: true,
+      logo_position: format.width / format.height > 2 ? "top-right" : "top-left",
+      headline_position: format.width / format.height > 2 ? "right" : "left"
+    };
+  }
+
   if (isVideoFormat(format)) {
     return {
       ...base,

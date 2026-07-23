@@ -47,13 +47,23 @@ const STYLE = {
 
 // Rozlíšený font (nastaví sa v createAllFrames; fallback Inter)
 let FONT = { family: "Inter", style: "Bold" };
+let FONT_REGULAR = { family: "Inter", style: "Regular" };
+let FONT_LIGHT = { family: "Inter", style: "Regular" };
 
 async function resolveBrandFont() {
   try {
-    await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
+    await Promise.all([
+      figma.loadFontAsync({ family: STYLE.fontFamily, style: "Bold" }),
+      figma.loadFontAsync({ family: STYLE.fontFamily, style: "Regular" }),
+      figma.loadFontAsync({ family: STYLE.fontFamily, style: "Light" })
+    ]);
     FONT = { family: STYLE.fontFamily, style: STYLE.headlineStyle };
+    FONT_REGULAR = { family: STYLE.fontFamily, style: "Regular" };
+    FONT_LIGHT = { family: STYLE.fontFamily, style: "Light" };
   } catch (e) {
     FONT = { family: "Inter", style: "Bold" }; // Tatra banka Sans nie je vo Figme → Inter
+    FONT_REGULAR = { family: "Inter", style: "Regular" };
+    FONT_LIGHT = { family: "Inter", style: "Regular" };
     figma.notify("Font „" + STYLE.fontFamily + "“ nie je vo Figme — použil sa Inter. Nainštaluj font pre finál.", { timeout: 4000 });
   }
 }
@@ -669,7 +679,7 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
   if (!value || !box) return null;
   const txt = figma.createText();
   txt.name = name;
-  txt.fontName = style === "Regular" ? { family: "Inter", style: "Regular" } : FONT;
+  txt.fontName = style === "Regular" ? FONT_REGULAR : (style === "Light" ? FONT_LIGHT : FONT);
   txt.characters = value;
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: color || { r: 1, g: 1, b: 1 } }];

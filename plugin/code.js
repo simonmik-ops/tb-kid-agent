@@ -22,6 +22,12 @@ figma.ui.onmessage = async (msg) => {
 };
 
 const BRAND_COLOR = { r: 0.0, g: 0.18, b: 0.55 };
+const LOCAL_ADFORM_PSD_IDS = [
+  "adform_300x250",
+  "adform_300x600",
+  "adform_160x600",
+  "adform_970x250"
+];
 
 // ── ŠTÝLOVÉ TOKENY — odčítané zo Surďovej Figmy (InvestQ predloha) ──────
 // Cesta A: plugin kreslí, ale podľa reálnych hodnôt z dizajnu, nie od oka.
@@ -124,7 +130,7 @@ async function createAllFrames({
     for (const { format, layout } of items) {
       // Lokálny plugin môže testovať PSD šablóny ešte pred nasadením nového
       // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
-      const hasLocalAdformTemplate = Boolean(ADFORM_PSD_RULES[format.id]);
+      const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
       const layoutType = hasLocalAdformTemplate ? "adform_psd" : (layout.layout_type || "full_bleed");
 
       const frame = figma.createFrame();

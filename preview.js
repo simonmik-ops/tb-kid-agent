@@ -57,7 +57,12 @@ function placements(format, layout) {
     const p = headlineBox(layout.headline_position);
     if (p) els.push({ cls: "hl", label: "HEADLINE", style: p });
   }
-  // CTA (ak systém nedoťahuje) — len orientačne pri full/side layoutoch
+  if (layout.show_subheadline) {
+    els.push({ cls: "subhl", label: "subheadline", style: "left:8%;right:8%;bottom:20%;height:9%" });
+  }
+  if (layout.show_cta) {
+    els.push({ cls: "cta", label: "CTA", style: "left:8%;bottom:7%;width:32%;height:10%" });
+  }
   return els;
 }
 
@@ -132,6 +137,8 @@ function renderFormat(format) {
 
   const roleTag = format.role && format.role !== layout.layout_type ? `<span class="tag role">${format.role}</span>` : "";
   const ltTag = `<span class="tag lt">${layout.layout_type}</span>`;
+  const profile = layout.creative_rules && layout.creative_rules.id;
+  const profileTag = profile ? `<span class="tag profile">${esc(profile)}</span>` : "";
 
   return `
   <div class="card">
@@ -141,7 +148,7 @@ function renderFormat(format) {
     <div class="meta">
       <div class="fname">${esc(format.name)}</div>
       <div class="dims">${format.width}×${format.height}${format.count > 1 ? ` · ${format.count}×` : ""}</div>
-      <div class="tags">${roleTag}${ltTag}</div>
+      <div class="tags">${roleTag}${ltTag}${profileTag}</div>
       <div class="note">${esc(format.notes || "")}</div>
     </div>
   </div>`;
@@ -211,6 +218,8 @@ function build() {
   .brand{background:var(--brand);color:#cdd7f2}
   .logo{background:#fff;border:1px solid #cbd3e2;border-radius:3px;color:var(--brand);box-shadow:0 1px 2px rgba(0,0,0,.12)}
   .hl{background:rgba(255,255,255,.85);border:1px dashed #33415c;color:#22304a;border-radius:2px}
+  .subhl{background:rgba(255,255,255,.7);border:1px dashed #65738d;color:#33415c;border-radius:2px}
+  .cta{background:#0757ff;color:#fff;border-radius:3px}
   .safeband{position:absolute;background:repeating-linear-gradient(45deg,rgba(255,60,60,.10) 0 5px,rgba(255,60,60,0) 5px 10px);border:1px solid rgba(255,60,60,.35)}
   .safebox{position:absolute;border:1.5px dashed rgba(255,60,60,.7)}
   .meta .fname{font-weight:700;font-size:12px}
@@ -219,6 +228,7 @@ function build() {
   .tag{display:inline-block;font-size:9px;padding:1px 6px;border-radius:4px;margin-right:4px;font-weight:700}
   .tag.role{background:#fde8c8;color:#8a5a00}
   .tag.lt{background:#e3ebff;color:var(--brand)}
+  .tag.profile{background:#dff7e8;color:#176b3a}
   .note{font-size:10px;color:#889;line-height:1.3;margin-top:3px}
 </style></head><body>
 <header>

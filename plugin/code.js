@@ -29,6 +29,29 @@ const LOCAL_ADFORM_PSD_IDS = [
   "adform_970x250"
 ];
 
+function localKkVisaRule(format) {
+  if (!format || format.campaign !== "kkvisa") return null;
+  const id = format.id || "";
+  let profile = "publisher_branding";
+  if (id.indexOf("kkv_google_rsa_") === 0) profile = "clean_image";
+  else if (id.indexOf("kkv_google_logo_") === 0) profile = "logo_only";
+  else if (id.indexOf("kkv_meta_") === 0) profile = "meta_full";
+  else if (id.indexOf("kkv_demandgen_") === 0) profile = "full_creative";
+  else if (id.indexOf("kkv_pmax_") === 0) profile = "headline_only";
+  else if (id === "kkv_engerio_native") profile = "native_clean";
+
+  const profiles = {
+    clean_image: { layoutType: "clean_image", headline: false, subheadline: false, cta: false, logo: false, ai: false },
+    logo_only: { layoutType: "logo_only", headline: false, subheadline: false, cta: false, logo: true, ai: false },
+    meta_full: { layoutType: "master_safe", headline: true, subheadline: true, cta: false, logo: true, ai: true },
+    full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
+    headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
+    native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
+    publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true }
+  };
+  return { id: profile, ...profiles[profile] };
+}
+
 // ── ŠTÝLOVÉ TOKENY — odčítané zo Surďovej Figmy (InvestQ predloha) ──────
 // Cesta A: plugin kreslí, ale podľa reálnych hodnôt z dizajnu, nie od oka.
 const STYLE = {
@@ -158,7 +181,16 @@ async function createAllFrames({
       // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
       const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
       const useMasterSafe = visualRecipe && visualRecipe.masterSafeMode !== false;
-      const backendLayoutType = layout.layout_type || "full_bleed";
+      const localRule = localKkVisaRule(format);
+      if (localRule) {
+        layout.show_headline = localRule.headline;
+        layout.show_subheadline = localRule.subheadline;
+        layout.show_cta = localRule.cta;
+        layout.show_logo = localRule.logo;
+        layout.show_ai_disclosure = localRule.ai;
+        layout.creative_profile = localRule.id;
+      }
+      const backendLayoutType = (localRule && localRule.layoutType) || layout.layout_type || "full_bleed";
       const masterExcludedLayouts = [
         "video_placeholder", "logo_only", "branding_skin", "side_safe",
         "interscroller_safe", "native_center", "email_layout", "pinterest_pin",
@@ -169,14 +201,10 @@ async function createAllFrames({
       const layoutType = hasLocalAdformTemplate
         ? (useMasterSafe ? "master_safe" : "adform_psd")
         : (useMasterSafe && masterEligible ? "master_safe" : backendLayoutType);
-      if (useMasterSafe && (hasLocalAdformTemplate || masterEligible)) {
+      if (useMasterSafe && (hasLocalAdformTemplate || masterEligible) && backendLayoutType === "master_safe") {
         const ratio = format.width / format.height;
         layout.master_family = ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square");
         layout.master_safe_zone = true;
-        const googleResponsiveAsset = format.id.indexOf("google_rsa_") === 0;
-        const systemAddsCta = googleResponsiveAsset || format.id.indexOf("meta_img_") === 0;
-        layout.show_cta = !systemAddsCta;
-        if (googleResponsiveAsset) layout.show_logo = false;
       }
 
       const frame = figma.createFrame();
@@ -240,7 +268,11 @@ async function createAllFrames({
       }
 
       // AI disclosure (vľavo dole) — mimo logo-only a native formátov
-      if (aiNote && layoutType !== "logo_only" && layoutType !== "clean_image" && layoutType !== "adform_psd" && layoutType !== "master_safe") {
+      if (
+        aiNote && layout.show_ai_disclosure !== false &&
+        layoutType !== "logo_only" && layoutType !== "clean_image" &&
+        layoutType !== "adform_psd" && layoutType !== "master_safe"
+      ) {
         addAiNote(frame, format);
       }
 
@@ -904,12 +936,14 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       [textX, Math.round(format.height * 0.22), textW, Math.round(format.height * 0.30)],
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
     );
-    addTemplateText(
-      frame, "Subheadline", content.subheadline,
-      [textX, Math.round(format.height * 0.54), textW, Math.round(format.height * 0.14)],
-      Math.round(clamp(headlineSize * 0.48, 8, 18)),
-      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
-    );
+    if (layout.show_subheadline !== false) {
+      addTemplateText(
+        frame, "Subheadline", content.subheadline,
+        [textX, Math.round(format.height * 0.54), textW, Math.round(format.height * 0.14)],
+        Math.round(clamp(headlineSize * 0.48, 8, 18)),
+        { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+      );
+    }
     if (layout.show_cta !== false) {
       addMasterCta(
         frame, content.ctaText, textX, Math.round(format.height * 0.72),
@@ -952,12 +986,14 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     if (headlineNode && family === "portrait") {
       headlineNode.textAlignVertical = "CENTER";
     }
-    addTemplateText(
-      frame, "Subheadline", content.subheadline,
-      [pad, headlineY + Math.round(format.height * 0.12), textW, Math.round(format.height * 0.09)],
-      Math.round(clamp(headlineSize * 0.50, 8, 18)),
-      { r: 1, g: 1, b: 1 }, "Regular", family === "portrait" ? "CENTER" : "LEFT"
-    );
+    if (layout.show_subheadline !== false) {
+      addTemplateText(
+        frame, "Subheadline", content.subheadline,
+        [pad, headlineY + Math.round(format.height * 0.12), textW, Math.round(format.height * 0.09)],
+        Math.round(clamp(headlineSize * 0.50, 8, 18)),
+        { r: 1, g: 1, b: 1 }, "Regular", family === "portrait" ? "CENTER" : "LEFT"
+      );
+    }
     if (layout.show_cta !== false) {
       addMasterCta(
         frame, content.ctaText, pad, Math.round(format.height * 0.82),
@@ -971,7 +1007,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
   }
 
-  if (content.aiGenerated) addAiNote(frame, format);
+  if (content.aiGenerated && layout.show_ai_disclosure !== false) addAiNote(frame, format);
 }
 
 function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {

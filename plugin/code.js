@@ -97,6 +97,20 @@ async function createAllFrames({
   formats, headline, subheadline, ctaText, legalText, badgeText, adType,
   imageBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated
 }) {
+  if (visualRecipe && visualRecipe.masterSafeMode !== false) {
+    const seenSingleMasters = {};
+    formats = formats.filter(item => {
+      const format = item.format;
+      const key = format.baseId || format.id;
+      const pairedSide = !!format.variantSide &&
+        (key.indexOf("side") !== -1 || key.indexOf("branding") !== -1);
+      if (pairedSide) return true;
+      if (seenSingleMasters[key]) return false;
+      seenSingleMasters[key] = true;
+      return true;
+    });
+  }
+
   const campaignTag = tagging || "kid-062026";
   // Pomôcky (safe zóny, "Recipe" štítok, "checks" badge, validation report)
   // sa dajú vypnúť pre čistý výstup na prezentáciu / export. Default = zapnuté.
@@ -160,7 +174,8 @@ async function createAllFrames({
         layout.master_family = ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square");
         layout.master_safe_zone = true;
         const googleResponsiveAsset = format.id.indexOf("google_rsa_") === 0;
-        layout.show_cta = !googleResponsiveAsset;
+        const systemAddsCta = googleResponsiveAsset || format.id.indexOf("meta_img_") === 0;
+        layout.show_cta = !systemAddsCta;
         if (googleResponsiveAsset) layout.show_logo = false;
       }
 

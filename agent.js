@@ -118,18 +118,24 @@ function shouldContainImage(format, recipe, visualAnalysis) {
 }
 
 function expandFormatVariants(format) {
-  const count = Math.max(1, Number(format.count || 1));
-  return Array.from({ length: count }, (_, index) => {
+  const requestedCount = Math.max(1, Number(format.count || 1));
+  const pairedSides = requestedCount === 2 && (format.id.includes("side") || format.id.includes("branding"));
+  // Jeden nahraný master nemá zmysel kopírovať 3× alebo 5× bez zmeny.
+  // Viac kreatívnych variantov vznikne až z viacerých masterov; výnimkou sú
+  // povinné ľavé/pravé brandingové boky.
+  const outputCount = pairedSides ? 2 : 1;
+  return Array.from({ length: outputCount }, (_, index) => {
     const variantIndex = index + 1;
-    const variantSide = count === 2 && (format.id.includes("side") || format.id.includes("branding"))
+    const variantSide = pairedSides
       ? (variantIndex === 1 ? "left" : "right")
       : null;
 
     return {
       ...format,
       variantIndex,
-      variantCount: count,
-      variantLabel: count > 1 ? `v${variantIndex}/${count}` : "",
+      variantCount: outputCount,
+      requestedCreativeCount: requestedCount,
+      variantLabel: outputCount > 1 ? `v${variantIndex}/${outputCount}` : "",
       variantSide,
       baseId: format.id
     };
@@ -414,7 +420,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   // Všeobecná TP adaptácia: master 4000×4000, dôležité jadro v stredových
   // 2000×2000. Cieľový formát iba mení rodinu kompozície, nie master.
   if (recipe.masterSafeMode !== false) {
-    const googleResponsiveAsset = format.id.startsWith("google_rsa_");
+    const systemAddsCta = format.id.startsWith("google_rsa_") || format.id.startsWith("meta_img_");
     return {
       ...base,
       layout_type: "master_safe",
@@ -422,8 +428,8 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
       headline_position: ratio > 1.45 ? "right" : "bottom",
       logo_position: "bottom-right",
-      show_logo: googleResponsiveAsset ? false : base.show_logo,
-      show_cta: !googleResponsiveAsset,
+      show_logo: format.id.startsWith("google_rsa_") ? false : base.show_logo,
+      show_cta: !systemAddsCta,
       risk_flags: ["master_core_50pct_check"]
     };
   }

@@ -2,6 +2,9 @@
 
 Source: internal presentation `TB_priklady-vizualov-do-TP`.
 
+The matching Figma source confirms the same composition in editable
+1200 × 1200, 1200 × 628 and 900 × 1600 frames.
+
 ## Master construction
 
 - Prepare one square master visual at 4000 × 4000 px.
@@ -18,6 +21,16 @@ The generator adapts that master into three composition families:
 - `square`: full-bleed central core, copy and CTA in the lower part;
 - `portrait`: protected central subject, copy and CTA below the focal area;
 - `wide`: master visual on the left, copy, CTA and bank lockup on the right.
+
+For Google Responsive Ads, the verified Figma frames use:
+
+- 1200 × 1200: headline in the lower-left part;
+- 1200 × 628: focal graphic on the left and headline on the right, with the
+  background continuing across the full frame;
+- 900 × 1600: focal graphic above and centered headline below it;
+- no baked-in CTA or bank lockup because those assets are supplied separately
+  by the Google ad system;
+- the AI disclosure remains inside the image asset when required.
 
 Publisher-specific safe zones and campaign rules are applied after the master
 composition. PSD files remain the reference for brand assets, masks, typography

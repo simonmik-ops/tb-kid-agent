@@ -144,13 +144,24 @@ async function createAllFrames({
       // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
       const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
       const useMasterSafe = visualRecipe && visualRecipe.masterSafeMode !== false;
+      const backendLayoutType = layout.layout_type || "full_bleed";
+      const masterExcludedLayouts = [
+        "video_placeholder", "logo_only", "branding_skin", "side_safe",
+        "interscroller_safe", "native_center", "email_layout", "pinterest_pin",
+        "clean_image"
+      ];
+      const masterEligible = masterExcludedLayouts.indexOf(backendLayoutType) === -1 &&
+        format.height > 100 && !(format.width / format.height > 4.5 && format.height <= 250);
       const layoutType = hasLocalAdformTemplate
         ? (useMasterSafe ? "master_safe" : "adform_psd")
-        : (layout.layout_type || "full_bleed");
-      if (useMasterSafe && hasLocalAdformTemplate) {
+        : (useMasterSafe && masterEligible ? "master_safe" : backendLayoutType);
+      if (useMasterSafe && (hasLocalAdformTemplate || masterEligible)) {
         const ratio = format.width / format.height;
         layout.master_family = ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square");
         layout.master_safe_zone = true;
+        const googleResponsiveAsset = format.id.indexOf("google_rsa_") === 0;
+        layout.show_cta = !googleResponsiveAsset;
+        if (googleResponsiveAsset) layout.show_logo = false;
       }
 
       const frame = figma.createFrame();
@@ -883,10 +894,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       Math.round(clamp(headlineSize * 0.48, 8, 18)),
       { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
     );
-    addMasterCta(
-      frame, content.ctaText, textX, Math.round(format.height * 0.72),
-      Math.min(textW * 0.46, 150), Math.round(clamp(format.height * 0.19, 28, 48))
-    );
+    if (layout.show_cta !== false) {
+      addMasterCta(
+        frame, content.ctaText, textX, Math.round(format.height * 0.72),
+        Math.min(textW * 0.46, 150), Math.round(clamp(format.height * 0.19, 28, 48))
+      );
+    }
     if (shouldShowLogo(format, layout, figmaLogo)) {
       const logoH = Math.round(clamp(format.height * 0.27, 48, 82));
       placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);
@@ -915,22 +928,27 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     ));
     const headlineY = Math.round(format.height * (family === "portrait" ? 0.61 : 0.64));
     const textW = format.width - pad * 2;
-    addTemplateText(
+    const headlineNode = addTemplateText(
       frame, "Headline", content.headline,
       [pad, headlineY, textW, Math.round(format.height * 0.13)],
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", family === "portrait" ? "CENTER" : "LEFT"
     );
+    if (headlineNode && family === "portrait") {
+      headlineNode.textAlignVertical = "CENTER";
+    }
     addTemplateText(
       frame, "Subheadline", content.subheadline,
       [pad, headlineY + Math.round(format.height * 0.12), textW, Math.round(format.height * 0.09)],
       Math.round(clamp(headlineSize * 0.50, 8, 18)),
-      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+      { r: 1, g: 1, b: 1 }, "Regular", family === "portrait" ? "CENTER" : "LEFT"
     );
-    addMasterCta(
-      frame, content.ctaText, pad, Math.round(format.height * 0.82),
-      Math.round(clamp(format.width * 0.40, 88, 150)),
-      Math.round(clamp(format.height * 0.085, 30, 48))
-    );
+    if (layout.show_cta !== false) {
+      addMasterCta(
+        frame, content.ctaText, pad, Math.round(format.height * 0.82),
+        Math.round(clamp(format.width * 0.40, 88, 150)),
+        Math.round(clamp(format.height * 0.085, 30, 48))
+      );
+    }
     if (shouldShowLogo(format, layout, figmaLogo)) {
       const logoH = Math.round(clamp(Math.min(format.width, format.height) * 0.22, 50, 82));
       placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);

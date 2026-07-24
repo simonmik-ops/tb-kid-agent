@@ -414,6 +414,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   // Všeobecná TP adaptácia: master 4000×4000, dôležité jadro v stredových
   // 2000×2000. Cieľový formát iba mení rodinu kompozície, nie master.
   if (recipe.masterSafeMode !== false) {
+    const googleResponsiveAsset = format.id.startsWith("google_rsa_");
     return {
       ...base,
       layout_type: "master_safe",
@@ -421,6 +422,8 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
       headline_position: ratio > 1.45 ? "right" : "bottom",
       logo_position: "bottom-right",
+      show_logo: googleResponsiveAsset ? false : base.show_logo,
+      show_cta: !googleResponsiveAsset,
       risk_flags: ["master_core_50pct_check"]
     };
   }

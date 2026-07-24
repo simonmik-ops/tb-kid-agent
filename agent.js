@@ -1,6 +1,7 @@
 // agent.js
 const FORMATS = require("./formats");
 const { getCreativeRule } = require("./campaign-rules");
+const { getRequestedFormats } = require("./template-library");
 
 let client = null;
 
@@ -243,6 +244,31 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       show_logo: true,
       logo_position: format.width / format.height > 2 ? "top-right" : "top-left",
       headline_position: format.width / format.height > 2 ? "right" : "left"
+    };
+  }
+
+  // Univerzálne šablóny určujú špeciálny renderer priamo profilom,
+  // bez historickej campaign/role hodnoty.
+  if (creativeRule && creativeRule.layoutType === "clean_image") {
+    return {
+      ...base, layout_type: "clean_image", image_fit: "fill",
+      show_headline: false, show_subheadline: false, show_cta: false,
+      show_logo: false, show_legal: false, show_badge: false,
+      show_ai_disclosure: false
+    };
+  }
+  if (creativeRule && creativeRule.layoutType === "native_center") {
+    return {
+      ...base, layout_type: "native_center", image_fit: "fill",
+      show_headline: false, show_subheadline: false, show_cta: false,
+      show_logo: false, show_legal: false, show_badge: false,
+      show_ai_disclosure: false
+    };
+  }
+  if (creativeRule && creativeRule.layoutType === "logo_only") {
+    return {
+      ...base, layout_type: "logo_only", image_fit: "none", photo_width_pct: 0,
+      headline_position: "center", logo_position: "center"
     };
   }
 
@@ -592,7 +618,7 @@ Odpovedz VÝHRADNE v JSON bez akéhokoľvek iného textu:
   return JSON.parse(jsonMatch[0]);
 }
 
-async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe, campaign) {
+async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe, campaign, templateGroupIds) {
   const recipe = normalizeRecipe(visualRecipe);
   // Spätná kompatibilita: keď kampaň nepríde, správame sa ako predtým (KID).
   const activeCampaign = campaign || "kid";
@@ -603,10 +629,15 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
   visualAnalysis.visual_recipe = recipe;
   console.log("Analýza:", visualAnalysis);
 
-  const relevantFormats = FORMATS
-    // Surď (dotazník): video formáty úplne vynechať z generovania
-    .filter(f => (f.campaign || "kid") === activeCampaign && f.type.includes(adType) && !isVideoFormat(f))
-    .flatMap(expandFormatVariants);
+  const universalFormats = getRequestedFormats(templateGroupIds);
+  const relevantFormats = (universalFormats.length
+    ? universalFormats
+    : FORMATS.filter(f =>
+      (f.campaign || "kid") === activeCampaign &&
+      f.type.includes(adType) &&
+      !isVideoFormat(f)
+    )
+  ).flatMap(expandFormatVariants);
   console.log(`Relevantných formátov pre "${activeCampaign}" / "${adType}": ${relevantFormats.length}`);
 
   const results = relevantFormats.map(format => {

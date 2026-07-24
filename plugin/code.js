@@ -1007,6 +1007,25 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
   }
 
+  if (layout.show_badge !== false && content.badgeText) {
+    const badgeW = Math.round(clamp(format.width * 0.34, 110, 260));
+    const badgeH = Math.round(clamp(format.height * 0.075, 28, 54));
+    addSolidRect(frame, "Badge background", pad, pad, badgeW, badgeH, { r: 1, g: 1, b: 1 }, 0.94);
+    addTemplateText(
+      frame, "Badge", content.badgeText,
+      [pad + 8, pad + Math.round(badgeH * 0.20), badgeW - 16, Math.round(badgeH * 0.60)],
+      Math.round(clamp(badgeH * 0.30, 9, 16)), BRAND_COLOR, "Bold", "CENTER"
+    );
+  }
+  if (layout.show_legal !== false && content.legalText) {
+    const legalH = Math.round(clamp(format.height * 0.045, 18, 42));
+    addTemplateText(
+      frame, "Legal text", content.legalText,
+      [pad, format.height - legalH - Math.max(4, Math.round(pad * 0.25)), format.width - pad * 2, legalH],
+      Math.round(clamp(Math.min(format.width, format.height) * 0.018, 8, 13)),
+      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+    );
+  }
   if (content.aiGenerated && layout.show_ai_disclosure !== false) addAiNote(frame, format);
 }
 

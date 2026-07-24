@@ -31,7 +31,7 @@ const CREATIVE_PROFILES = {
     layoutType: "master_safe",
     elements: {
       headline: true, subheadline: true, cta: true,
-      logo: true, legal: false, badge: false, aiDisclosure: true
+      logo: true, legal: true, badge: true, aiDisclosure: true
     }
   },
   headline_only: {
@@ -76,8 +76,10 @@ function kkVisaProfile(format) {
 }
 
 function getCreativeRule(format) {
-  if (!format || format.campaign !== "kkvisa") return null;
-  const profileId = kkVisaProfile(format);
+  if (!format) return null;
+  const profileId = format.creativeProfile ||
+    (format.campaign === "kkvisa" ? kkVisaProfile(format) : null);
+  if (!profileId || !CREATIVE_PROFILES[profileId]) return null;
   return {
     id: profileId,
     brand: BRAND_PROFILES.tb_campaign,

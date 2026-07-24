@@ -16,7 +16,9 @@ The matching Figma source confirms the same composition in editable
 
 ## Format families
 
-The generator adapts that master into three composition families:
+The generator adapts that master into three composition families. The complete
+master is scaled into the image area; the central 2000 × 2000 core defines what
+must survive cropping, but is never enlarged to fill the complete output:
 
 - `square`: full-bleed central core, copy and CTA in the lower part;
 - `portrait`: protected central subject, copy and CTA below the focal area;

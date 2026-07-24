@@ -806,7 +806,8 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
 }
 
 // TP master: 4000×4000 s dôležitým obsahom v stredových 2000×2000.
-// Obrázok zväčšíme tak, aby centrálna polovica pokryla obrazovú zónu.
+// Do obrazovej zóny vkladáme celý master. Centrálne jadro je ochrana proti
+// orezu vonkajších okrajov, nie pokyn zväčšiť jadro na celý cieľový formát.
 function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide) {
   const holder = figma.createFrame();
   holder.name = "TP master — centrálne jadro 50 %";
@@ -823,7 +824,7 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   }
 
   const scale = Math.max(
-    zone[2] / (imageSize.width * 0.5),
+    zone[2] / imageSize.width,
     zone[3] / imageSize.height
   );
   const renderedW = imageSize.width * scale;
@@ -882,7 +883,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     );
     const textX = imageW + pad;
     const textW = format.width - textX - pad;
-    const headlineSize = Math.round(clamp(format.height * 0.17, 14, 42));
+    const headlineSize = Math.round(clamp(format.height * 0.10, 16, 72));
     addTemplateText(
       frame, "Headline", content.headline,
       [textX, Math.round(format.height * 0.22), textW, Math.round(format.height * 0.30)],
@@ -924,7 +925,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     frame.appendChild(scrim);
 
     const headlineSize = Math.round(clamp(
-      Math.min(format.width * 0.075, format.height * 0.055), 14, 44
+      Math.min(format.width * 0.085, format.height * 0.060), 16, 72
     ));
     const headlineY = Math.round(format.height * (family === "portrait" ? 0.61 : 0.64));
     const textW = format.width - pad * 2;

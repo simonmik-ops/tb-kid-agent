@@ -37,7 +37,7 @@
   </style>
 </head>
 <body>
-  <h1>TB KID 2026 <span style="font-size:11px;color:#18a0fb;">PSD prototype v0.3</span></h1>
+  <h1>TB KID 2026 <span style="font-size:11px;color:#18a0fb;">Master-safe prototype v0.4</span></h1>
   <p class="sub">Nahraj vizuál → agent naplánuje layouty → frames sa vytvoria tu vo Figme</p>
 
   <label>Vizuál (jpg / png)</label>
@@ -91,6 +91,10 @@
 
   <div class="rules">
     <div class="rules-title">Pravidlá vizuálu</div>
+    <label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;cursor:pointer;font-weight:600;">
+      <input type="checkbox" id="masterSafeMode" checked style="width:auto;">
+      Použiť TP master 4000 × 4000 / bezpečné jadro 2000 × 2000
+    </label>
     <div class="grid">
       <div>
         <label>Typ vizuálu</label>
@@ -130,7 +134,7 @@
         </select>
       </div>
     </div>
-    <div class="hint">Default je stredový objekt. Plugin drží hlavný prvok v bezpečnej zóne a pri úzkych banneroch radšej použije brand panel.</div>
+    <div class="hint">Dôležitá grafika musí zostať v stredovej polovici mastera. Plugin z nej automaticky vytvorí štvorcovú, vysokú alebo širokú kompozíciu.</div>
   </div>
 
   <label style="display:flex;align-items:center;gap:8px;margin-top:16px;cursor:pointer;font-weight:600;">
@@ -330,6 +334,7 @@
       visualType: document.getElementById("visualType").value,
       subjectPosition: document.getElementById("subjectPosition").value,
       cropMode: document.getElementById("cropMode").value,
+      masterSafeMode: document.getElementById("masterSafeMode").checked,
       smallFormatMode: document.getElementById("smallFormatMode").value,
       textMode: "auto",
       logoMode: "auto"

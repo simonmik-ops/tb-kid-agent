@@ -143,7 +143,15 @@ async function createAllFrames({
       // Lokálny plugin môže testovať PSD šablóny ešte pred nasadením nového
       // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
       const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
-      const layoutType = hasLocalAdformTemplate ? "adform_psd" : (layout.layout_type || "full_bleed");
+      const useMasterSafe = visualRecipe && visualRecipe.masterSafeMode !== false;
+      const layoutType = hasLocalAdformTemplate
+        ? (useMasterSafe ? "master_safe" : "adform_psd")
+        : (layout.layout_type || "full_bleed");
+      if (useMasterSafe && hasLocalAdformTemplate) {
+        const ratio = format.width / format.height;
+        layout.master_family = ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square");
+        layout.master_safe_zone = true;
+      }
 
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
@@ -191,12 +199,22 @@ async function createAllFrames({
           badgeText,
           aiGenerated: aiNote
         }, figmaImage, figmaImageSize, figmaLogo);
+      } else if (layoutType === "master_safe") {
+        buildMasterSafeLayout(frame, format, layout, {
+          headline,
+          subheadline,
+          ctaText,
+          legalText,
+          badgeText,
+          aiGenerated: aiNote,
+          showGuides: guides
+        }, figmaImage, figmaImageSize, figmaLogo);
       } else {
         buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
       }
 
       // AI disclosure (vľavo dole) — mimo logo-only a native formátov
-      if (aiNote && layoutType !== "logo_only" && layoutType !== "clean_image" && layoutType !== "adform_psd") {
+      if (aiNote && layoutType !== "logo_only" && layoutType !== "clean_image" && layoutType !== "adform_psd" && layoutType !== "master_safe") {
         addAiNote(frame, format);
       }
 
@@ -276,7 +294,8 @@ function humanizeWarnings(warnings) {
     pinterest_text_over_5_words: "Pinterest text by mal mať max. 5 slov / 30% plochy.",
     image_uses_fit_check_background_edges: "Obrázok je vo FIT režime, skontroluj okraje/pozadie.",
     small_or_wide_format_check_readability: "Malý alebo veľmi široký formát, skontroluj čitateľnosť.",
-    safe_zone_overlay_present_check_final_export: "Je pridaná safe-zone vrstva, pred exportom skontroluj pravidlá."
+    safe_zone_overlay_present_check_final_export: "Je pridaná safe-zone vrstva, pred exportom skontroluj pravidlá.",
+    master_core_50pct_check: "Master: dôležitá grafika musí zostať v stredovej polovici (2000×2000 z 4000×4000)."
   };
   return warnings.map(w => labels[w] || w).join(" ");
 }
@@ -773,6 +792,152 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
   rect.y = clamp(targetY - focalY * renderedH, zone[3] - renderedH, 0);
   holder.appendChild(rect);
   return holder;
+}
+
+// TP master: 4000×4000 s dôležitým obsahom v stredových 2000×2000.
+// Obrázok zväčšíme tak, aby centrálna polovica pokryla obrazovú zónu.
+function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide) {
+  const holder = figma.createFrame();
+  holder.name = "TP master — centrálne jadro 50 %";
+  holder.resize(zone[2], zone[3]);
+  holder.x = zone[0];
+  holder.y = zone[1];
+  holder.clipsContent = true;
+  holder.fills = [];
+  parent.appendChild(holder);
+
+  if (!figmaImage || !imageSize || !imageSize.width || !imageSize.height) {
+    holder.fills = [{ type: "SOLID", color: { r: 0.84, g: 0.86, b: 0.9 } }];
+    return holder;
+  }
+
+  const scale = Math.max(
+    zone[2] / (imageSize.width * 0.5),
+    zone[3] / imageSize.height
+  );
+  const renderedW = imageSize.width * scale;
+  const renderedH = imageSize.height * scale;
+  const rect = figma.createRectangle();
+  rect.name = "Master visual — 2000×2000 core";
+  rect.resize(renderedW, renderedH);
+  rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+  rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
+  rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.25, 0.75) * renderedH, zone[3] - renderedH, 0);
+  holder.appendChild(rect);
+
+  if (showGuide) {
+    const guide = figma.createRectangle();
+    guide.name = "GUIDE — master core 2000×2000";
+    guide.resize(renderedW * 0.5, renderedH * 0.5);
+    guide.x = rect.x + renderedW * 0.25;
+    guide.y = rect.y + renderedH * 0.25;
+    guide.fills = [{ type: "SOLID", color: { r: 0, g: 0.75, b: 0.2 }, opacity: 0.06 }];
+    guide.strokes = [{ type: "SOLID", color: { r: 0.2, g: 1, b: 0.4 }, opacity: 0.82 }];
+    guide.strokeWeight = 1;
+    guide.dashPattern = [6, 4];
+    guide.locked = true;
+    holder.appendChild(guide);
+  }
+  return holder;
+}
+
+function addMasterCta(frame, value, x, y, w, h) {
+  if (!value) return;
+  const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0.02, g: 0.27, b: 0.98 }, 1);
+  button.cornerRadius = Math.max(2, Math.round(h * 0.08));
+  addTemplateText(
+    frame, "CTA text", value + "  ›",
+    [x + 6, y + Math.round(h * 0.24), w - 12, h * 0.55],
+    Math.round(clamp(h * 0.28, 8, 16)),
+    { r: 1, g: 1, b: 1 }, "Bold", "CENTER"
+  );
+}
+
+function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
+  const family = layout.master_family || "square";
+  const focal = {
+    x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
+    y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
+  };
+  const pad = Math.round(clamp(Math.min(format.width, format.height) * 0.065, 10, 54));
+  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+
+  if (family === "wide") {
+    const imageW = Math.round(format.width * 0.52);
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
+    addSolidRect(
+      frame, "Wide content panel", imageW, 0, format.width - imageW, format.height,
+      brandColor(layout), 0.96
+    );
+    const textX = imageW + pad;
+    const textW = format.width - textX - pad;
+    const headlineSize = Math.round(clamp(format.height * 0.17, 14, 42));
+    addTemplateText(
+      frame, "Headline", content.headline,
+      [textX, Math.round(format.height * 0.22), textW, Math.round(format.height * 0.30)],
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+    );
+    addTemplateText(
+      frame, "Subheadline", content.subheadline,
+      [textX, Math.round(format.height * 0.54), textW, Math.round(format.height * 0.14)],
+      Math.round(clamp(headlineSize * 0.48, 8, 18)),
+      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+    );
+    addMasterCta(
+      frame, content.ctaText, textX, Math.round(format.height * 0.72),
+      Math.min(textW * 0.46, 150), Math.round(clamp(format.height * 0.19, 28, 48))
+    );
+    if (shouldShowLogo(format, layout, figmaLogo)) {
+      const logoH = Math.round(clamp(format.height * 0.27, 48, 82));
+      placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);
+    }
+  } else {
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+
+    const scrimH = Math.round(format.height * (family === "portrait" ? 0.48 : 0.44));
+    const scrim = figma.createRectangle();
+    scrim.name = "Bottom readability gradient";
+    scrim.resize(format.width, scrimH);
+    scrim.x = 0;
+    scrim.y = format.height - scrimH;
+    scrim.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[0, 1, 0], [1, 0, 0]],
+      gradientStops: [
+        { position: 0, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.04 } },
+        { position: 1, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.80 } }
+      ]
+    }];
+    frame.appendChild(scrim);
+
+    const headlineSize = Math.round(clamp(
+      Math.min(format.width * 0.075, format.height * 0.055), 14, 44
+    ));
+    const headlineY = Math.round(format.height * (family === "portrait" ? 0.61 : 0.64));
+    const textW = format.width - pad * 2;
+    addTemplateText(
+      frame, "Headline", content.headline,
+      [pad, headlineY, textW, Math.round(format.height * 0.13)],
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+    );
+    addTemplateText(
+      frame, "Subheadline", content.subheadline,
+      [pad, headlineY + Math.round(format.height * 0.12), textW, Math.round(format.height * 0.09)],
+      Math.round(clamp(headlineSize * 0.50, 8, 18)),
+      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+    );
+    addMasterCta(
+      frame, content.ctaText, pad, Math.round(format.height * 0.82),
+      Math.round(clamp(format.width * 0.40, 88, 150)),
+      Math.round(clamp(format.height * 0.085, 30, 48))
+    );
+    if (shouldShowLogo(format, layout, figmaLogo)) {
+      const logoH = Math.round(clamp(Math.min(format.width, format.height) * 0.22, 50, 82));
+      placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);
+    }
+  }
+
+  if (content.aiGenerated) addAiNote(frame, format);
 }
 
 function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {

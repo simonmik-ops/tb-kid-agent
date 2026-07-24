@@ -63,6 +63,7 @@ const DEFAULT_VISUAL_RECIPE = {
   visualType: "centered_subject",
   subjectPosition: "center",
   cropMode: "protect_subject",
+  masterSafeMode: true,
   smallFormatMode: "brand_panel",
   textMode: "auto",
   logoMode: "auto"
@@ -207,12 +208,14 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     risk_flags: []
   };
 
-  // Referenčné kompozície odčítané z Adform_dievca.psd. Presnú polohu
-  // elementov rieši Figma generátor podľa rozmeru artboardu.
+  // Adform PSD ostáva zdrojom brandových vrstiev, ale kompozícia vychádza
+  // primárne z TP mastera 4000×4000 / centrálne jadro 2000×2000.
   if (format.template === "adform_psd_reference") {
     return {
       ...base,
-      layout_type: "adform_psd",
+      layout_type: recipe.masterSafeMode === false ? "adform_psd" : "master_safe",
+      master_safe_zone: true,
+      master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
       image_fit: "fill",
       show_headline: true,
       show_logo: true,
@@ -408,6 +411,20 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     };
   }
 
+  // Všeobecná TP adaptácia: master 4000×4000, dôležité jadro v stredových
+  // 2000×2000. Cieľový formát iba mení rodinu kompozície, nie master.
+  if (recipe.masterSafeMode !== false) {
+    return {
+      ...base,
+      layout_type: "master_safe",
+      master_safe_zone: true,
+      master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
+      headline_position: ratio > 1.45 ? "right" : "bottom",
+      logo_position: "bottom-right",
+      risk_flags: ["master_core_50pct_check"]
+    };
+  }
+
   // Ultra-široký A nízky (ratio > 3.5, height < 300): strip layout
   // — brand farba pozadia, fotka vpravo (contain, max 30%), text+logo vľavo
   if (ratio > 3.5 && format.height < 300) {
@@ -494,6 +511,7 @@ function buildValidationWarnings(format, layout, visualAnalysis, headline) {
   if (layout.image_fit === "contain" && !format.id.startsWith("google_logo_")) warnings.push("image_uses_fit_check_background_edges");
   if (ratio > 4.5 || format.height <= 100) warnings.push("small_or_wide_format_check_readability");
   if (hasMeaningfulSafeZone) warnings.push("safe_zone_overlay_present_check_final_export");
+  if (layout.master_safe_zone) warnings.push("master_core_50pct_check");
 
   return [...new Set(warnings)];
 }

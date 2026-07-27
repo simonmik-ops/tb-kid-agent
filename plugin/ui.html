@@ -519,5 +519,366 @@
   // Predvyplň Tagging podľa prvej kampane pri štarte.
   onCampaignChange();
 </script>
+<!-- =====================================================================
+     TB — Generátor online formátov
+     EXPORT PANEL — strana UI (ui.html)
+
+     Vložiť do plugin/ui.html na koniec tela stránky, tesne pred uzatvárací
+     body tag. Blok je samostatný: nepoužíva žiadne existujúce funkcie ani
+     CSS triedy pluginu a nezasahuje do existujúceho onmessage handlera.
+
+     Rieši: kompresiu pod kB limit, názvy bez diakritiky a medzier,
+     priečinkovú štruktúru, prehľadovú CSV a stiahnutie .zip.
+     ===================================================================== -->
+
+<div id="tb-export-panel">
+  <h2>Export pre mediálku</h2>
+
+  <p class="tbx-hint">
+    Exportuje vygenerované frames zo stránky. Ak máš niektoré frames označené,
+    exportujú sa len tie.
+  </p>
+
+  <label class="tbx-row">
+    <input type="checkbox" id="tbx-hide-helpers" checked />
+    <span>Skryť pomôcky pri exporte (safe zóny, štítky)</span>
+  </label>
+
+  <label class="tbx-row">
+    <input type="checkbox" id="tbx-all-pages" checked />
+    <span>Zo všetkých stránok (plugin robí stránku na kanál)</span>
+  </label>
+
+  <label class="tbx-row">
+    <span>Predvolený limit, keď ho formát neuvádza</span>
+    <input type="number" id="tbx-default-limit" value="250" min="20" max="5000" step="10" />
+    <span>kB</span>
+  </label>
+
+  <label class="tbx-row">
+    <span>Názov balíka</span>
+    <input type="text" id="tbx-zip-name" placeholder="tb_export" />
+  </label>
+
+  <button id="tbx-run" class="tbx-btn">Exportovať a stiahnuť .zip</button>
+
+  <div id="tbx-progress" class="tbx-progress" hidden>
+    <div id="tbx-bar"></div>
+  </div>
+  <div id="tbx-status" class="tbx-status"></div>
+  <div id="tbx-report" class="tbx-report"></div>
+</div>
+
+<style>
+  #tb-export-panel {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e5e5;
+    font: 11px/1.45 Inter, -apple-system, sans-serif;
+    color: #333;
+  }
+  #tb-export-panel h2 { font-size: 12px; margin: 0 0 6px; }
+  #tb-export-panel .tbx-hint { color: #777; margin: 0 0 10px; }
+  #tb-export-panel .tbx-row {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  }
+  #tb-export-panel .tbx-row input[type="number"] { width: 64px; }
+  #tb-export-panel .tbx-row input[type="text"] { flex: 1; }
+  #tb-export-panel input[type="number"],
+  #tb-export-panel input[type="text"] {
+    border: 1px solid #d9d9d9; border-radius: 4px; padding: 4px 6px;
+    font: inherit; color: inherit;
+  }
+  #tb-export-panel .tbx-btn {
+    width: 100%; padding: 8px 10px; border: 0; border-radius: 6px;
+    background: #18a0fb; color: #fff; font: 600 11px Inter, sans-serif;
+    cursor: pointer;
+  }
+  #tb-export-panel .tbx-btn:disabled { background: #b9dcf7; cursor: default; }
+  #tb-export-panel .tbx-progress {
+    height: 4px; background: #eee; border-radius: 2px; margin-top: 10px; overflow: hidden;
+  }
+  #tb-export-panel #tbx-bar { height: 100%; width: 0%; background: #18a0fb; transition: width .12s; }
+  #tb-export-panel .tbx-status { margin-top: 8px; color: #555; }
+  #tb-export-panel .tbx-report { margin-top: 8px; max-height: 160px; overflow: auto; }
+  #tb-export-panel .tbx-item { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  #tb-export-panel .tbx-item span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #tb-export-panel .tbx-ok { color: #1a7f37; }
+  #tb-export-panel .tbx-warn { color: #b35c00; }
+  #tb-export-panel .tbx-err { color: #c62828; }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var el = function (id) { return document.getElementById(id); };
+  var runBtn = el("tbx-run");
+  var statusEl = el("tbx-status");
+  var reportEl = el("tbx-report");
+  var barWrap = el("tbx-progress");
+  var bar = el("tbx-bar");
+
+  var session = null;
+
+  // ---- pomenovanie: bez diakritiky, bez medzier, malé písmená ---------
+  function sanitize(s) {
+    return String(s)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")   // diakritika
+      .replace(/[×✕]/g, "x")
+      .replace(/[^A-Za-z0-9._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toLowerCase();
+  }
+
+  // ---- limit v kB z textového popisu formátu --------------------------
+  // "max 300 kB · HTML5/.jpg" -> 300 · "3× 60 kB (jpg)" -> 60
+  // "spolu 250 kB" -> 250 · "max 5 MB" -> 5120
+  // Berie NAJPRÍSNEJŠIU hodnotu, keď je ich viac.
+  function parseLimitKB(limitText) {
+    if (!limitText) return null;
+    var rx = /(\d+(?:[.,]\d+)?)\s*(kb|mb)\b/gi;
+    var m, best = null;
+    while ((m = rx.exec(limitText)) !== null) {
+      var v = parseFloat(m[1].replace(",", "."));
+      if (m[2].toLowerCase() === "mb") v *= 1024;
+      if (best === null || v < best) best = v;
+    }
+    return best;
+  }
+
+  function needsPng(limitText, name) {
+    var t = (limitText || "") + " " + (name || "");
+    if (/transparent/i.test(t)) return true;
+    if (/logo-?only|(^|[-_.])logo([-_.]|$)/i.test(name || "")) return true;
+    if (/\.png/i.test(t) && !/\.jpe?g/i.test(t)) return true;
+    return false;
+  }
+
+  // ---- kompresia ------------------------------------------------------
+  function canvasToBlob(canvas, quality) {
+    return new Promise(function (resolve) {
+      canvas.toBlob(function (b) { resolve(b); }, "image/jpeg", quality);
+    });
+  }
+
+  async function encode(pngBytes, limitKB, forcePng) {
+    var pngBlob = new Blob([pngBytes], { type: "image/png" });
+
+    if (forcePng) {
+      return {
+        blob: pngBlob, ext: "png", quality: null,
+        over: limitKB ? pngBlob.size / 1024 > limitKB : false
+      };
+    }
+
+    var bmp = await createImageBitmap(pngBlob);
+    var canvas = document.createElement("canvas");
+    canvas.width = bmp.width;
+    canvas.height = bmp.height;
+    var ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";              // JPEG nemá alfu
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0);
+    if (bmp.close) bmp.close();
+
+    var target = (limitKB || 250) * 1024;
+
+    var hi = 0.95;
+    var top = await canvasToBlob(canvas, hi);
+    if (top && top.size <= target) {
+      return { blob: top, ext: "jpg", quality: hi, over: false };
+    }
+
+    // najvyššia kvalita, ktorá sa ešte zmestí (7 krokov = dosť presné)
+    var lo = 0.4, best = null, bestQ = null;
+    for (var i = 0; i < 7; i++) {
+      var mid = (lo + hi) / 2;
+      var b = await canvasToBlob(canvas, mid);
+      if (b && b.size <= target) { best = b; bestQ = mid; lo = mid; }
+      else { hi = mid; }
+    }
+
+    if (best) return { blob: best, ext: "jpg", quality: bestQ, over: false };
+
+    var floor = await canvasToBlob(canvas, 0.4);
+    return { blob: floor, ext: "jpg", quality: 0.4, over: true };
+  }
+
+  // ---- priečinok v zipe: tagging/formatId ------------------------------
+  // "Instagram Stories — AWARENESS [kid-062026]" -> "kid-062026_instagram_stories_awareness_1080x1920"
+  function fileBase(msg) {
+    var name = String(msg.name).replace(/\[[^\]]*\]\s*$/, "");
+    var tag = sanitize(msg.tagging || "");
+    var body = sanitize(name);
+    var dim = msg.width + "x" + msg.height;
+    return (tag ? tag + "_" : "") + body + "_" + dim;
+  }
+
+  function folderFor(msg) {
+    var tag = sanitize(msg.tagging || "") || "export";
+    var ch = sanitize(msg.channel || msg.page || "") || "ostatne";
+    return tag + "/" + ch;
+  }
+
+  function line(name, text, cls) {
+    var d = document.createElement("div");
+    d.className = "tbx-item";
+    var a = document.createElement("span"); a.textContent = name;
+    var b = document.createElement("span"); b.textContent = text; b.className = cls || "";
+    d.appendChild(a); d.appendChild(b);
+    reportEl.appendChild(d);
+    reportEl.scrollTop = reportEl.scrollHeight;
+  }
+
+  function download(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1500);
+  }
+
+  // ---- spustenie ------------------------------------------------------
+  runBtn.onclick = function () {
+    if (typeof JSZip === "undefined") {
+      statusEl.textContent = "Nenačítala sa knižnica JSZip. Skontroluj pripojenie na internet a skús znova.";
+      return;
+    }
+    reportEl.innerHTML = "";
+    barWrap.hidden = false;
+    bar.style.width = "0%";
+    runBtn.disabled = true;
+    statusEl.textContent = "Hľadám frames…";
+
+    session = {
+      zip: new JSZip(),
+      rows: [["nazov_suboru", "kanal", "sirka", "vyska", "limit_kB", "vysledok_kB", "kvalita_jpg", "stav"]],
+      done: 0,
+      total: 0,
+      over: 0,
+      failed: 0,
+      defaultLimit: parseFloat(el("tbx-default-limit").value) || 250,
+      queue: Promise.resolve()
+    };
+
+    parent.postMessage({
+      pluginMessage: {
+        type: "export-request",
+        hideHelpers: el("tbx-hide-helpers").checked,
+        allPages: el("tbx-all-pages").checked
+      }
+    }, "*");
+  };
+
+  // ---- príjem správ z pluginu (vlastný listener, nič neprepisuje) ------
+  window.addEventListener("message", function (event) {
+    var msg = event.data && event.data.pluginMessage;
+    if (!msg || !session) return;
+
+    if (msg.type === "export-error") {
+      statusEl.textContent = msg.error;
+      barWrap.hidden = true;
+      runBtn.disabled = false;
+      session = null;
+      return;
+    }
+
+    if (msg.type === "export-start") {
+      session.total = msg.total;
+      statusEl.textContent = "Spracúvam " + msg.total + " formátov…";
+      return;
+    }
+
+    if (msg.type === "export-frame") {
+      // radíme za sebou, aby kompresia nebežala paralelne a nezahltila panel
+      session.queue = session.queue.then(function () { return handleFrame(msg); });
+      return;
+    }
+
+    if (msg.type === "export-end") {
+      session.queue = session.queue.then(finish);
+      return;
+    }
+  });
+
+  async function handleFrame(msg) {
+    var s = session;
+    if (!s) return;
+
+    var base = fileBase(msg);
+
+    if (msg.error || !msg.bytes) {
+      s.failed++;
+      s.rows.push([base, msg.channel || msg.page || "", msg.width, msg.height, "", "", "", "CHYBA: " + (msg.error || "prázdny export")]);
+      line(base, "chyba", "tbx-err");
+    } else {
+      var limitKB = parseLimitKB(msg.limit);
+      var usedDefault = limitKB === null;
+      if (usedDefault) limitKB = s.defaultLimit;
+
+      var png = needsPng(msg.limit, msg.formatId || msg.name);
+      var out = await encode(msg.bytes, limitKB, png);
+      var kb = Math.round(out.blob.size / 1024);
+      var filename = base + "." + out.ext;
+
+      s.zip.folder(folderFor(msg)).file(filename, out.blob);
+
+      var stav = out.over ? "NAD LIMIT — skontrolovať ručne"
+                          : (usedDefault ? "OK (predvolený limit)" : "OK");
+      s.rows.push([
+        filename, msg.channel || msg.page || "", msg.width, msg.height,
+        Math.round(limitKB), kb, out.quality ? out.quality.toFixed(2) : "", stav
+      ]);
+
+      if (out.over) { s.over++; line(filename, kb + " kB · nad limit " + Math.round(limitKB) + " kB", "tbx-warn"); }
+      else { line(filename, kb + " kB", "tbx-ok"); }
+    }
+
+    s.done++;
+    bar.style.width = Math.round((s.done / Math.max(1, s.total)) * 100) + "%";
+    statusEl.textContent = "Spracované " + s.done + " / " + s.total;
+  }
+
+  async function finish() {
+    var s = session;
+    if (!s) return;
+
+    // prehľadová tabuľka pre mediálku (Excel SK: bodkočiarka + BOM)
+    var csv = "\uFEFF" + s.rows.map(function (r) {
+      return r.map(function (c) {
+        var v = String(c === null || c === undefined ? "" : c);
+        return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+      }).join(";");
+    }).join("\n");
+    s.zip.file("_prehlad.csv", csv);
+
+    statusEl.textContent = "Balím .zip…";
+    var blob = await s.zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+
+    var custom = sanitize(el("tbx-zip-name").value || "");
+    var stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    download(blob, (custom || "tb_export") + "_" + stamp + ".zip");
+
+    var msg = "Hotovo: " + (s.done - s.failed) + " súborov v .zip.";
+    if (s.over) msg += " " + s.over + " je nad limitom — pozri _prehlad.csv.";
+    if (s.failed) msg += " " + s.failed + " sa nepodarilo vyexportovať.";
+    statusEl.textContent = msg;
+
+    barWrap.hidden = true;
+    runBtn.disabled = false;
+    session = null;
+  }
+})();
+</script>
+
 </body>
 </html>

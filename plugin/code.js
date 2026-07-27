@@ -294,6 +294,13 @@ async function createAllFrames({
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
       const sideName = format.variantSide ? " " + format.variantSide.toUpperCase() : "";
       frame.name = format.name + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
+      // Metadáta pre export: limit a ID formátu sa inak z názvu frameu nedajú zistiť.
+      try {
+        frame.setPluginData("tbLimit", String(format.limit || ""));
+        frame.setPluginData("tbFormatId", String(format.id || ""));
+        frame.setPluginData("tbTagging", String(campaignTag || ""));
+        frame.setPluginData("tbChannel", String(format.channel || channel || ""));
+      } catch (e) {}
       frame.resize(format.width, format.height);
       frame.x = xOffset;
       frame.y = 0;
@@ -1619,3 +1626,155 @@ function addSafeRect(frame, name, x, y, w, h) {
   r.locked = true;
   frame.appendChild(r);
 }
+
+/* =====================================================================
+   EXPORT — zabalenie vygenerovaných frameov pre mediálku
+   Doplnené k existujúcemu kódu, nič neprepisuje.
+
+   Plugin vytvára jednu stránku na kanál a frames pomenúva
+   "Názov — TYP [tagging]". Export preto prechádza všetky stránky a
+   frames rozoznáva podľa pluginData (tbTagging), s fallbackom na
+   hranatú zátvorku v názve.
+   ===================================================================== */
+
+(function () {
+  "use strict";
+
+  var HELPER_PATTERNS = [
+    /^⚠/, /safe\s*zón/i, /safe\s*zone/i, /^recipe:/i,
+    /\bchecks?\b/i, /content area guide/i, /^guide\b/i, /^#guide/i
+  ];
+
+  function isHelperLayer(node) {
+    for (var i = 0; i < HELPER_PATTERNS.length; i++) {
+      if (HELPER_PATTERNS[i].test(node.name)) return true;
+    }
+    return false;
+  }
+
+  function isGeneratedFrame(n) {
+    if (!n || n.type !== "FRAME") return false;
+    try { if (n.getPluginData("tbTagging")) return true; } catch (e) {}
+    return /\[[^\]]+\]\s*$/.test(n.name);
+  }
+
+  function frameMeta(n, pageName) {
+    var d = { limit: "", formatId: "", tagging: "", channel: "" };
+    try {
+      d.limit = n.getPluginData("tbLimit") || "";
+      d.formatId = n.getPluginData("tbFormatId") || "";
+      d.tagging = n.getPluginData("tbTagging") || "";
+      d.channel = n.getPluginData("tbChannel") || "";
+    } catch (e) {}
+    if (!d.tagging) {
+      var m = String(n.name).match(/\[([^\]]+)\]\s*$/);
+      d.tagging = m ? m[1] : "";
+    }
+    if (!d.channel) d.channel = pageName || "";
+    return d;
+  }
+
+  function hideHelpers(frame) {
+    var found = [];
+    try { found = frame.findAll(function (n) { return n.visible && isHelperLayer(n); }); }
+    catch (e) { found = []; }
+    for (var i = 0; i < found.length; i++) found[i].visible = false;
+    return found;
+  }
+
+  function restore(nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      try { nodes[i].visible = true; } catch (e) {}
+    }
+  }
+
+  async function pagesToScan(allPages) {
+    if (!allPages) return [figma.currentPage];
+    try { if (figma.loadAllPagesAsync) await figma.loadAllPagesAsync(); } catch (e) {}
+    return Array.prototype.slice.call(figma.root.children);
+  }
+
+  async function collectTargets(allPages) {
+    // 1) výber používateľa má prednosť; sekcie a skupiny rozbalíme
+    var sel = figma.currentPage.selection;
+    if (sel && sel.length) {
+      var picked = [];
+      for (var i = 0; i < sel.length; i++) {
+        var n = sel[i];
+        if (n.type === "FRAME") picked.push({ node: n, page: figma.currentPage.name });
+        else if (typeof n.findAll === "function") {
+          var inner = n.findAll(isGeneratedFrame);
+          for (var j = 0; j < inner.length; j++) picked.push({ node: inner[j], page: figma.currentPage.name });
+        }
+      }
+      if (picked.length) return picked;
+    }
+
+    // 2) inak prejdi stránky a nájdi vygenerované frames
+    var pages = await pagesToScan(allPages);
+    var out = [];
+    for (var p = 0; p < pages.length; p++) {
+      var page = pages[p];
+      var found;
+      try { found = page.findAll(isGeneratedFrame); } catch (e) { found = []; }
+      for (var k = 0; k < found.length; k++) out.push({ node: found[k], page: page.name });
+    }
+    return out;
+  }
+
+  async function exportFrames(msg) {
+    msg = msg || {};
+    var targets = await collectTargets(msg.allPages !== false);
+
+    if (!targets.length) {
+      figma.ui.postMessage({
+        type: "export-error",
+        error: "Nenašiel som žiadne vygenerované frames. Najprv vygeneruj formáty, alebo označ frames, ktoré chceš exportovať."
+      });
+      return;
+    }
+
+    figma.ui.postMessage({ type: "export-start", total: targets.length });
+
+    for (var i = 0; i < targets.length; i++) {
+      var f = targets[i].node;
+      var meta = frameMeta(f, targets[i].page);
+      var hidden = msg.hideHelpers === false ? [] : hideHelpers(f);
+      var bytes = null, err = null;
+
+      try {
+        bytes = await f.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 1 } });
+      } catch (e) {
+        err = String(e && e.message ? e.message : e);
+      }
+
+      restore(hidden);
+
+      figma.ui.postMessage({
+        type: "export-frame",
+        index: i,
+        total: targets.length,
+        name: f.name,
+        page: targets[i].page,
+        width: Math.round(f.width),
+        height: Math.round(f.height),
+        limit: meta.limit,
+        formatId: meta.formatId,
+        tagging: meta.tagging,
+        channel: meta.channel,
+        bytes: bytes,
+        error: err
+      });
+
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+
+    figma.ui.postMessage({ type: "export-end", total: targets.length });
+  }
+
+  var previous = figma.ui.onmessage;
+  figma.ui.onmessage = function (msg, props) {
+    if (msg && msg.type === "export-request") return exportFrames(msg);
+    if (typeof previous === "function") return previous(msg, props);
+  };
+})();

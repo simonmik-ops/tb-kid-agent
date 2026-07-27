@@ -2,6 +2,7 @@
 <html lang="sk">
 <head>
   <meta charset="UTF-8">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, -apple-system, sans-serif; background: #fff; padding: 20px; font-size: 13px; color: #1a1a1a; }
@@ -37,17 +38,35 @@
   </style>
 </head>
 <body>
-  <h1>TB KID 2026</h1>
+  <h1>TB — Generátor online formátov</h1>
   <p class="sub">Nahraj vizuál → agent naplánuje layouty → frames sa vytvoria tu vo Figme</p>
 
-  <label>Vizuál (jpg / png)</label>
+  <label>Vizuál — štvorec 1:1 (hlavný)</label>
   <div class="drop" id="drop" onclick="document.getElementById('fileInput').click()">
-    <div class="drop-icon">📁</div>
-    <div class="drop-text" id="dropText">Pretiahni sem alebo klikni</div>
-    <div class="drop-hint">jpg / png, min. 1200px odporúčané</div>
+    <div class="drop-icon">🟦</div>
+    <div class="drop-text" id="dropText">Štvorcový KV — klikni alebo pretiahni</div>
+    <div class="drop-hint">použije sa na 1:1 formáty (a ako záloha)</div>
   </div>
   <input type="file" id="fileInput" accept="image/jpeg,image/png" style="display:none">
   <img id="preview" class="preview" alt="preview">
+
+  <label>Vizuál — na výšku (voliteľné)</label>
+  <div class="drop" id="dropPortrait" onclick="document.getElementById('portraitInput').click()">
+    <div class="drop-icon">▯</div>
+    <div class="drop-text" id="portraitText">Vertikálny KV — klikni alebo pretiahni</div>
+    <div class="drop-hint">9:16, 4:5, skyscrapery, interscrollery</div>
+  </div>
+  <input type="file" id="portraitInput" accept="image/jpeg,image/png" style="display:none">
+  <img id="portraitPreview" class="preview" alt="portrait preview">
+
+  <label>Vizuál — na šírku (voliteľné)</label>
+  <div class="drop" id="dropLandscape" onclick="document.getElementById('landscapeInput').click()">
+    <div class="drop-icon">▭</div>
+    <div class="drop-text" id="landscapeText">Horizontálny KV — klikni alebo pretiahni</div>
+    <div class="drop-hint">1.91:1, leaderboardy, wide bannery</div>
+  </div>
+  <input type="file" id="landscapeInput" accept="image/jpeg,image/png" style="display:none">
+  <img id="landscapePreview" class="preview" alt="landscape preview">
 
   <label>Logo (png, transparentné pozadie)</label>
   <div class="drop" id="dropLogo" onclick="document.getElementById('logoInput').click()">
@@ -59,16 +78,28 @@
   <img id="logoPreview" class="preview" alt="logo preview">
 
   <label>Headline (voliteľné)</label>
-  <input type="text" id="headline" placeholder="napr. KID — Kontokorent do 24 hodín">
+  <input type="text" id="headline" placeholder="napr. Získajte až 50 EUR späť">
 
-  <label>Kampaň</label>
-  <select id="campaign">
-    <option value="kid">TB KID 2026 (kid-062026)</option>
-    <option value="kkvisa">KK Visa — kreditné karty (kk-visa-072026)</option>
-    <option value="hypo">Digitálna hypotéka (hypo-052025)</option>
-    <option value="bsu">BSU — Bezúčelový úver (bsu-082025)</option>
-    <option value="tiger">Tiger — Aura 2026 (tiger-aura-2026)</option>
+  <label>Podnadpis (voliteľné)</label>
+  <input type="text" id="subheadline" placeholder="napr. Zistite viac o kreditke">
+
+  <label>Kampaň (zdroj formátov)</label>
+  <select id="campaign" onchange="onCampaignChange()">
+    <option value="kid" data-tag="kid-062026">TB KID 2026</option>
+    <option value="kkvisa" data-tag="kk-visa-072026">KK Visa — kreditné karty</option>
+    <option value="hypo" data-tag="hypo-052025">Digitálna hypotéka</option>
+    <option value="bsu" data-tag="bsu-082025">BSU — Bezúčelový úver</option>
+    <option value="tiger" data-tag="tiger-aura-2026">Tiger — Aura 2026</option>
   </select>
+  <div class="hint" style="margin-top:4px;">Vyber kampaň → vygenerujú sa jej formáty. (Neskôr: namiesto výberu nahráš tabuľku od mediálky — viď nižšie.)</div>
+
+  <label style="margin-top:12px;">alebo nahraj tabuľku od mediálky (.xlsx) — experimentálne</label>
+  <input type="file" id="excelInput" accept=".xlsx" onchange="onExcelPicked(event)">
+  <div class="hint" id="excelHint" style="margin-top:4px;">Ak nahráš tabuľku, plugin z nej vytiahne rozmery a vygeneruje ich (namiesto výberu kampane). Bez tabuľky sa použije vybraná kampaň.</div>
+
+  <label style="margin-top:12px;">Tagging kampane</label>
+  <input type="text" id="tagging" placeholder="napr. kk-visa-072026" oninput="taggingEdited = (this.value.trim().length > 0)">
+  <div class="hint" style="margin-top:4px;">Predvyplní sa podľa kampane; použije sa do názvov frame-ov pre export. Môžeš prepísať podľa tabuľky od mediálky.</div>
 
   <label>Typ / fáza</label>
   <select id="adType">
@@ -128,9 +159,9 @@
 
   <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;font-weight:600;">
     <input type="checkbox" id="showGuides" style="width:auto;">
-    Pridať pomôcky (safe zóny, štítky, report)
+    Zobraziť safe zóny na vizuáli
   </label>
-  <div class="hint" style="margin-top:4px;">Vypnuté = čisté frames na prezentáciu/export. Zapnuté = s vodiacimi vrstvami na kontrolu.</div>
+  <div class="hint" style="margin-top:4px;">Prepínač: zapnuté = safe zóny (a kontrolné štítky) priamo na frame-och. Vypnuté = čistý vizuál na prezentáciu/export.</div>
 
   <button class="primary" id="btn" onclick="generate()">Generovať vo Figme</button>
 
@@ -152,6 +183,62 @@
   </div>
 
 <script>
+  // Predvyplní Tagging podľa vybranej kampane (ak ho používateľ neprepísal ručne).
+  let taggingEdited = false;
+  function onCampaignChange() {
+    const sel = document.getElementById("campaign");
+    const tag = sel.options[sel.selectedIndex].getAttribute("data-tag") || "";
+    const tf = document.getElementById("tagging");
+    if (tf && !taggingEdited) tf.value = tag;
+  }
+
+  // ── Excel (tabuľka od mediálky) → rozmery ──────────────────────────────────
+  let excelDims = null;
+  // Šum, ktorý negenerujeme ako bannery (min. veľkosti loga, safe-zóny, video rozlíšenia).
+  const DIM_BLOCK = { "128x128":1,"512x128":1,"300x60":1,"1920x1080":1,"1280x720":1,
+    "640x480":1,"640x360":1,"480x360":1,"600x314":1,"480x600":1,"375x491":1,
+    "375x812":1,"750x982":1,"480x600":1 };
+  function extractDims(wb) {
+    const seen = {}, out = [];
+    (wb.SheetNames || []).forEach(function (sn) {
+      const ws = wb.Sheets[sn];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      rows.forEach(function (r) {
+        (r || []).forEach(function (c) {
+          const s = String(c);
+          const re = /(\d{2,4})\s*[x××X*]\s*(\d{2,4})/g;
+          let m;
+          while ((m = re.exec(s))) {
+            const w = +m[1], h = +m[2];
+            if (w < 50 || h < 50 || w > 4000 || h > 4000) continue;
+            const key = w + "x" + h;
+            if (DIM_BLOCK[key]) continue;
+            if (!seen[key]) { seen[key] = 1; out.push({ w: w, h: h }); }
+          }
+        });
+      });
+    });
+    return out;
+  }
+  function onExcelPicked(e) {
+    const f = e.target.files && e.target.files[0];
+    const hint = document.getElementById("excelHint");
+    if (!f) { excelDims = null; return; }
+    if (typeof XLSX === "undefined") { hint.textContent = "Excel parser sa nenačítal (offline?). Použi výber kampane."; excelDims = null; return; }
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+      try {
+        const wb = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
+        const dims = extractDims(wb);
+        excelDims = dims;
+        hint.textContent = dims.length
+          ? ("✓ Našiel som " + dims.length + " rozmerov: " + dims.map(function (d) { return d.w + "×" + d.h; }).join(", "))
+          : "Nenašiel som rozmery — použi výber kampane.";
+      } catch (err) { hint.textContent = "Nepodarilo sa načítať tabuľku: " + err.message; excelDims = null; }
+    };
+    reader.readAsArrayBuffer(f);
+  }
+
   let selectedFile = null;
   let selectedLogo = null;
   let totalFormats = 0;
@@ -212,6 +299,37 @@
     reader.readAsDataURL(file);
   }
 
+  // KV na výšku / na šírku (rovnaký overený vzor ako hlavný KV)
+  let selectedPortrait = null;
+  let selectedLandscape = null;
+
+  function previewInto(previewId, file) {
+    const r = new FileReader();
+    r.onload = (e) => { const p = document.getElementById(previewId); p.src = e.target.result; p.style.display = "block"; };
+    r.readAsDataURL(file);
+  }
+  function wireDrop(dropId, inputId, setter) {
+    const d = document.getElementById(dropId);
+    d.ondragover = (e) => { e.preventDefault(); d.classList.add("active"); };
+    d.ondragleave = () => d.classList.remove("active");
+    d.ondrop = (e) => { e.preventDefault(); d.classList.remove("active"); const f = e.dataTransfer.files[0]; if (f) setter(f); };
+    document.getElementById(inputId).onchange = (e) => { if (e.target.files[0]) setter(e.target.files[0]); };
+  }
+  function setPortrait(file) {
+    selectedPortrait = file;
+    document.getElementById("portraitText").textContent = file.name;
+    document.getElementById("dropPortrait").classList.add("active");
+    previewInto("portraitPreview", file);
+  }
+  function setLandscape(file) {
+    selectedLandscape = file;
+    document.getElementById("landscapeText").textContent = file.name;
+    document.getElementById("dropLandscape").classList.add("active");
+    previewInto("landscapePreview", file);
+  }
+  wireDrop("dropPortrait", "portraitInput", setPortrait);
+  wireDrop("dropLandscape", "landscapeInput", setLandscape);
+
   async function generate() {
     if (!selectedFile) { showError("Nahraj vizuál"); return; }
 
@@ -229,40 +347,62 @@
     const serverUrl = document.getElementById("serverUrl").value.trim();
 
     try {
-      const formData = new FormData();
       const visualRecipe = getVisualRecipe();
-      formData.append("visual", selectedFile);
-      formData.append("headline", document.getElementById("headline").value);
-      formData.append("campaign", document.getElementById("campaign").value);
-      formData.append("adType", document.getElementById("adType").value);
-      formData.append("visualRecipe", JSON.stringify(visualRecipe));
-
-      setStatus("Claude plánuje layouty pre všetky formáty...", 20);
-
-      const res = await fetch(`${serverUrl}/analyze`, { method: "POST", body: formData });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Server error"); }
-
-      const data = await res.json();
-      totalFormats = data.formats.length;
-      setStatus(`Načítavam obrázok...`, 55);
-
-      // Načítaj vizuál ako bytes
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      const imageBytes = Array.from(new Uint8Array(arrayBuffer));
-
-      // Načítaj logo ako bytes (ak bolo nahrané)
-      let logoBytes = null;
-      if (selectedLogo) {
-        const logoBuffer = await selectedLogo.arrayBuffer();
-        logoBytes = Array.from(new Uint8Array(logoBuffer));
-      }
-
-      setStatus(`Vytváram ${totalFormats} frames vo Figme...`, 60);
-
-      // Pošli dáta + obrázok + logo do code.js
+      const headline = document.getElementById("headline").value;
+      const adType = document.getElementById("adType").value;
+      const subheadline = document.getElementById("subheadline").value;
       const showGuides = document.getElementById("showGuides").checked;
       const aiGenerated = document.getElementById("aiGenerated").checked;
-      parent.postMessage({ pluginMessage: { type: "create-frames", payload: { ...data, imageBytes, logoBytes, visualRecipe, showGuides, aiGenerated } } }, "*");
+      const campaignSel = document.getElementById("campaign");
+      const campaignTag = campaignSel.options[campaignSel.selectedIndex].getAttribute("data-tag") || "";
+      const taggingField = (document.getElementById("tagging").value || "").trim();
+
+      async function toBytes(file) {
+        if (!file) return null;
+        const b = await file.arrayBuffer();
+        return Array.from(new Uint8Array(b));
+      }
+
+      let formats, tagging;
+
+      if (excelDims && excelDims.length) {
+        // ── Excel cesta ── formáty priamo z tabuľky od mediálky; layout vyrieši
+        // code.js lokálne z rozmerov (bez servera).
+        formats = excelDims.map(function (d) {
+          return { format: { width: d.w, height: d.h, name: (d.w + "×" + d.h), channel: "Z tabuľky" }, layout: null };
+        });
+        tagging = taggingField || campaignTag || "kampan";
+        totalFormats = formats.length;
+        setStatus("Generujem " + totalFormats + " formátov z tabuľky...", 45);
+      } else {
+        // ── Kampaň cesta ── server (Claude) naplánuje layouty z katalógu.
+        const formData = new FormData();
+        formData.append("visual", selectedFile);
+        formData.append("headline", headline);
+        formData.append("campaign", campaignSel.value);
+        formData.append("adType", adType);
+        formData.append("visualRecipe", JSON.stringify(visualRecipe));
+        setStatus("Claude plánuje layouty pre všetky formáty...", 20);
+        const res = await fetch(`${serverUrl}/analyze`, { method: "POST", body: formData });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Server error"); }
+        const data = await res.json();
+        formats = data.formats;
+        tagging = taggingField || campaignTag || data.tagging;
+        totalFormats = formats.length;
+      }
+
+      setStatus("Načítavam obrázok...", 55);
+      const kvSquareBytes = await toBytes(selectedFile);
+      const kvPortraitBytes = await toBytes(selectedPortrait);
+      const kvLandscapeBytes = await toBytes(selectedLandscape);
+      const logoBytes = await toBytes(selectedLogo);
+
+      setStatus("Vytváram " + totalFormats + " frames vo Figme...", 60);
+      parent.postMessage({ pluginMessage: { type: "create-frames", payload: {
+        formats, headline, subheadline, adType, tagging,
+        kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes,
+        visualRecipe, showGuides, aiGenerated
+      } } }, "*");
 
     } catch (err) {
       btn.disabled = false;
@@ -317,6 +457,9 @@
     box.textContent = "Chyba: " + msg;
     box.style.display = "block";
   }
+
+  // Predvyplň Tagging podľa prvej kampane pri štarte.
+  onCampaignChange();
 </script>
 </body>
 </html>

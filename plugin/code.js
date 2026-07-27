@@ -42,6 +42,22 @@ const STYLE = {
 // Rozlíšený font (nastaví sa v createAllFrames; fallback Inter)
 let FONT = { family: "Inter", style: "Bold" };
 
+// Pomer strán nahraného KV (nastaví sa v createAllFrames) — na rozhodnutie
+// FILL vs CONTAIN podľa Surďovho pravidla „keď sa subjekt nezmestí → Contain".
+let KV_RATIO = null;
+
+// Podnadpis (Surď: prvok SUBHDL) — voliteľný, pod headlineom.
+let SUBHEAD = "";
+
+// Je AI disclosure zapnutá? (aby si text vyhradil miesto a neprekryl AI tag)
+let AI_ON = false;
+
+// Rozmery aktuálne kresleného KV (nastaví sa v slučke cez getSizeAsync) —
+// slúžia na výpočet viditeľnej plochy pri CONTAIN, nech text/logo/AI sadnú
+// na obrázok a nie do brand pásu.
+let CUR_IMG_W = 0;
+let CUR_IMG_H = 0;
+
 async function resolveBrandFont() {
   try {
     await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
@@ -60,42 +76,78 @@ function brandColor(layout) {
   return BRAND_COLOR;
 }
 
-// AI disclosure — malý text vľavo dole (potvrdené z Figmy)
+// Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
+function aiNoteFontSize(format) {
+  return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 11, 18));
+}
+
+// AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
+// Ladený tak, aby pôsobil ako súčasť kompozície: nižšia sýtosť, jemný
+// letter-spacing, zarovnaný na rovnaký ľavý okraj ako headline.
 function addAiNote(frame, format) {
   const t = figma.createText();
   t.name = "AI generované";
   t.fontName = FONT;
   t.characters = STYLE.aiTagText;
-  t.fontSize = Math.round(clamp(Math.min(format.width, format.height) * 0.028, 10, 22));
+  t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  t.opacity = 0.9;
+  t.opacity = 0.72;                       // recede do vizuálu, nech nie je nalepený
+  try { t.letterSpacing = { value: 2, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 8, 60));
   frame.appendChild(t);
-  t.x = pad;
-  t.y = format.height - t.height - Math.round(pad * 0.5);
+  // Ukotvi tag na spodok SKUTOČNÉHO KV obrázka, nech je vždy NA vizuáli a nie
+  // v prázdnom brand páse pod ním. Nájde najväčší rect s IMAGE výplňou (mimo
+  // loga). Keď KV vypĺňa celý frame (fill), obrázok je fill rámu (žiadny child)
+  // → padne na spodok frame-u, čo je stále na obrázku.
+  let img = null;
+  try {
+    const kids = frame.children || [];
+    for (let i = 0; i < kids.length; i++) {
+      const n = kids[i];
+      if (n.name === "Logo") continue;
+      const fills = n.fills;
+      if (Array.isArray(fills) && fills.some(function (fl) { return fl.type === "IMAGE"; })) {
+        if (!img || (n.width * n.height > img.width * img.height)) img = n;
+      }
+    }
+  } catch (e) {}
+  const imgBottom = img ? (img.y + img.height) : format.height;
+  const imgLeft = img ? img.x : 0;
+  t.x = Math.max(pad, Math.round(imgLeft) + pad);
+  t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
   t.locked = true;
 }
 
-async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
+async function createAllFrames({ formats, headline, subheadline, adType, imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
+  SUBHEAD = (subheadline || "").trim();
   const campaignTag = tagging || "kid-062026";
-  // Pomôcky (safe zóny, "Recipe" štítok, "checks" badge, validation report)
-  // sa dajú vypnúť pre čistý výstup na prezentáciu / export. Default = zapnuté.
   const guides = showGuides !== false;
   const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
+  AI_ON = aiNote;
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
 
-  var figmaImage = null;
-  if (imageBytes && imageBytes.length > 0) {
-    figmaImage = figma.createImage(new Uint8Array(imageBytes));
+  function mkImage(bytes) {
+    if (!bytes || !bytes.length) return null;
+    try { return figma.createImage(new Uint8Array(bytes)); } catch (e) { return null; }
+  }
+  // KV pre 3 orientácie; imageBytes = spätná kompatibilita (starý single vstup → štvorec)
+  const imgSquare = mkImage(kvSquareBytes || imageBytes);
+  const imgPortrait = mkImage(kvPortraitBytes);
+  const imgLandscape = mkImage(kvLandscapeBytes);
+
+  // Vyber KV podľa orientácie formátu — každý formát dostane vizuál pre svoj
+  // tvar, takže sa nič neoreže zle. Fallback na dostupné.
+  function pickKV(format) {
+    const r = format.width / format.height;
+    if (r >= 1.25) return imgLandscape || imgSquare || imgPortrait;
+    if (r <= 0.8) return imgPortrait || imgSquare || imgLandscape;
+    return imgSquare || imgPortrait || imgLandscape;
   }
 
-  var figmaLogo = null;
-  if (logoBytes && logoBytes.length > 0) {
-    figmaLogo = figma.createImage(new Uint8Array(logoBytes));
-  }
+  var figmaLogo = mkImage(logoBytes);
 
   const byChannel = {};
   for (const item of formats) {
@@ -118,8 +170,22 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
 
     let xOffset = 0;
 
-    for (const { format, layout } of items) {
+    for (const item of items) {
+      const format = item.format;
+      // Excel cesta: keď layout nepríde zo servera, vyrieš ho lokálne z rozmerov.
+      const layout = item.layout || resolveLayoutLocal(format);
       const layoutType = layout.layout_type || "full_bleed";
+      const figmaImage = pickKV(format); // KV podľa orientácie formátu
+
+      // Headline pre tento formát = tvoj ručný text. Tool sám rozhodne (per
+      // formát), kde ho zobraziť a kde nie (show_headline / show_subhead).
+      const hl = headline;
+
+      // Rozmery zvoleného KV (na výpočet viditeľnej plochy pri contain).
+      CUR_IMG_W = 0; CUR_IMG_H = 0;
+      if (figmaImage) {
+        try { const sz = await figmaImage.getSizeAsync(); CUR_IMG_W = sz.width; CUR_IMG_H = sz.height; } catch (e) {}
+      }
 
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
@@ -131,35 +197,35 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
       frame.clipsContent = true;
 
       if (layoutType === "video_placeholder") {
-        buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildVideoPlaceholderLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "clean_image") {
         buildCleanImageLayout(frame, format, layout, figmaImage);
       } else if (layoutType === "headline_only") {
-        buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage);
+        buildHeadlineOnlyLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "branding_skin") {
-        buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildBrandingSkinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "side_safe") {
-        buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildSideSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "interscroller_safe") {
-        buildInterscrollerSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildInterscrollerSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "native_center") {
-        buildNativeCenterLayout(frame, format, layout, headline, figmaImage);
+        buildNativeCenterLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "email_layout") {
-        buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildEmailLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "pinterest_pin") {
-        buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildPinterestPinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "strip") {
-        buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildStripLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "split") {
-        buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildSplitLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "stacked") {
-        buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildStackedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "blurred_bg") {
-        buildBlurredBgLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildBlurredBgLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "logo_only") {
-        buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo);
+        buildLogoOnlyLayout(frame, format, layout, hl, figmaLogo);
       } else {
-        buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildFullBleedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       }
 
       // AI disclosure (vľavo dole) — mimo logo-only a native formátov
@@ -303,12 +369,42 @@ function placeLogo(frame, figmaLogo, x, y, w, h) {
   frame.appendChild(logoRect);
 }
 
+// Lokálny layout resolver — použije sa pri Excel ceste (rozmery z tabuľky od
+// mediálky), keď layout nepríde zo servera. Deterministický, podľa pomeru strán
+// (mirror agent.js). Default FILL (žiadne brand pásy).
+function resolveLayoutLocal(format) {
+  const ratio = format.width / format.height;
+  const base = {
+    show_headline: true,
+    show_logo: true,
+    image_fit: "fill",
+    headline_size_px: Math.min(72, Math.max(10, Math.round(format.height * 0.07)))
+  };
+  if (format.height <= 100 || (ratio > 4.5 && format.height <= 250)) {
+    return Object.assign({}, base, { layout_type: "logo_only", image_fit: "none", show_headline: false });
+  }
+  if (ratio > 3.5 && format.height < 300) return Object.assign({}, base, { layout_type: "strip" });
+  if (ratio > 3.5) return Object.assign({}, base, { layout_type: "split" });
+  if (ratio < 0.3) return Object.assign({}, base, { layout_type: "stacked" });
+  return Object.assign({}, base, { layout_type: "full_bleed" }); // portrét, štvorec, landscape
+}
+
 function shouldShowHeadline(layout, headline) {
   return layout.show_headline !== false && !!headline;
 }
 
 function shouldShowLogo(format, layout, figmaLogo) {
   return !!figmaLogo && !format.noLogo && layout.show_logo !== false;
+}
+
+// Subheadline dáme LEN tam, kde je naň priestor: veľké štvorcové/portrét formáty
+// (1:1, 4:5, 9:16, 2:3, veľké Google/interscroller). Na malých a širokých
+// bannerech (300×250, 728×90, 970×250, skyscrapery) headline stačí — subheadline
+// by sa tam netlačil. Engine navyše môže vynútiť show_subhead:false.
+function hasRoomForSubhead(format, layout) {
+  if (layout && layout.show_subhead === false) return false;
+  const minSide = Math.min(format.width, format.height);
+  return minSide >= 600 && format.height >= 600;
 }
 
 function clamp(n, min, max) {
@@ -532,23 +628,10 @@ function buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo
 }
 
 function buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  buildCleanImageLayout(frame, format, layout, figmaImage);
-  const pad = Math.round(format.width * 0.06);
-
-  if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(format.height * 0.045, 46, 72));
-    const logoW = Math.round(logoH * 3.5);
-    addSolidRect(frame, "Logo contrast", pad - 12, pad - 12, logoW + 24, logoH + 24, BRAND_COLOR, 0.82);
-    placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
-  }
-
-  if (shouldShowHeadline(layout, headline)) {
-    const textAreaH = Math.round(format.height * 0.24);
-    const y = format.height - textAreaH - pad;
-    addSolidRect(frame, "Text overlay max 30%", pad, y, format.width - pad * 2, textAreaH, BRAND_COLOR, 0.88);
-    const fontSize = Math.round(clamp(format.width * 0.062, 34, 58));
-    addText(frame, headline, pad * 1.5, y + pad, format.width - pad * 3, textAreaH - pad * 2, fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
-  }
+  // Pinterest Pin (2:3) používa rovnaký Surďov full-bleed look ako ostatné
+  // portrét formáty: KV na celý frame + jemný gradient scrim + headline vľavo
+  // dole + logo vpravo dole. Žiadny tvrdý modrý panel.
+  buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
 }
 
 // Brand farba pozadia, fotka vpravo (contain 30%), text+logo vľavo
@@ -597,9 +680,21 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
 // Full bleed podľa Surďovej predlohy: KV na celý frame + jemný tmavý gradient
 // dole + headline biely vľavo dole (Tatra banka Sans) + logo VPRAVO DOLE.
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  // FILL = plný záber (Surďov look pre surovú fotku). CONTAIN len keď to výslovne
+  // rozhodne engine. Pozn.: pri HOTOVEJ kompozícii (napálené číslo) žiadny režim
+  // nevyzerá dobre — správny vstup je SUROVÁ fotka.
+  // Viditeľná plocha vizuálu. Pri CONTAIN nakreslíme obrázok PRESNE na jeho
+  // fitovaný obdĺžnik (nie celo-rámovo s FIT), takže brand pás ostane čistý a
+  // všetok text/logo/AI sadne NA obrázok — nie do pásu (žiadna „čierna čiara").
+  let cTop = 0, cBottom = format.height, cLeft = 0, cRight = format.width;
   if (figmaImage && layout.image_fit === "contain") {
+    const iw = CUR_IMG_W || format.width, ih = CUR_IMG_H || format.height;
+    const s = Math.min(format.width / iw, format.height / ih);
+    const dw = Math.round(iw * s), dh = Math.round(ih * s);
+    const dx = Math.round((format.width - dw) / 2), dy = Math.round((format.height - dh) / 2);
     frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
-    addImageRect(frame, figmaImage, "Foto - protected subject FIT", 0, 0, format.width, format.height, "FIT");
+    addImageRect(frame, figmaImage, "KV (contain)", dx, dy, dw, dh, "FILL");
+    cTop = dy; cBottom = dy + dh; cLeft = dx; cRight = dx + dw;
   } else {
     frame.fills = figmaImage
       ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
@@ -607,14 +702,16 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   }
 
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 10, 60));
+  const cW = cRight - cLeft, cH = cBottom - cTop;
 
-  // Jemný tmavý gradient dole — priehľadný hore → tmavý dole (čitateľnosť textu)
-  const gradH = Math.round(format.height * STYLE.scrimHeightPct);
+  // Jemný tmavý gradient dole — ukotvený na spodok VIZUÁLU (pri contain končí na
+  // spodku obrázka, nie frame-u), aby čitateľnosť textu bola presne tam.
+  const gradH = Math.round(cH * STYLE.scrimHeightPct);
   const gradRect = figma.createRectangle();
   gradRect.name = "Gradient scrim";
-  gradRect.resize(format.width, gradH);
-  gradRect.x = 0;
-  gradRect.y = format.height - gradH;
+  gradRect.resize(cW, gradH);
+  gradRect.x = cLeft;
+  gradRect.y = cBottom - gradH;
   gradRect.fills = [{
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
@@ -625,35 +722,66 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   }];
   frame.appendChild(gradRect);
 
-  // Logo VPRAVO DOLE (Surď) — ~15 % šírky, min 50 px
+  // Logo VPRAVO DOLE (Surď) — na spodku vizuálu (nie frame-u)
   let logoRight = 0;
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoW = Math.max(STYLE.minLogoPx, Math.round(format.width * STYLE.logoWidthPct));
     const logoH = Math.round(logoW * 0.95); // TB square lockup ~1:0.95
-    const lx = format.width - logoW - pad;
-    const ly = format.height - logoH - pad;
+    const lx = cRight - logoW - pad;
+    const ly = cBottom - logoH - pad;
     placeLogo(frame, figmaLogo, lx, ly, logoW, logoH);
     logoRight = logoW + pad; // koľko miesta vpravo zabrať headlinu
   }
 
   if (!shouldShowHeadline(layout, headline)) return;
 
-  // Headline biely vľavo dole — nechá miesto logu vpravo
-  const fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
+  const textW = Math.max(40, cW - pad * 2 - (logoRight ? logoRight * 0.8 : 0));
+  let bottomY = cBottom - pad; // spodná kotva textového bloku = spodok vizuálu
+  // vyhraď miesto pre „AI generované" (vľavo dole), nech ho text neprekryje —
+  // zladené s aiNoteFontSize() a jeho odsadením (pad), aby nič nekolidovalo.
+  if (AI_ON) bottomY -= aiNoteFontSize(format) + pad + Math.round(pad * 0.4);
+
+  // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho.
+  // Zobrazí sa LEN na formátoch, kde je naň priestor (per-formát rozhodnutie).
+  if (SUBHEAD && hasRoomForSubhead(format, layout)) {
+    const subSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct * 0.5));
+    const sub = figma.createText();
+    sub.fontName = FONT;
+    sub.characters = SUBHEAD;
+    sub.fontSize = subSize;
+    sub.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    sub.resize(textW, Math.round(format.height * 0.25));
+    sub.textAutoResize = "HEIGHT";
+    frame.appendChild(sub);
+    sub.x = cLeft + pad;
+    sub.y = bottomY - sub.height;
+    bottomY = sub.y - Math.round(pad * 0.3);
+  }
+
+  // Headline biely vľavo dole — nechá miesto logu vpravo.
+  // AUTO-FIT (Surď: „pri dlhom headline zmenším font"): začne na 6,6 % výšky
+  // a zmenšuje font po 1 px, kým sa zalomený text nezmestí do vyhradenej výšky
+  // (max ~32 % frame, čo ostane nad logom/AI tagom). Nikdy nepôjde pod 12 px.
+  let fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
+  const maxHeadlineH = Math.max(fontSize, Math.round((bottomY - (cTop + cH * 0.5))));
   const txt = figma.createText();
   txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   try { txt.letterSpacing = { value: -2, unit: "PERCENT" }; } catch (e) {}
-  const textW = format.width - pad * 2 - (logoRight ? logoRight * 0.8 : 0);
-  txt.resize(Math.max(40, textW), Math.round(format.height * 0.4));
+  txt.resize(textW, Math.round(format.height * 0.4));
   txt.textAutoResize = "HEIGHT";
-  txt.x = pad;
-  txt.y = format.height - pad - txt.height;
   frame.appendChild(txt);
-  // po autoresize znovu ukotvi dole
-  txt.y = format.height - pad - txt.height;
+  // zmenšuj, kým zalomený headline presahuje vyhradenú výšku
+  let guard = 200;
+  while (txt.height > maxHeadlineH && fontSize > STYLE.minTextPx && guard-- > 0) {
+    fontSize = Math.max(STYLE.minTextPx, fontSize - 1);
+    txt.fontSize = fontSize;
+  }
+  txt.x = cLeft + pad;
+  txt.y = bottomY - txt.height;
+  frame.appendChild(txt);
 }
 
 // Fotka 40% vľavo, brand farba 60% vpravo, headline na pravej strane

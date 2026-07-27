@@ -1,10 +1,19 @@
 // agent.js
-const Anthropic = require("@anthropic-ai/sdk");
 const FORMATS = require("./formats");
+const { getCreativeRule } = require("./campaign-rules");
+const { getRequestedFormats } = require("./template-library");
 
-const client = new Anthropic({
-  apiKey: (process.env.ANTHROPIC_API_KEY || "").replace(/\s/g, "")
-});
+let client = null;
+
+function getAnthropicClient() {
+  if (!client) {
+    const Anthropic = require("@anthropic-ai/sdk");
+    client = new Anthropic({
+      apiKey: (process.env.ANTHROPIC_API_KEY || "").replace(/\s/g, "")
+    });
+  }
+  return client;
+}
 
 const ANTHROPIC_MODEL = "claude-sonnet-4-5";
 
@@ -45,7 +54,7 @@ async function createMessageWithRetry(params, label) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await client.messages.create(params);
+      return await getAnthropicClient().messages.create(params);
     } catch (err) {
       lastError = err;
       if (!isTransientAnthropicError(err) || attempt === maxAttempts) break;
@@ -63,6 +72,7 @@ const DEFAULT_VISUAL_RECIPE = {
   visualType: "centered_subject",
   subjectPosition: "center",
   cropMode: "protect_subject",
+  masterSafeMode: true,
   smallFormatMode: "brand_panel",
   textMode: "auto",
   logoMode: "auto"
@@ -81,6 +91,18 @@ function recipeFocalPoint(recipe, visualAnalysis) {
     bottom: [0.5, 0.68]
   };
 
+  if (
+    recipe.subjectPosition === "auto" &&
+    visualAnalysis &&
+    typeof visualAnalysis.recommended_focal_x === "number" &&
+    typeof visualAnalysis.recommended_focal_y === "number"
+  ) {
+    return {
+      x: visualAnalysis.recommended_focal_x,
+      y: visualAnalysis.recommended_focal_y,
+      source: "ai_analysis"
+    };
+  }
   const fallback = positions[recipe.subjectPosition] || positions.center;
   return {
     x: fallback[0],
@@ -105,18 +127,24 @@ function shouldContainImage(format, recipe, visualAnalysis) {
 }
 
 function expandFormatVariants(format) {
-  const count = Math.max(1, Number(format.count || 1));
-  return Array.from({ length: count }, (_, index) => {
+  const requestedCount = Math.max(1, Number(format.count || 1));
+  const pairedSides = requestedCount === 2 && (format.id.includes("side") || format.id.includes("branding"));
+  // Jeden nahraný master nemá zmysel kopírovať 3× alebo 5× bez zmeny.
+  // Viac kreatívnych variantov vznikne až z viacerých masterov; výnimkou sú
+  // povinné ľavé/pravé brandingové boky.
+  const outputCount = pairedSides ? 2 : 1;
+  return Array.from({ length: outputCount }, (_, index) => {
     const variantIndex = index + 1;
-    const variantSide = count === 2 && (format.id.includes("side") || format.id.includes("branding"))
+    const variantSide = pairedSides
       ? (variantIndex === 1 ? "left" : "right")
       : null;
 
     return {
       ...format,
       variantIndex,
-      variantCount: count,
-      variantLabel: count > 1 ? `v${variantIndex}/${count}` : "",
+      variantCount: outputCount,
+      requestedCreativeCount: requestedCount,
+      variantLabel: outputCount > 1 ? `v${variantIndex}/${outputCount}` : "",
       variantSide,
       baseId: format.id
     };
@@ -169,6 +197,8 @@ bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je t
 
 function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   const recipe = normalizeRecipe(visualRecipe);
+  const creativeRule = getCreativeRule(format);
+  const elements = creativeRule && creativeRule.elements ? creativeRule.elements : null;
   const ratio = format.width / format.height;
   const focal = recipeFocalPoint(recipe, visualAnalysis);
   const focalX = focal.x;
@@ -186,14 +216,61 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     headline_position: "bottom",
     logo_position: "top-left",
     brand_color_pct: 0,
-    show_headline: !typographyLed,
-    show_logo: !format.noLogo,
+    show_headline: elements ? elements.headline : !typographyLed,
+    show_subheadline: elements ? elements.subheadline : true,
+    show_cta: elements ? elements.cta : true,
+    show_logo: elements ? elements.logo : !format.noLogo,
+    show_legal: elements ? elements.legal : true,
+    show_badge: elements ? elements.badge : true,
+    show_ai_disclosure: elements ? elements.aiDisclosure : true,
+    creative_rules: creativeRule,
     safe_content: null,
     visual_recipe: recipe,
     protect_subject: protectSubject,
     focal_source: focal.source,
     risk_flags: []
   };
+
+  // Adform PSD ostáva zdrojom brandových vrstiev, ale kompozícia vychádza
+  // primárne z TP mastera 4000×4000 / centrálne jadro 2000×2000.
+  if (format.template === "adform_psd_reference") {
+    return {
+      ...base,
+      layout_type: recipe.masterSafeMode === false ? "adform_psd" : "master_safe",
+      master_safe_zone: true,
+      master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
+      image_fit: "fill",
+      show_headline: true,
+      show_logo: true,
+      logo_position: format.width / format.height > 2 ? "top-right" : "top-left",
+      headline_position: format.width / format.height > 2 ? "right" : "left"
+    };
+  }
+
+  // Univerzálne šablóny určujú špeciálny renderer priamo profilom,
+  // bez historickej campaign/role hodnoty.
+  if (creativeRule && creativeRule.layoutType === "clean_image") {
+    return {
+      ...base, layout_type: "clean_image", image_fit: "fill",
+      show_headline: false, show_subheadline: false, show_cta: false,
+      show_logo: false, show_legal: false, show_badge: false,
+      show_ai_disclosure: false
+    };
+  }
+  if (creativeRule && creativeRule.layoutType === "native_center") {
+    return {
+      ...base, layout_type: "native_center", image_fit: "fill",
+      show_headline: false, show_subheadline: false, show_cta: false,
+      show_logo: false, show_legal: false, show_badge: false,
+      show_ai_disclosure: false
+    };
+  }
+  if (creativeRule && creativeRule.layoutType === "logo_only") {
+    return {
+      ...base, layout_type: "logo_only", image_fit: "none", photo_width_pct: 0,
+      headline_position: "center", logo_position: "center"
+    };
+  }
 
   if (isVideoFormat(format)) {
     return {
@@ -213,6 +290,14 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   // Existujúce KID formáty rolu nemajú → padnú do pôvodnej logiky nižšie.
   if (format.role) {
     const r = format.role;
+    if (r === "clean_image" || (creativeRule && creativeRule.layoutType === "clean_image")) {
+      return {
+        ...base, layout_type: "clean_image", image_fit: "fill",
+        show_headline: false, show_subheadline: false, show_cta: false,
+        show_logo: false, show_legal: false, show_badge: false,
+        show_ai_disclosure: false
+      };
+    }
     if (r === "logo_only") {
       return { ...base, layout_type: "logo_only", image_fit: "none", photo_width_pct: 0,
         headline_position: "center", logo_position: "center", brand_color_pct: 0,
@@ -382,6 +467,22 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     };
   }
 
+  // Všeobecná TP adaptácia: master 4000×4000, dôležité jadro v stredových
+  // 2000×2000. Cieľový formát iba mení rodinu kompozície, nie master.
+  if (recipe.masterSafeMode !== false) {
+    return {
+      ...base,
+      layout_type: "master_safe",
+      master_safe_zone: true,
+      master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
+      headline_position: ratio > 1.45 ? "right" : "bottom",
+      logo_position: "bottom-right",
+      show_logo: base.show_logo,
+      show_cta: base.show_cta,
+      risk_flags: ["master_core_50pct_check"]
+    };
+  }
+
   // Ultra-široký A nízky (ratio > 3.5, height < 300): strip layout
   // — brand farba pozadia, fotka vpravo (contain, max 30%), text+logo vľavo
   if (ratio > 3.5 && format.height < 300) {
@@ -468,6 +569,7 @@ function buildValidationWarnings(format, layout, visualAnalysis, headline) {
   if (layout.image_fit === "contain" && !format.id.startsWith("google_logo_")) warnings.push("image_uses_fit_check_background_edges");
   if (ratio > 4.5 || format.height <= 100) warnings.push("small_or_wide_format_check_readability");
   if (hasMeaningfulSafeZone) warnings.push("safe_zone_overlay_present_check_final_export");
+  if (layout.master_safe_zone) warnings.push("master_core_50pct_check");
 
   return [...new Set(warnings)];
 }
@@ -516,7 +618,7 @@ Odpovedz VÝHRADNE v JSON bez akéhokoľvek iného textu:
   return JSON.parse(jsonMatch[0]);
 }
 
-async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe, campaign) {
+async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe, campaign, templateGroupIds) {
   const recipe = normalizeRecipe(visualRecipe);
   // Spätná kompatibilita: keď kampaň nepríde, správame sa ako predtým (KID).
   const activeCampaign = campaign || "kid";
@@ -527,10 +629,15 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
   visualAnalysis.visual_recipe = recipe;
   console.log("Analýza:", visualAnalysis);
 
-  const relevantFormats = FORMATS
-    // Surď (dotazník): video formáty úplne vynechať z generovania
-    .filter(f => (f.campaign || "kid") === activeCampaign && f.type.includes(adType) && !isVideoFormat(f))
-    .flatMap(expandFormatVariants);
+  const universalFormats = getRequestedFormats(templateGroupIds);
+  const relevantFormats = (universalFormats.length
+    ? universalFormats
+    : FORMATS.filter(f =>
+      (f.campaign || "kid") === activeCampaign &&
+      f.type.includes(adType) &&
+      !isVideoFormat(f)
+    )
+  ).flatMap(expandFormatVariants);
   console.log(`Relevantných formátov pre "${activeCampaign}" / "${adType}": ${relevantFormats.length}`);
 
   const results = relevantFormats.map(format => {
@@ -550,7 +657,13 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
       bg_b: visualAnalysis.bg_b || 0.18,
       is_complex_visual: visualAnalysis.is_complex_visual || false,
       show_headline: strategy.show_headline !== false,
+      show_subheadline: strategy.show_subheadline !== false,
+      show_cta: strategy.show_cta !== false,
       show_logo: strategy.show_logo !== false,
+      show_legal: strategy.show_legal !== false,
+      show_badge: strategy.show_badge !== false,
+      show_ai_disclosure: strategy.show_ai_disclosure !== false,
+      creative_rules: strategy.creative_rules || null,
       safe_content: strategy.safe_content || null,
       visual_recipe: recipe,
       protect_subject: strategy.protect_subject || false,

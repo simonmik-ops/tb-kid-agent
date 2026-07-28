@@ -1,4 +1,9 @@
 // code.js
+
+// Menný priestor pre metadáta na frameoch. Musí zostať stabilný — čítajú
+// ho externé nástroje cez getSharedPluginData.
+var TB_NS = "tbgen";
+
 try {
   figma.showUI(__html__, { width: 500, height: 760 });
 } catch(e) {
@@ -295,11 +300,21 @@ async function createAllFrames({
       const sideName = format.variantSide ? " " + format.variantSide.toUpperCase() : "";
       frame.name = format.name + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
       // Metadáta pre export: limit a ID formátu sa inak z názvu frameu nedajú zistiť.
+      // Zapisujeme dvojmo — setPluginData je súkromné pre tento plugin,
+      // setSharedPluginData vedia prečítať aj externé nástroje a kontroly.
       try {
-        frame.setPluginData("tbLimit", String(format.limit || ""));
-        frame.setPluginData("tbFormatId", String(format.id || ""));
-        frame.setPluginData("tbTagging", String(campaignTag || ""));
-        frame.setPluginData("tbChannel", String(format.channel || channel || ""));
+        var meta = {
+          tbLimit: String(format.limit || ""),
+          tbFormatId: String(format.id || ""),
+          tbTagging: String(campaignTag || ""),
+          tbChannel: String(format.channel || channel || ""),
+          tbWidth: String(format.width || ""),
+          tbHeight: String(format.height || "")
+        };
+        for (var mk in meta) {
+          frame.setPluginData(mk, meta[mk]);
+          frame.setSharedPluginData(TB_NS, mk, meta[mk]);
+        }
       } catch (e) {}
       frame.resize(format.width, format.height);
       frame.x = xOffset;
@@ -1660,12 +1675,17 @@ function addSafeRect(frame, name, x, y, w, h) {
 
   function frameMeta(n, pageName) {
     var d = { limit: "", formatId: "", tagging: "", channel: "" };
-    try {
-      d.limit = n.getPluginData("tbLimit") || "";
-      d.formatId = n.getPluginData("tbFormatId") || "";
-      d.tagging = n.getPluginData("tbTagging") || "";
-      d.channel = n.getPluginData("tbChannel") || "";
-    } catch (e) {}
+    function read(key) {
+      try {
+        var v = n.getSharedPluginData("tbgen", key);
+        if (v) return v;
+      } catch (e) {}
+      try { return n.getPluginData(key) || ""; } catch (e) { return ""; }
+    }
+    d.limit = read("tbLimit");
+    d.formatId = read("tbFormatId");
+    d.tagging = read("tbTagging");
+    d.channel = read("tbChannel");
     if (!d.tagging) {
       var m = String(n.name).match(/\[([^\]]+)\]\s*$/);
       d.tagging = m ? m[1] : "";

@@ -1,10 +1,19 @@
 // agent.js
-const Anthropic = require("@anthropic-ai/sdk");
 const FORMATS = require("./formats");
+const { getCreativeRule } = require("./campaign-rules");
+const { getRequestedFormats } = require("./template-library");
 
-const client = new Anthropic({
-  apiKey: (process.env.ANTHROPIC_API_KEY || "").replace(/\s/g, "")
-});
+let client = null;
+
+function getAnthropicClient() {
+  if (!client) {
+    const Anthropic = require("@anthropic-ai/sdk");
+    client = new Anthropic({
+      apiKey: (process.env.ANTHROPIC_API_KEY || "").replace(/\s/g, "")
+    });
+  }
+  return client;
+}
 
 const ANTHROPIC_MODEL = "claude-sonnet-4-5";
 
@@ -45,7 +54,7 @@ async function createMessageWithRetry(params, label) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await client.messages.create(params);
+      return await getAnthropicClient().messages.create(params);
     } catch (err) {
       lastError = err;
       if (!isTransientAnthropicError(err) || attempt === maxAttempts) break;
@@ -63,6 +72,7 @@ const DEFAULT_VISUAL_RECIPE = {
   visualType: "centered_subject",
   subjectPosition: "center",
   cropMode: "protect_subject",
+  masterSafeMode: true,
   smallFormatMode: "brand_panel",
   textMode: "auto",
   logoMode: "auto"
@@ -81,11 +91,64 @@ function recipeFocalPoint(recipe, visualAnalysis) {
     bottom: [0.5, 0.68]
   };
 
+  if (
+    recipe.subjectPosition === "auto" &&
+    visualAnalysis &&
+    typeof visualAnalysis.recommended_focal_x === "number" &&
+    typeof visualAnalysis.recommended_focal_y === "number"
+  ) {
+    return {
+      x: visualAnalysis.recommended_focal_x,
+      y: visualAnalysis.recommended_focal_y,
+      source: "ai_analysis"
+    };
+  }
   const fallback = positions[recipe.subjectPosition] || positions.center;
   return {
-    x: visualAnalysis.recommended_focal_x || fallback[0],
-    y: visualAnalysis.recommended_focal_y || fallback[1]
+    x: fallback[0],
+    y: fallback[1],
+    source: "manual_recipe"
   };
+}
+
+function isVideoFormat(format) {
+  return format.id.includes("video") || format.id.includes("reels") || format.id.includes("tiktok");
+}
+
+function shouldContainImage(format, recipe, visualAnalysis) {
+  const ratio = format.width / format.height;
+  const imageIsHardToCrop = visualAnalysis.is_complex_visual || recipe.visualType === "product_packshot" || recipe.visualType === "people_face";
+  const narrowOrTiny = format.height <= 100 || ratio > 3.5 || ratio < 0.3;
+
+  if (recipe.cropMode === "fill_frame") return false;
+  if (recipe.cropMode === "contain_if_risky") return imageIsHardToCrop && narrowOrTiny;
+  if (recipe.visualType === "product_packshot") return true;
+  return imageIsHardToCrop && narrowOrTiny;
+}
+
+function expandFormatVariants(format) {
+  const requestedCount = Math.max(1, Number(format.count || 1));
+  const pairedSides = requestedCount === 2 && (format.id.includes("side") || format.id.includes("branding"));
+  // Jeden nahraný master nemá zmysel kopírovať 3× alebo 5× bez zmeny.
+  // Viac kreatívnych variantov vznikne až z viacerých masterov; výnimkou sú
+  // povinné ľavé/pravé brandingové boky.
+  const outputCount = pairedSides ? 2 : 1;
+  return Array.from({ length: outputCount }, (_, index) => {
+    const variantIndex = index + 1;
+    const variantSide = pairedSides
+      ? (variantIndex === 1 ? "left" : "right")
+      : null;
+
+    return {
+      ...format,
+      variantIndex,
+      variantCount: outputCount,
+      requestedCreativeCount: requestedCount,
+      variantLabel: outputCount > 1 ? `v${variantIndex}/${outputCount}` : "",
+      variantSide,
+      baseId: format.id
+    };
+  });
 }
 
 async function analyzeVisual(imageBase64, mediaType) {
@@ -135,10 +198,13 @@ bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je t
 
 function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   const recipe = normalizeRecipe(visualRecipe);
+  const creativeRule = getCreativeRule(format);
+  const elements = creativeRule && creativeRule.elements ? creativeRule.elements : null;
   const ratio = format.width / format.height;
   const focal = recipeFocalPoint(recipe, visualAnalysis);
   const focalX = focal.x;
   const focalY = focal.y;
+  const containImage = shouldContainImage(format, recipe, visualAnalysis);
   const protectSubject = recipe.cropMode !== "fill_frame" || recipe.visualType === "product_packshot" || recipe.visualType === "people_face";
   const productLike = recipe.visualType === "product_packshot";
   const typographyLed = recipe.visualType === "typography_led";
@@ -171,13 +237,125 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     headline_position: "bottom",
     logo_position: "top-left",
     brand_color_pct: 0,
-    show_headline: !typographyLed && (forceHeadline || !textBakedIn),
-    show_logo: !format.noLogo && (forceLogo || !logoBakedIn),
+    show_headline: (elements ? elements.headline : !typographyLed) && (forceHeadline || !textBakedIn),
+    show_subheadline: elements ? elements.subheadline : true,
+    show_cta: elements ? elements.cta : true,
+    show_logo: (elements ? elements.logo : !format.noLogo) && (forceLogo || !logoBakedIn),
+    show_legal: elements ? elements.legal : true,
+    show_badge: elements ? elements.badge : true,
+    show_ai_disclosure: elements ? elements.aiDisclosure : true,
+    creative_rules: creativeRule,
     safe_content: null,
     visual_recipe: recipe,
     protect_subject: protectSubject,
+    focal_source: focal.source,
     risk_flags: riskFlags
   };
+
+  // Adform PSD ostáva zdrojom brandových vrstiev, ale kompozícia vychádza
+  // primárne z TP mastera 4000×4000 / centrálne jadro 2000×2000.
+  if (format.template === "adform_psd_reference") {
+    return {
+      ...base,
+      layout_type: recipe.masterSafeMode === false ? "adform_psd" : "master_safe",
+      master_safe_zone: true,
+      master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
+      image_fit: "fill",
+      show_headline: true,
+      show_logo: true,
+      logo_position: format.width / format.height > 2 ? "top-right" : "top-left",
+      headline_position: format.width / format.height > 2 ? "right" : "left"
+    };
+  }
+
+  // Univerzálne šablóny určujú špeciálny renderer priamo profilom,
+  // bez historickej campaign/role hodnoty.
+  if (creativeRule && creativeRule.layoutType === "clean_image") {
+    return {
+      ...base, layout_type: "clean_image", image_fit: "fill",
+      show_headline: false, show_subheadline: false, show_cta: false,
+      show_logo: false, show_legal: false, show_badge: false,
+      show_ai_disclosure: false
+    };
+  }
+  if (creativeRule && creativeRule.layoutType === "native_center") {
+    return {
+      ...base, layout_type: "native_center", image_fit: "fill",
+      show_headline: false, show_subheadline: false, show_cta: false,
+      show_logo: false, show_legal: false, show_badge: false,
+      show_ai_disclosure: false
+    };
+  }
+  if (creativeRule && creativeRule.layoutType === "logo_only") {
+    return {
+      ...base, layout_type: "logo_only", image_fit: "none", photo_width_pct: 0,
+      headline_position: "center", logo_position: "center"
+    };
+  }
+
+  if (isVideoFormat(format)) {
+    return {
+      ...base,
+      layout_type: "video_placeholder",
+      image_fit: "fill",
+      headline_position: "safe-bottom",
+      logo_position: format.noLogo ? "none" : "safe-top",
+      show_logo: !format.noLogo,
+      risk_flags: ["video_needs_manual_motion", "static_thumbnail_only"]
+    };
+  }
+
+  // ── ROLE branch ────────────────────────────────────────────────
+  // Nové kampane (KK Visa, Hypotéka, BSU, Tiger) deklarujú správanie
+  // explicitne cez format.role, aby nezáviseli od id-string matchingu.
+  // Existujúce KID formáty rolu nemajú → padnú do pôvodnej logiky nižšie.
+  if (format.role) {
+    const r = format.role;
+    if (r === "clean_image" || (creativeRule && creativeRule.layoutType === "clean_image")) {
+      return {
+        ...base, layout_type: "clean_image", image_fit: "fill",
+        show_headline: false, show_subheadline: false, show_cta: false,
+        show_logo: false, show_legal: false, show_badge: false,
+        show_ai_disclosure: false
+      };
+    }
+    if (r === "logo_only") {
+      return { ...base, layout_type: "logo_only", image_fit: "none", photo_width_pct: 0,
+        headline_position: "center", logo_position: "center", brand_color_pct: 0,
+        show_headline: false, show_logo: true };
+    }
+    // POZN.: role "clean_image" a "headline_only" sa už špeciálne neriešia —
+    // podľa Surďovej Figmy majú RSA/DemandGen/PMax headline aj logo (full creative).
+    // Tieto role preto padnú do ratio logiky nižšie (full_bleed s headline+logo).
+    if (r === "branding_full") {
+      return { ...base, layout_type: "branding_skin", image_fit: "fill", photo_width_pct: 100,
+        headline_position: "sides", logo_position: "top-sides", safe_content: format.safeZones };
+    }
+    if (r === "branding_side") {
+      return { ...base, layout_type: "side_safe",
+        image_fit: recipe.smallFormatMode === "detail" ? "fill" : "contain",
+        headline_position: "center", logo_position: "top",
+        safe_content: format.safeZones?.safeInner || { width: Math.min(format.width, 160), height: Math.min(format.height, 600) } };
+    }
+    if (r === "interscroller") {
+      return { ...base, layout_type: "interscroller_safe", image_fit: "fill",
+        headline_position: "safe-bottom", logo_position: "safe-top", safe_content: format.safeZones };
+    }
+    if (r === "native") {
+      return { ...base, layout_type: "native_center", show_logo: false,
+        headline_position: "bottom", image_fit: containImage ? "contain" : "fill" };
+    }
+    if (r === "email") {
+      return { ...base, layout_type: "email_layout", image_fit: "fill",
+        headline_position: "below-image", logo_position: "top" };
+    }
+    if (r === "pinterest") {
+      return { ...base, layout_type: "pinterest_pin", headline_position: "bottom",
+        logo_position: "top", safe_content: { maxTextAreaPct: 30 } };
+    }
+    // r === "full_creative" alebo neznáme → padne do ratio logiky nižšie
+    // (fotka fill + headline + logo podľa pomeru strán)
+  }
 
   // Logo assety — žiadna fotka, iba logo + farba (transparentné pozadie)
   if (format.id === "google_logo_wide" || format.id === "google_logo_square") {
@@ -194,27 +372,10 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     };
   }
 
-  // Google RSA a Demand Gen image assety majú byť čisté obrázky bez textu a loga.
-  if (format.id.startsWith("google_rsa_") || format.id.startsWith("demandgen_")) {
-    return {
-      ...base,
-      layout_type: "clean_image",
-      image_fit: productLike || protectSubject ? "contain" : "fill",
-      show_headline: false,
-      show_logo: false
-    };
-  }
-
-  // Performance Max: obrázok môže niesť headline, logo/CTA dopĺňa systém.
-  if (format.id.startsWith("pmax_")) {
-    return {
-      ...base,
-      layout_type: "headline_only",
-      image_fit: productLike || protectSubject ? "contain" : "fill",
-      show_logo: false,
-      headline_position: ratio < 0.9 ? "bottom" : "left"
-    };
-  }
+  // POZN. (rozhodnutie 21. 7.): Podľa Surďovej Figmy majú Google RSA, Demand Gen
+  // aj Performance Max headline AJ logo (full creative), nie čistý obrázok.
+  // Preto tu už nie sú špeciálne prípady — padnú do ratio logiky (full_bleed).
+  // Jediný textless/logoless formát ostáva Engerio native (nižšie).
 
   // Full page brandingy musia rešpektovať webový obsah v strede.
   if (format.id === "markiza_branding_full" || format.id === "joj_branding") {
@@ -240,7 +401,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: "side_safe",
-      image_fit: "fill",
+      image_fit: recipe.smallFormatMode === "detail" ? "fill" : "contain",
       headline_position: "center",
       logo_position: "top",
       safe_content: format.safeZones?.safeInner || { width: Math.min(format.width, 160), height: Math.min(format.height, 600) }
@@ -265,7 +426,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       layout_type: "native_center",
       show_logo: false,
       headline_position: "bottom",
-      image_fit: "fill"
+      image_fit: containImage ? "contain" : "fill"
     };
   }
 
@@ -329,13 +490,29 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     };
   }
 
+  // Všeobecná TP adaptácia: master 4000×4000, dôležité jadro v stredových
+  // 2000×2000. Cieľový formát iba mení rodinu kompozície, nie master.
+  if (recipe.masterSafeMode !== false) {
+    return {
+      ...base,
+      layout_type: "master_safe",
+      master_safe_zone: true,
+      master_family: ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square"),
+      headline_position: ratio > 1.45 ? "right" : "bottom",
+      logo_position: "bottom-right",
+      show_logo: base.show_logo,
+      show_cta: base.show_cta,
+      risk_flags: ["master_core_50pct_check"]
+    };
+  }
+
   // Ultra-široký A nízky (ratio > 3.5, height < 300): strip layout
   // — brand farba pozadia, fotka vpravo (contain, max 30%), text+logo vľavo
   if (ratio > 3.5 && format.height < 300) {
     return {
       ...base,
       layout_type: "strip",
-      image_fit: protectSubject ? "contain" : "fill",
+      image_fit: containImage ? "contain" : "fill",
       photo_width_pct: 30,
       headline_position: "left",
       logo_position: "left",
@@ -347,10 +524,10 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   if (ratio > 3.5) {
     return {
       ...base,
-      layout_type: protectSubject ? "strip" : "split",
-      image_fit: protectSubject ? "contain" : "fill",
-      photo_width_pct: protectSubject ? 32 : 40,
-      headline_position: protectSubject ? "left" : "right",
+      layout_type: containImage ? "strip" : "split",
+      image_fit: containImage ? "contain" : "fill",
+      photo_width_pct: containImage ? 32 : 40,
+      headline_position: containImage ? "left" : "right",
       logo_position: "top-right",
       brand_color_pct: 60
     };
@@ -361,7 +538,7 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
     return {
       ...base,
       layout_type: "stacked",
-      image_fit: protectSubject ? "contain" : "fill",
+      image_fit: containImage ? "contain" : "fill",
       photo_width_pct: 100,
       headline_position: "bottom",
       logo_position: "top",
@@ -374,11 +551,12 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   if (ratio < 0.75) {
     return {
       ...base,
-      layout_type: protectSubject && productLike ? "blurred_bg" : "full_bleed",
-      image_fit: protectSubject ? "contain" : "fill",
+      // Surď (dotazník): blurred background NIKDY → vždy full_bleed
+      layout_type: "full_bleed",
+      image_fit: containImage ? "contain" : "fill",
       photo_width_pct: 100,
       headline_position: "bottom",
-      logo_position: "top-left",
+      logo_position: "bottom-right",
       brand_color_pct: 0
     };
   }
@@ -387,12 +565,36 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   return {
     ...base,
     layout_type: "full_bleed",
-    image_fit: protectSubject && productLike ? "contain" : "fill",
+    image_fit: containImage ? "contain" : "fill",
     photo_width_pct: 100,
     headline_position: "bottom",
     logo_position: "top-left",
     brand_color_pct: 0
   };
+}
+
+function buildValidationWarnings(format, layout, visualAnalysis, headline) {
+  const warnings = [];
+  const ratio = format.width / format.height;
+  const safeZones = format.safeZones || {};
+  const hasMeaningfulSafeZone = Object.values(safeZones).some(value => {
+    if (typeof value === "number") return value > 0;
+    return value && typeof value === "object";
+  });
+
+  if (layout.risk_flags && layout.risk_flags.length) warnings.push(...layout.risk_flags);
+  if (isVideoFormat(format)) warnings.push("video_format_requires_manual_animation_or_export");
+  if ((format.id.startsWith("google_rsa_") || format.id.startsWith("demandgen_")) && visualAnalysis.has_text) {
+    warnings.push("uploaded_visual_contains_text_but_this_asset_should_be_clean_image");
+  }
+  if (headline && headline.length > 55 && format.width < 400) warnings.push("headline_may_overflow_small_format");
+  if (headline && headline.split(/\s+/).length > 5 && format.id === "pinterest_pin") warnings.push("pinterest_text_over_5_words");
+  if (layout.image_fit === "contain" && !format.id.startsWith("google_logo_")) warnings.push("image_uses_fit_check_background_edges");
+  if (ratio > 4.5 || format.height <= 100) warnings.push("small_or_wide_format_check_readability");
+  if (hasMeaningfulSafeZone) warnings.push("safe_zone_overlay_present_check_final_export");
+  if (layout.master_safe_zone) warnings.push("master_core_50pct_check");
+
+  return [...new Set(warnings)];
 }
 
 async function planLayout(visualAnalysis, format, headline, adType, visualRecipe) {
@@ -439,8 +641,10 @@ Odpovedz VÝHRADNE v JSON bez akéhokoľvek iného textu:
   return JSON.parse(jsonMatch[0]);
 }
 
-async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe) {
+async function processAllFormats(imageBase64, mediaType, headline, adType, visualRecipe, campaign, templateGroupIds) {
   const recipe = normalizeRecipe(visualRecipe);
+  // Spätná kompatibilita: keď kampaň nepríde, správame sa ako predtým (KID).
+  const activeCampaign = campaign || "kid";
   console.log("Analyzujem vizuál...");
   const visualAnalysis = await analyzeVisual(imageBase64, mediaType);
   visualAnalysis.recommended_focal_x = recipeFocalPoint(recipe, visualAnalysis).x;
@@ -448,8 +652,16 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
   visualAnalysis.visual_recipe = recipe;
   console.log("Analýza:", visualAnalysis);
 
-  const relevantFormats = FORMATS.filter(f => f.type.includes(adType));
-  console.log(`Relevantných formátov pre "${adType}": ${relevantFormats.length}`);
+  const universalFormats = getRequestedFormats(templateGroupIds);
+  const relevantFormats = (universalFormats.length
+    ? universalFormats
+    : FORMATS.filter(f =>
+      (f.campaign || "kid") === activeCampaign &&
+      f.type.includes(adType) &&
+      !isVideoFormat(f)
+    )
+  ).flatMap(expandFormatVariants);
+  console.log(`Relevantných formátov pre "${activeCampaign}" / "${adType}": ${relevantFormats.length}`);
 
   const results = relevantFormats.map(format => {
     const strategy = getLayoutStrategy(format, visualAnalysis, recipe);
@@ -468,12 +680,19 @@ async function processAllFormats(imageBase64, mediaType, headline, adType, visua
       bg_b: visualAnalysis.bg_b || 0.18,
       is_complex_visual: visualAnalysis.is_complex_visual || false,
       show_headline: strategy.show_headline !== false,
+      show_subheadline: strategy.show_subheadline !== false,
+      show_cta: strategy.show_cta !== false,
       show_logo: strategy.show_logo !== false,
+      show_legal: strategy.show_legal !== false,
+      show_badge: strategy.show_badge !== false,
+      show_ai_disclosure: strategy.show_ai_disclosure !== false,
+      creative_rules: strategy.creative_rules || null,
       safe_content: strategy.safe_content || null,
       visual_recipe: recipe,
       protect_subject: strategy.protect_subject || false,
       risk_flags: strategy.risk_flags || []
     };
+    layout.validation_warnings = buildValidationWarnings(format, layout, visualAnalysis, headline);
     return { format, layout, visualAnalysis };
   });
 

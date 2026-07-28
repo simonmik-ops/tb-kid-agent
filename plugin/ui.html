@@ -91,19 +91,9 @@
   <label>Podnadpis (voliteľné)</label>
   <input type="text" id="subheadline" placeholder="Doplňujúca informácia pod headline">
 
-  <label>Kampaň (zdroj formátov)</label>
-  <select id="campaign" onchange="onCampaignChange()">
-    <option value="kid" data-tag="kid-062026">TB KID 2026</option>
-    <option value="kkvisa" data-tag="kk-visa-072026">KK Visa — kreditné karty</option>
-    <option value="hypo" data-tag="hypo-052025">Digitálna hypotéka</option>
-    <option value="bsu" data-tag="bsu-082025">BSU — Bezúčelový úver</option>
-    <option value="tiger" data-tag="tiger-aura-2026">Tiger — Aura 2026</option>
-  </select>
-  <div class="hint" style="margin-top:4px;">Vyber kampaň → vygenerujú sa jej formáty. (Neskôr: namiesto výberu nahráš tabuľku od mediálky — viď nižšie.)</div>
-
-  <label style="margin-top:12px;">alebo nahraj tabuľku od mediálky (.xlsx) — experimentálne</label>
+  <label>Tabuľka rozmerov od mediálky (.xlsx) — voliteľné</label>
   <input type="file" id="excelInput" accept=".xlsx" onchange="onExcelPicked(event)">
-  <div class="hint" id="excelHint" style="margin-top:4px;">Ak nahráš tabuľku, plugin z nej vytiahne rozmery a vygeneruje ich (namiesto výberu kampane). Bez tabuľky sa použije vybraná kampaň.</div>
+  <div class="hint" id="excelHint" style="margin-top:4px;">Ak nahráš tabuľku, formáty sa vezmú z nej. Bez tabuľky sa použijú typy výstupov vybrané nižšie.</div>
 
   <label style="margin-top:12px;">Tagging kampane</label>
   <input type="text" id="tagging" placeholder="napr. kk-visa-072026" oninput="taggingEdited = (this.value.trim().length > 0)">
@@ -223,13 +213,15 @@
   </div>
 
 <script>
-  // Predvyplní Tagging podľa vybranej kampane (ak ho používateľ neprepísal ručne).
+  // Tagging si píše používateľ; predvyplní sa z názvu zákazky, kým doň nesiahne.
   let taggingEdited = false;
-  function onCampaignChange() {
-    const sel = document.getElementById("campaign");
-    const tag = sel.options[sel.selectedIndex].getAttribute("data-tag") || "";
+  function onProjectNameChange() {
+    if (taggingEdited) return;
+    const src = (document.getElementById("projectName").value || "").trim();
     const tf = document.getElementById("tagging");
-    if (tf && !taggingEdited) tf.value = tag;
+    if (!tf || !src) return;
+    tf.value = src.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   }
 
   // ── Excel (tabuľka od mediálky) → rozmery ──────────────────────────────────
@@ -400,8 +392,6 @@
       const legalText = (document.getElementById("legalText").value || "").trim();
       const badgeText = (document.getElementById("badgeText").value || "").trim();
       const projectName = (document.getElementById("projectName").value || "").trim();
-      const campaignSel = document.getElementById("campaign");
-      const campaignTag = campaignSel.options[campaignSel.selectedIndex].getAttribute("data-tag") || "";
       const taggingField = (document.getElementById("tagging").value || "").trim();
 
       async function toBytes(file) {
@@ -418,7 +408,7 @@
         formats = excelDims.map(function (d) {
           return { format: { width: d.w, height: d.h, name: (d.w + "×" + d.h), channel: "Z tabuľky" }, layout: null };
         });
-        tagging = taggingField || campaignTag || "kampan";
+        tagging = taggingField || "kampan";
         totalFormats = formats.length;
         setStatus("Generujem " + totalFormats + " formátov z tabuľky...", 45);
       } else {
@@ -426,7 +416,6 @@
         const formData = new FormData();
         formData.append("visual", selectedFile);
         formData.append("headline", headline);
-        formData.append("campaign", campaignSel.value);
         formData.append("projectName", projectName);
         formData.append("adType", adType);
         formData.append("templateGroupIds", JSON.stringify(templateGroupIds));
@@ -440,7 +429,7 @@
         }
         serverData = data;
         formats = data.formats;
-        tagging = taggingField || campaignTag || data.tagging;
+        tagging = taggingField || data.tagging;
         totalFormats = formats.length;
       }
 
@@ -516,8 +505,7 @@
     box.style.display = "block";
   }
 
-  // Predvyplň Tagging podľa prvej kampane pri štarte.
-  onCampaignChange();
+  document.getElementById("projectName").addEventListener("input", onProjectNameChange);
 </script>
 <!-- =====================================================================
      TB — Generátor online formátov

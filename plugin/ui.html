@@ -428,7 +428,7 @@
         // ── Excel cesta ── formáty priamo z tabuľky od mediálky; layout vyrieši
         // code.js lokálne z rozmerov (bez servera).
         formats = excelDims.map(function (d) {
-          return { format: { width: d.w, height: d.h, name: (d.w + "×" + d.h), channel: "Z tabuľky" }, layout: null };
+          return { format: { id: "xls_" + d.w + "x" + d.h, width: d.w, height: d.h, name: (d.w + "×" + d.h), channel: "Z tabuľky" }, layout: null };
         });
         tagging = taggingField || "kampan";
         totalFormats = formats.length;

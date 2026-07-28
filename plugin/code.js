@@ -204,6 +204,7 @@ async function createAllFrames({
     formats = formats.filter(item => {
       const format = item.format;
       const key = format.baseId || format.id;
+      if (!key) return true;
       const pairedSide = !!format.variantSide &&
         (key.indexOf("side") !== -1 || key.indexOf("branding") !== -1);
       if (pairedSide) return true;

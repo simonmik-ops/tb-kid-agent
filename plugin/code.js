@@ -1,4 +1,9 @@
 // code.js
+
+// Menný priestor pre metadáta na frameoch. Musí zostať stabilný — čítajú
+// ho externé nástroje cez getSharedPluginData.
+var TB_NS = "tbgen";
+
 try {
   figma.showUI(__html__, { width: 500, height: 760 });
 } catch(e) {
@@ -22,6 +27,35 @@ figma.ui.onmessage = async (msg) => {
 };
 
 const BRAND_COLOR = { r: 0.0, g: 0.18, b: 0.55 };
+const LOCAL_ADFORM_PSD_IDS = [
+  "adform_300x250",
+  "adform_300x600",
+  "adform_160x600",
+  "adform_970x250"
+];
+
+function localKkVisaRule(format) {
+  if (!format || format.campaign !== "kkvisa") return null;
+  const id = format.id || "";
+  let profile = "publisher_branding";
+  if (id.indexOf("kkv_google_rsa_") === 0) profile = "clean_image";
+  else if (id.indexOf("kkv_google_logo_") === 0) profile = "logo_only";
+  else if (id.indexOf("kkv_meta_") === 0) profile = "meta_full";
+  else if (id.indexOf("kkv_demandgen_") === 0) profile = "full_creative";
+  else if (id.indexOf("kkv_pmax_") === 0) profile = "headline_only";
+  else if (id === "kkv_engerio_native") profile = "native_clean";
+
+  const profiles = {
+    clean_image: { layoutType: "clean_image", headline: false, subheadline: false, cta: false, logo: false, ai: false },
+    logo_only: { layoutType: "logo_only", headline: false, subheadline: false, cta: false, logo: true, ai: false },
+    meta_full: { layoutType: "master_safe", headline: true, subheadline: true, cta: false, logo: true, ai: true },
+    full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
+    headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
+    native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
+    publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true }
+  };
+  return { id: profile, ...profiles[profile] };
+}
 
 // ── ŠTÝLOVÉ TOKENY — odčítané zo Surďovej Figmy (InvestQ predloha) ──────
 // Cesta A: plugin kreslí, ale podľa reálnych hodnôt z dizajnu, nie od oka.
@@ -41,13 +75,39 @@ const STYLE = {
 
 // Rozlíšený font (nastaví sa v createAllFrames; fallback Inter)
 let FONT = { family: "Inter", style: "Bold" };
+let FONT_REGULAR = { family: "Inter", style: "Regular" };
+let FONT_LIGHT = { family: "Inter", style: "Regular" };
+
+// Pomer strán nahraného KV (nastaví sa v createAllFrames) — na rozhodnutie
+// FILL vs CONTAIN podľa Surďovho pravidla „keď sa subjekt nezmestí → Contain".
+let KV_RATIO = null;
+
+// Podnadpis (Surď: prvok SUBHDL) — voliteľný, pod headlineom.
+let SUBHEAD = "";
+
+// Je AI disclosure zapnutá? (aby si text vyhradil miesto a neprekryl AI tag)
+let AI_ON = false;
+
+// Rozmery aktuálne kresleného KV (nastaví sa v slučke cez getSizeAsync) —
+// slúžia na výpočet viditeľnej plochy pri CONTAIN, nech text/logo/AI sadnú
+// na obrázok a nie do brand pásu.
+let CUR_IMG_W = 0;
+let CUR_IMG_H = 0;
 
 async function resolveBrandFont() {
   try {
-    await figma.loadFontAsync({ family: STYLE.fontFamily, style: STYLE.headlineStyle });
+    await Promise.all([
+      figma.loadFontAsync({ family: STYLE.fontFamily, style: "Bold" }),
+      figma.loadFontAsync({ family: STYLE.fontFamily, style: "Regular" }),
+      figma.loadFontAsync({ family: STYLE.fontFamily, style: "Light" })
+    ]);
     FONT = { family: STYLE.fontFamily, style: STYLE.headlineStyle };
+    FONT_REGULAR = { family: STYLE.fontFamily, style: "Regular" };
+    FONT_LIGHT = { family: STYLE.fontFamily, style: "Light" };
   } catch (e) {
     FONT = { family: "Inter", style: "Bold" }; // Tatra banka Sans nie je vo Figme → Inter
+    FONT_REGULAR = { family: "Inter", style: "Regular" };
+    FONT_LIGHT = { family: "Inter", style: "Regular" };
     figma.notify("Font „" + STYLE.fontFamily + "“ nie je vo Figme — použil sa Inter. Nainštaluj font pre finál.", { timeout: 4000 });
   }
 }
@@ -60,42 +120,105 @@ function brandColor(layout) {
   return BRAND_COLOR;
 }
 
-// AI disclosure — malý text vľavo dole (potvrdené z Figmy)
+// Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
+function aiNoteFontSize(format) {
+  return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 11, 18));
+}
+
+// AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
+// Ladený tak, aby pôsobil ako súčasť kompozície: nižšia sýtosť, jemný
+// letter-spacing, zarovnaný na rovnaký ľavý okraj ako headline.
 function addAiNote(frame, format) {
   const t = figma.createText();
   t.name = "AI generované";
   t.fontName = FONT;
   t.characters = STYLE.aiTagText;
-  t.fontSize = Math.round(clamp(Math.min(format.width, format.height) * 0.028, 10, 22));
+  t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  t.opacity = 0.9;
+  t.opacity = 0.72;                       // recede do vizuálu, nech nie je nalepený
+  try { t.letterSpacing = { value: 2, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 8, 60));
   frame.appendChild(t);
-  t.x = pad;
-  t.y = format.height - t.height - Math.round(pad * 0.5);
+  // Ukotvi tag na spodok SKUTOČNÉHO KV obrázka, nech je vždy NA vizuáli a nie
+  // v prázdnom brand páse pod ním. Nájde najväčší rect s IMAGE výplňou (mimo
+  // loga). Keď KV vypĺňa celý frame (fill), obrázok je fill rámu (žiadny child)
+  // → padne na spodok frame-u, čo je stále na obrázku.
+  let img = null;
+  try {
+    const kids = frame.children || [];
+    for (let i = 0; i < kids.length; i++) {
+      const n = kids[i];
+      if (n.name === "Logo") continue;
+      const fills = n.fills;
+      if (Array.isArray(fills) && fills.some(function (fl) { return fl.type === "IMAGE"; })) {
+        if (!img || (n.width * n.height > img.width * img.height)) img = n;
+      }
+    }
+  } catch (e) {}
+  const imgBottom = img ? (img.y + img.height) : format.height;
+  const imgLeft = img ? img.x : 0;
+  t.x = Math.max(pad, Math.round(imgLeft) + pad);
+  t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
   t.locked = true;
 }
 
-async function createAllFrames({ formats, headline, adType, imageBytes, logoBytes, visualRecipe, tagging, showGuides, aiGenerated }) {
+async function createAllFrames({
+  formats, headline, subheadline, ctaText, legalText, badgeText, adType,
+  imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
+  logoBytes, visualRecipe, tagging, showGuides, aiGenerated
+}) {
+  SUBHEAD = (subheadline || "").trim();
+
+  if (visualRecipe && visualRecipe.masterSafeMode !== false) {
+    const seenSingleMasters = {};
+    formats = formats.filter(item => {
+      const format = item.format;
+      const key = format.baseId || format.id;
+      const pairedSide = !!format.variantSide &&
+        (key.indexOf("side") !== -1 || key.indexOf("branding") !== -1);
+      if (pairedSide) return true;
+      if (seenSingleMasters[key]) return false;
+      seenSingleMasters[key] = true;
+      return true;
+    });
+  }
+
   const campaignTag = tagging || "kid-062026";
-  // Pomôcky (safe zóny, "Recipe" štítok, "checks" badge, validation report)
-  // sa dajú vypnúť pre čistý výstup na prezentáciu / export. Default = zapnuté.
   const guides = showGuides !== false;
   const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
+  AI_ON = aiNote;
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
 
-  var figmaImage = null;
-  if (imageBytes && imageBytes.length > 0) {
-    figmaImage = figma.createImage(new Uint8Array(imageBytes));
+  function mkImage(bytes) {
+    if (!bytes || !bytes.length) return null;
+    try { return figma.createImage(new Uint8Array(bytes)); } catch (e) { return null; }
+  }
+  // KV pre 3 orientácie; imageBytes = spätná kompatibilita (starý single vstup → štvorec)
+  const imgSquare = mkImage(kvSquareBytes || imageBytes);
+  const imgPortrait = mkImage(kvPortraitBytes);
+  const imgLandscape = mkImage(kvLandscapeBytes);
+
+  // Vyber KV podľa orientácie formátu — každý formát dostane vizuál pre svoj
+  // tvar, takže sa nič neoreže zle. Fallback na dostupné.
+  function pickKV(format) {
+    const r = format.width / format.height;
+    if (r >= 1.25) return imgLandscape || imgSquare || imgPortrait;
+    if (r <= 0.8) return imgPortrait || imgSquare || imgLandscape;
+    return imgSquare || imgPortrait || imgLandscape;
   }
 
-  var figmaLogo = null;
-  if (logoBytes && logoBytes.length > 0) {
-    figmaLogo = figma.createImage(new Uint8Array(logoBytes));
+  // Šablóny z vetvy adform-psd počítajú s jedným vizuálom a jeho rozmermi.
+  // Držíme ich ako východiskové, per-formát ich prepíše pickKV nižšie.
+  var figmaImage = imgSquare || imgPortrait || imgLandscape;
+  var figmaImageSize = null;
+  if (figmaImage) {
+    try { figmaImageSize = await figmaImage.getSizeAsync(); } catch (e) { figmaImageSize = null; }
   }
+
+  var figmaLogo = mkImage(logoBytes);
 
   const byChannel = {};
   for (const item of formats) {
@@ -118,52 +241,143 @@ async function createAllFrames({ formats, headline, adType, imageBytes, logoByte
 
     let xOffset = 0;
 
-    for (const { format, layout } of items) {
-      const layoutType = layout.layout_type || "full_bleed";
+    for (const item of items) {
+      const format = item.format;
+      // Excel cesta: keď layout nepríde zo servera, vyrieš ho lokálne z rozmerov.
+      const layout = item.layout || resolveLayoutLocal(format);
+
+      // Headline pre tento formát = tvoj ručný text. Tool sám rozhodne (per
+      // formát), kde ho zobraziť a kde nie (show_headline / show_subhead).
+      const hl = headline;
+
+      // --- pravidlá univerzálnych šablón (vetva adform-psd) ---------------
+      // Lokálny plugin môže testovať PSD šablóny ešte pred nasadením nového
+      // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
+      const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
+      const useMasterSafe = visualRecipe && visualRecipe.masterSafeMode !== false;
+      const localRule = localKkVisaRule(format);
+      if (localRule) {
+        layout.show_headline = localRule.headline;
+        layout.show_subheadline = localRule.subheadline;
+        layout.show_cta = localRule.cta;
+        layout.show_logo = localRule.logo;
+        layout.show_ai_disclosure = localRule.ai;
+        layout.creative_profile = localRule.id;
+      }
+      const backendLayoutType = (localRule && localRule.layoutType) || layout.layout_type || "full_bleed";
+      const masterExcludedLayouts = [
+        "video_placeholder", "logo_only", "branding_skin", "side_safe",
+        "interscroller_safe", "native_center", "email_layout", "pinterest_pin",
+        "clean_image"
+      ];
+      const masterEligible = masterExcludedLayouts.indexOf(backendLayoutType) === -1 &&
+        format.height > 100 && !(format.width / format.height > 4.5 && format.height <= 250);
+      const layoutType = hasLocalAdformTemplate
+        ? (useMasterSafe ? "master_safe" : "adform_psd")
+        : (useMasterSafe && masterEligible ? "master_safe" : backendLayoutType);
+      if (useMasterSafe && (hasLocalAdformTemplate || masterEligible) && backendLayoutType === "master_safe") {
+        const ratio = format.width / format.height;
+        layout.master_family = ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square");
+        layout.master_safe_zone = true;
+      }
+
+      // --- KV podľa orientácie formátu (vetva clean-frames) ---------------
+      const figmaImage = pickKV(format);
+
+      // Rozmery zvoleného KV (na výpočet viditeľnej plochy pri contain).
+      CUR_IMG_W = 0; CUR_IMG_H = 0;
+      if (figmaImage) {
+        try { const sz = await figmaImage.getSizeAsync(); CUR_IMG_W = sz.width; CUR_IMG_H = sz.height; } catch (e) {}
+      }
+      // Šablóny master_safe/adform_psd potrebujú rozmery práve toho KV,
+      // ktoré sa pre formát použilo — nie východiskového.
+      const curImgSize = (CUR_IMG_W && CUR_IMG_H)
+        ? { width: CUR_IMG_W, height: CUR_IMG_H }
+        : figmaImageSize;
 
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
       const sideName = format.variantSide ? " " + format.variantSide.toUpperCase() : "";
       frame.name = format.name + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
+      // Metadáta pre export: limit a ID formátu sa inak z názvu frameu nedajú zistiť.
+      // Zapisujeme dvojmo — setPluginData je súkromné pre tento plugin,
+      // setSharedPluginData vedia prečítať aj externé nástroje a kontroly.
+      try {
+        var meta = {
+          tbLimit: String(format.limit || ""),
+          tbFormatId: String(format.id || ""),
+          tbTagging: String(campaignTag || ""),
+          tbChannel: String(format.channel || channel || ""),
+          tbWidth: String(format.width || ""),
+          tbHeight: String(format.height || "")
+        };
+        for (var mk in meta) {
+          frame.setPluginData(mk, meta[mk]);
+          frame.setSharedPluginData(TB_NS, mk, meta[mk]);
+        }
+      } catch (e) {}
       frame.resize(format.width, format.height);
       frame.x = xOffset;
       frame.y = 0;
       frame.clipsContent = true;
 
       if (layoutType === "video_placeholder") {
-        buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildVideoPlaceholderLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "clean_image") {
         buildCleanImageLayout(frame, format, layout, figmaImage);
       } else if (layoutType === "headline_only") {
-        buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage);
+        buildHeadlineOnlyLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "branding_skin") {
-        buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildBrandingSkinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "side_safe") {
-        buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildSideSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "interscroller_safe") {
-        buildInterscrollerSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildInterscrollerSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "native_center") {
-        buildNativeCenterLayout(frame, format, layout, headline, figmaImage);
+        buildNativeCenterLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "email_layout") {
-        buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildEmailLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "pinterest_pin") {
-        buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildPinterestPinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "strip") {
-        buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildStripLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "split") {
-        buildSplitLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildSplitLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "stacked") {
-        buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildStackedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "blurred_bg") {
-        buildBlurredBgLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildBlurredBgLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "logo_only") {
-        buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo);
+        buildLogoOnlyLayout(frame, format, layout, hl, figmaLogo);
+      } else if (layoutType === "adform_psd") {
+        buildAdformPsdLayout(frame, format, layout, {
+          headline,
+          subheadline,
+          ctaText,
+          legalText,
+          badgeText,
+          aiGenerated: aiNote
+        }, figmaImage, curImgSize, figmaLogo);
+      } else if (layoutType === "master_safe") {
+        buildMasterSafeLayout(frame, format, layout, {
+          headline,
+          subheadline,
+          ctaText,
+          legalText,
+          badgeText,
+          aiGenerated: aiNote,
+          showGuides: guides
+        }, figmaImage, curImgSize, figmaLogo);
       } else {
-        buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
+        buildFullBleedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       }
 
       // AI disclosure (vľavo dole) — mimo logo-only a native formátov
-      if (aiNote && layoutType !== "logo_only" && layoutType !== "clean_image") {
+      if (
+        aiNote && layout.show_ai_disclosure !== false &&
+        layoutType !== "logo_only" && layoutType !== "clean_image" &&
+        layoutType !== "adform_psd" && layoutType !== "master_safe"
+      ) {
         addAiNote(frame, format);
       }
 
@@ -243,7 +457,8 @@ function humanizeWarnings(warnings) {
     pinterest_text_over_5_words: "Pinterest text by mal mať max. 5 slov / 30% plochy.",
     image_uses_fit_check_background_edges: "Obrázok je vo FIT režime, skontroluj okraje/pozadie.",
     small_or_wide_format_check_readability: "Malý alebo veľmi široký formát, skontroluj čitateľnosť.",
-    safe_zone_overlay_present_check_final_export: "Je pridaná safe-zone vrstva, pred exportom skontroluj pravidlá."
+    safe_zone_overlay_present_check_final_export: "Je pridaná safe-zone vrstva, pred exportom skontroluj pravidlá.",
+    master_core_50pct_check: "Master: dôležitá grafika musí zostať v stredovej polovici (2000×2000 z 4000×4000)."
   };
   return warnings.map(w => labels[w] || w).join(" ");
 }
@@ -303,12 +518,42 @@ function placeLogo(frame, figmaLogo, x, y, w, h) {
   frame.appendChild(logoRect);
 }
 
+// Lokálny layout resolver — použije sa pri Excel ceste (rozmery z tabuľky od
+// mediálky), keď layout nepríde zo servera. Deterministický, podľa pomeru strán
+// (mirror agent.js). Default FILL (žiadne brand pásy).
+function resolveLayoutLocal(format) {
+  const ratio = format.width / format.height;
+  const base = {
+    show_headline: true,
+    show_logo: true,
+    image_fit: "fill",
+    headline_size_px: Math.min(72, Math.max(10, Math.round(format.height * 0.07)))
+  };
+  if (format.height <= 100 || (ratio > 4.5 && format.height <= 250)) {
+    return Object.assign({}, base, { layout_type: "logo_only", image_fit: "none", show_headline: false });
+  }
+  if (ratio > 3.5 && format.height < 300) return Object.assign({}, base, { layout_type: "strip" });
+  if (ratio > 3.5) return Object.assign({}, base, { layout_type: "split" });
+  if (ratio < 0.3) return Object.assign({}, base, { layout_type: "stacked" });
+  return Object.assign({}, base, { layout_type: "full_bleed" }); // portrét, štvorec, landscape
+}
+
 function shouldShowHeadline(layout, headline) {
   return layout.show_headline !== false && !!headline;
 }
 
 function shouldShowLogo(format, layout, figmaLogo) {
   return !!figmaLogo && !format.noLogo && layout.show_logo !== false;
+}
+
+// Subheadline dáme LEN tam, kde je naň priestor: veľké štvorcové/portrét formáty
+// (1:1, 4:5, 9:16, 2:3, veľké Google/interscroller). Na malých a širokých
+// bannerech (300×250, 728×90, 970×250, skyscrapery) headline stačí — subheadline
+// by sa tam netlačil. Engine navyše môže vynútiť show_subhead:false.
+function hasRoomForSubhead(format, layout) {
+  if (layout && layout.show_subhead === false) return false;
+  const minSide = Math.min(format.width, format.height);
+  return minSide >= 600 && format.height >= 600;
 }
 
 function clamp(n, min, max) {
@@ -532,23 +777,10 @@ function buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo
 }
 
 function buildPinterestPinLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  buildCleanImageLayout(frame, format, layout, figmaImage);
-  const pad = Math.round(format.width * 0.06);
-
-  if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(format.height * 0.045, 46, 72));
-    const logoW = Math.round(logoH * 3.5);
-    addSolidRect(frame, "Logo contrast", pad - 12, pad - 12, logoW + 24, logoH + 24, BRAND_COLOR, 0.82);
-    placeLogo(frame, figmaLogo, pad, pad, logoW, logoH);
-  }
-
-  if (shouldShowHeadline(layout, headline)) {
-    const textAreaH = Math.round(format.height * 0.24);
-    const y = format.height - textAreaH - pad;
-    addSolidRect(frame, "Text overlay max 30%", pad, y, format.width - pad * 2, textAreaH, BRAND_COLOR, 0.88);
-    const fontSize = Math.round(clamp(format.width * 0.062, 34, 58));
-    addText(frame, headline, pad * 1.5, y + pad, format.width - pad * 3, textAreaH - pad * 2, fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
-  }
+  // Pinterest Pin (2:3) používa rovnaký Surďov full-bleed look ako ostatné
+  // portrét formáty: KV na celý frame + jemný gradient scrim + headline vľavo
+  // dole + logo vpravo dole. Žiadny tvrdý modrý panel.
+  buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo);
 }
 
 // Brand farba pozadia, fotka vpravo (contain 30%), text+logo vľavo
@@ -594,12 +826,455 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
   frame.appendChild(txt);
 }
 
+// Presné kompozície z referenčného PSD Adform_dievca.psd.
+// Súradnice sú lokálne voči jednotlivým artboardom v PSD.
+const ADFORM_PSD_RULES = {
+  "adform_300x600": {
+    slogan: [20, 22, 75, 20],
+    badge: [16, 268, 148, 82],
+    headline: [21, 367, 260, 75],
+    headlineSize: 26,
+    legal: [21, 455, 152, 24],
+    legalSize: 7,
+    cta: [20, 496, 140, 48],
+    bankLogo: [210, 511, 70, 70],
+    ai: [23, 562, 100, 19]
+  },
+  "adform_160x600": {
+    slogan: [43, 22, 75, 20],
+    badge: [74, 83, 83, 47],
+    headline: [11, 175, 138, 143],
+    headlineSize: 24,
+    cta: [10, 340, 140, 48],
+    bankLogo: [37, 420, 86, 85],
+    ai: [32, 528, 100, 19],
+    legal: [13, 567, 137, 22],
+    legalSize: 7,
+    panel: [0, 310, 160, 290]
+  },
+  "adform_300x250": {
+    slogan: [20, 18, 74, 20],
+    headline: [20, 62, 190, 55],
+    headlineSize: 19,
+    badge: [201, 108, 83, 47],
+    legal: [20, 130, 137, 22],
+    legalSize: 7,
+    cta: [20, 167, 121, 41],
+    bankLogo: [215, 173, 64, 62],
+    ai: [21, 217, 100, 19]
+  },
+  "adform_970x250": {
+    badge: [16, 23, 146, 80],
+    headline: [460, 55, 363, 105],
+    headlineSize: 36,
+    slogan: [852, 28, 91, 24],
+    cta: [459, 177, 140, 48],
+    bankLogo: [853, 139, 88, 86],
+    legal: [618, 203, 137, 22],
+    legalSize: 7,
+    ai: [30, 208, 100, 19]
+  }
+};
+
+function addTemplateText(frame, name, value, box, fontSize, color, style, align) {
+  if (!value || !box) return null;
+  const txt = figma.createText();
+  txt.name = name;
+  txt.fontName = style === "Regular" ? FONT_REGULAR : (style === "Light" ? FONT_LIGHT : FONT);
+  txt.characters = value;
+  txt.fontSize = fontSize;
+  txt.fills = [{ type: "SOLID", color: color || { r: 1, g: 1, b: 1 } }];
+  txt.textAlignHorizontal = align || "LEFT";
+  txt.textAutoResize = "HEIGHT";
+  txt.resize(box[2], box[3]);
+  txt.x = box[0];
+  txt.y = box[1];
+  frame.appendChild(txt);
+  return txt;
+}
+
+function addSloganLogo(frame, box) {
+  if (!box) return;
+  const slashW = Math.max(10, Math.round(box[2] * 0.20));
+  addTemplateText(
+    frame, "Myslite na seba symbol", "/", [box[0], box[1], slashW, box[3]],
+    Math.round(box[3] * 1.05), { r: 1, g: 1, b: 1 }, "Bold", "CENTER"
+  );
+  addTemplateText(
+    frame, "Myslite na seba", "Myslite\nna seba",
+    [box[0] + slashW - 1, box[1], box[2] - slashW + 1, box[3]],
+    Math.max(5, Math.round(box[3] * 0.37)),
+    { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+  );
+}
+
+function addAdformBackgroundTreatment(frame, format, rules) {
+  if (format.id === "adform_970x250") {
+    // PSD: KV na ľavej strane, pevný modrosivý brand panel vpravo.
+    addSolidRect(frame, "Brand panel", 425, 0, 545, 250, { r: 0.19, g: 0.27, b: 0.37 }, 1);
+    return;
+  }
+  if (rules.panel) {
+    addSolidRect(
+      frame, "Dark lower panel",
+      rules.panel[0], rules.panel[1], rules.panel[2], rules.panel[3],
+      { r: 0.12, g: 0.10, b: 0.10 }, 0.94
+    );
+    return;
+  }
+
+  const gradient = figma.createRectangle();
+  gradient.name = format.id === "adform_300x600" ? "Bottom readability gradient" : "Left readability gradient";
+  gradient.resize(format.width, format.height);
+  gradient.x = 0;
+  gradient.y = 0;
+  gradient.fills = [{
+    type: "GRADIENT_LINEAR",
+    gradientTransform: format.id === "adform_300x600"
+      ? [[0, 1, 0], [1, 0, 0]]
+      : [[1, 0, 0], [0, 1, 0]],
+    gradientStops: [
+      { position: 0, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.06 } },
+      { position: 1, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.78 } }
+    ]
+  }];
+  frame.appendChild(gradient);
+}
+
+function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, desired) {
+  const holder = figma.createFrame();
+  holder.name = name;
+  holder.resize(zone[2], zone[3]);
+  holder.x = zone[0];
+  holder.y = zone[1];
+  holder.clipsContent = true;
+  holder.fills = [];
+  parent.appendChild(holder);
+
+  if (!figmaImage || !imageSize || !imageSize.width || !imageSize.height) {
+    holder.fills = [{ type: "SOLID", color: { r: 0.84, g: 0.86, b: 0.9 } }];
+    return holder;
+  }
+
+  const scale = Math.max(zone[2] / imageSize.width, zone[3] / imageSize.height);
+  const renderedW = imageSize.width * scale;
+  const renderedH = imageSize.height * scale;
+  const rect = figma.createRectangle();
+  rect.name = "Key visual — focal crop";
+  rect.resize(renderedW, renderedH);
+  rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+
+  const focalX = clamp(focal.x, 0, 1);
+  const focalY = clamp(focal.y, 0, 1);
+  const targetX = zone[2] * desired.x;
+  const targetY = zone[3] * desired.y;
+  rect.x = clamp(targetX - focalX * renderedW, zone[2] - renderedW, 0);
+  rect.y = clamp(targetY - focalY * renderedH, zone[3] - renderedH, 0);
+  holder.appendChild(rect);
+  return holder;
+}
+
+// TP master: 4000×4000 s dôležitým obsahom v stredových 2000×2000.
+// Do obrazovej zóny vkladáme celý master. Centrálne jadro je ochrana proti
+// orezu vonkajších okrajov, nie pokyn zväčšiť jadro na celý cieľový formát.
+function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide) {
+  const holder = figma.createFrame();
+  holder.name = "TP master — centrálne jadro 50 %";
+  holder.resize(zone[2], zone[3]);
+  holder.x = zone[0];
+  holder.y = zone[1];
+  holder.clipsContent = true;
+  holder.fills = [];
+  parent.appendChild(holder);
+
+  if (!figmaImage || !imageSize || !imageSize.width || !imageSize.height) {
+    holder.fills = [{ type: "SOLID", color: { r: 0.84, g: 0.86, b: 0.9 } }];
+    return holder;
+  }
+
+  const scale = Math.max(
+    zone[2] / imageSize.width,
+    zone[3] / imageSize.height
+  );
+  const renderedW = imageSize.width * scale;
+  const renderedH = imageSize.height * scale;
+  const rect = figma.createRectangle();
+  rect.name = "Master visual — 2000×2000 core";
+  rect.resize(renderedW, renderedH);
+  rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+  rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
+  rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.25, 0.75) * renderedH, zone[3] - renderedH, 0);
+  holder.appendChild(rect);
+
+  if (showGuide) {
+    const guide = figma.createRectangle();
+    guide.name = "GUIDE — master core 2000×2000";
+    guide.resize(renderedW * 0.5, renderedH * 0.5);
+    guide.x = rect.x + renderedW * 0.25;
+    guide.y = rect.y + renderedH * 0.25;
+    guide.fills = [{ type: "SOLID", color: { r: 0, g: 0.75, b: 0.2 }, opacity: 0.06 }];
+    guide.strokes = [{ type: "SOLID", color: { r: 0.2, g: 1, b: 0.4 }, opacity: 0.82 }];
+    guide.strokeWeight = 1;
+    guide.dashPattern = [6, 4];
+    guide.locked = true;
+    holder.appendChild(guide);
+  }
+  return holder;
+}
+
+function addMasterCta(frame, value, x, y, w, h) {
+  if (!value) return;
+  const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0.02, g: 0.27, b: 0.98 }, 1);
+  button.cornerRadius = Math.max(2, Math.round(h * 0.08));
+  addTemplateText(
+    frame, "CTA text", value + "  ›",
+    [x + 6, y + Math.round(h * 0.24), w - 12, h * 0.55],
+    Math.round(clamp(h * 0.28, 8, 16)),
+    { r: 1, g: 1, b: 1 }, "Bold", "CENTER"
+  );
+}
+
+function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
+  const family = layout.master_family || "square";
+  const focal = {
+    x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
+    y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
+  };
+  const pad = Math.round(clamp(Math.min(format.width, format.height) * 0.065, 10, 54));
+  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+
+  if (family === "wide") {
+    const imageW = Math.round(format.width * 0.52);
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
+    addSolidRect(
+      frame, "Wide content panel", imageW, 0, format.width - imageW, format.height,
+      brandColor(layout), 0.96
+    );
+    const textX = imageW + pad;
+    const textW = format.width - textX - pad;
+    const headlineSize = Math.round(clamp(format.height * 0.10, 16, 72));
+    addTemplateText(
+      frame, "Headline", content.headline,
+      [textX, Math.round(format.height * 0.22), textW, Math.round(format.height * 0.30)],
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+    );
+    if (layout.show_subheadline !== false) {
+      addTemplateText(
+        frame, "Subheadline", content.subheadline,
+        [textX, Math.round(format.height * 0.54), textW, Math.round(format.height * 0.14)],
+        Math.round(clamp(headlineSize * 0.48, 8, 18)),
+        { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+      );
+    }
+    if (layout.show_cta !== false) {
+      addMasterCta(
+        frame, content.ctaText, textX, Math.round(format.height * 0.72),
+        Math.min(textW * 0.46, 150), Math.round(clamp(format.height * 0.19, 28, 48))
+      );
+    }
+    if (shouldShowLogo(format, layout, figmaLogo)) {
+      const logoH = Math.round(clamp(format.height * 0.27, 48, 82));
+      placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);
+    }
+  } else {
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+
+    const scrimH = Math.round(format.height * (family === "portrait" ? 0.48 : 0.44));
+    const scrim = figma.createRectangle();
+    scrim.name = "Bottom readability gradient";
+    scrim.resize(format.width, scrimH);
+    scrim.x = 0;
+    scrim.y = format.height - scrimH;
+    scrim.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[0, 1, 0], [1, 0, 0]],
+      gradientStops: [
+        { position: 0, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.04 } },
+        { position: 1, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.80 } }
+      ]
+    }];
+    frame.appendChild(scrim);
+
+    const headlineSize = Math.round(clamp(
+      Math.min(format.width * 0.085, format.height * 0.060), 16, 72
+    ));
+    const headlineY = Math.round(format.height * (family === "portrait" ? 0.61 : 0.64));
+    const textW = format.width - pad * 2;
+    const headlineNode = addTemplateText(
+      frame, "Headline", content.headline,
+      [pad, headlineY, textW, Math.round(format.height * 0.13)],
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", family === "portrait" ? "CENTER" : "LEFT"
+    );
+    if (headlineNode && family === "portrait") {
+      headlineNode.textAlignVertical = "CENTER";
+    }
+    if (layout.show_subheadline !== false) {
+      addTemplateText(
+        frame, "Subheadline", content.subheadline,
+        [pad, headlineY + Math.round(format.height * 0.12), textW, Math.round(format.height * 0.09)],
+        Math.round(clamp(headlineSize * 0.50, 8, 18)),
+        { r: 1, g: 1, b: 1 }, "Regular", family === "portrait" ? "CENTER" : "LEFT"
+      );
+    }
+    if (layout.show_cta !== false) {
+      addMasterCta(
+        frame, content.ctaText, pad, Math.round(format.height * 0.82),
+        Math.round(clamp(format.width * 0.40, 88, 150)),
+        Math.round(clamp(format.height * 0.085, 30, 48))
+      );
+    }
+    if (shouldShowLogo(format, layout, figmaLogo)) {
+      const logoH = Math.round(clamp(Math.min(format.width, format.height) * 0.22, 50, 82));
+      placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);
+    }
+  }
+
+  if (layout.show_badge !== false && content.badgeText) {
+    const badgeW = Math.round(clamp(format.width * 0.34, 110, 260));
+    const badgeH = Math.round(clamp(format.height * 0.075, 28, 54));
+    addSolidRect(frame, "Badge background", pad, pad, badgeW, badgeH, { r: 1, g: 1, b: 1 }, 0.94);
+    addTemplateText(
+      frame, "Badge", content.badgeText,
+      [pad + 8, pad + Math.round(badgeH * 0.20), badgeW - 16, Math.round(badgeH * 0.60)],
+      Math.round(clamp(badgeH * 0.30, 9, 16)), BRAND_COLOR, "Bold", "CENTER"
+    );
+  }
+  if (layout.show_legal !== false && content.legalText) {
+    const legalH = Math.round(clamp(format.height * 0.045, 18, 42));
+    addTemplateText(
+      frame, "Legal text", content.legalText,
+      [pad, format.height - legalH - Math.max(4, Math.round(pad * 0.25)), format.width - pad * 2, legalH],
+      Math.round(clamp(Math.min(format.width, format.height) * 0.018, 8, 13)),
+      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+    );
+  }
+  if (content.aiGenerated && layout.show_ai_disclosure !== false) addAiNote(frame, format);
+}
+
+function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
+  const rules = ADFORM_PSD_RULES[format.id];
+  if (!rules) {
+    buildFullBleedLayout(frame, format, layout, content.headline, figmaImage, figmaLogo);
+    return;
+  }
+
+  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+  const focal = {
+    x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
+    y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
+  };
+  if (format.id === "adform_970x250") {
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 });
+  } else if (format.id === "adform_160x600") {
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 });
+  } else if (format.id === "adform_300x250") {
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 });
+  } else {
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 });
+  }
+
+  addAdformBackgroundTreatment(frame, format, rules);
+  addSloganLogo(frame, rules.slogan);
+
+  // Nahraný lockup patrí do veľkého štvorcového brand prvku, nie do horného sloganu.
+  if (shouldShowLogo(format, layout, figmaLogo) && rules.bankLogo) {
+    placeLogo(
+      frame, figmaLogo,
+      rules.bankLogo[0], rules.bankLogo[1], rules.bankLogo[2], rules.bankLogo[3]
+    );
+  }
+
+  if (content.badgeText && rules.badge) {
+    const b = rules.badge;
+    const badgeBack = addSolidRect(
+      frame, "Badge outline", b[0] - 4, b[1] - 4, b[2] + 8, b[3] + 8,
+      { r: 0.78, g: 0.75, b: 0.75 }, 0.42
+    );
+    badgeBack.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.20);
+    const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], { r: 0.86, g: 0.36, b: 0.29 }, 1);
+    badge.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.18);
+    const badgePad = Math.max(5, Math.round(Math.min(b[2], b[3]) * 0.12));
+    addTemplateText(
+      frame,
+      "Badge text",
+      content.badgeText,
+      [b[0] + badgePad, b[1] + badgePad, b[2] - badgePad * 2, b[3] - badgePad * 2],
+      Math.round(clamp(Math.min(b[2], b[3]) * 0.18, 8, 18)),
+      { r: 1, g: 1, b: 1 },
+      "Bold",
+      "CENTER"
+    );
+  }
+
+  if (shouldShowHeadline(layout, content.headline) && rules.headline) {
+    const h = rules.headline;
+    const headlineSize = rules.headlineSize || Math.round(clamp(h[3] * 0.30, 12, 36));
+    const headlineNode = addTemplateText(
+      frame, "Headline", content.headline, h, headlineSize,
+      { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+    );
+    if (headlineNode && content.subheadline) {
+      const subY = Math.min(h[1] + h[3] - 14, headlineNode.y + headlineNode.height + 4);
+      addTemplateText(
+        frame,
+        "Subheadline",
+        content.subheadline,
+        [h[0], subY, h[2], Math.max(12, h[1] + h[3] - subY)],
+        Math.round(clamp(headlineSize * 0.52, 8, 16)),
+        { r: 1, g: 1, b: 1 },
+        "Regular",
+        "LEFT"
+      );
+    }
+  }
+
+  if (content.legalText && rules.legal) {
+    addTemplateText(
+      frame, "Legal text", content.legalText, rules.legal,
+      rules.legalSize || Math.round(clamp(rules.legal[3] * 0.34, 6, 10)),
+      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+    );
+  }
+
+  if (content.ctaText && rules.cta) {
+    const c = rules.cta;
+    const button = addSolidRect(frame, "CTA button", c[0], c[1], c[2], c[3], { r: 0.02, g: 0.27, b: 0.98 }, 1);
+    button.cornerRadius = Math.round(c[3] * 0.08);
+    const ctaText = content.ctaText || STYLE.ctaText;
+    addTemplateText(
+      frame, "CTA text", ctaText + "  ›", [c[0] + 8, c[1] + Math.round(c[3] * 0.25), c[2] - 16, c[3] * 0.5],
+      Math.round(clamp(c[3] * 0.28, 9, 15)),
+      { r: 1, g: 1, b: 1 }, "Bold", "CENTER"
+    );
+  }
+
+  if (content.aiGenerated && rules.ai) {
+    addTemplateText(
+      frame, "AI generované", "✧  " + STYLE.aiTagText, rules.ai,
+      Math.round(clamp(rules.ai[3] * 0.47, 7, 10)),
+      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+    );
+  }
+}
+
 // Full bleed podľa Surďovej predlohy: KV na celý frame + jemný tmavý gradient
 // dole + headline biely vľavo dole (Tatra banka Sans) + logo VPRAVO DOLE.
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  // FILL = plný záber (Surďov look pre surovú fotku). CONTAIN len keď to výslovne
+  // rozhodne engine. Pozn.: pri HOTOVEJ kompozícii (napálené číslo) žiadny režim
+  // nevyzerá dobre — správny vstup je SUROVÁ fotka.
+  // Viditeľná plocha vizuálu. Pri CONTAIN nakreslíme obrázok PRESNE na jeho
+  // fitovaný obdĺžnik (nie celo-rámovo s FIT), takže brand pás ostane čistý a
+  // všetok text/logo/AI sadne NA obrázok — nie do pásu (žiadna „čierna čiara").
+  let cTop = 0, cBottom = format.height, cLeft = 0, cRight = format.width;
   if (figmaImage && layout.image_fit === "contain") {
+    const iw = CUR_IMG_W || format.width, ih = CUR_IMG_H || format.height;
+    const s = Math.min(format.width / iw, format.height / ih);
+    const dw = Math.round(iw * s), dh = Math.round(ih * s);
+    const dx = Math.round((format.width - dw) / 2), dy = Math.round((format.height - dh) / 2);
     frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
-    addImageRect(frame, figmaImage, "Foto - protected subject FIT", 0, 0, format.width, format.height, "FIT");
+    addImageRect(frame, figmaImage, "KV (contain)", dx, dy, dw, dh, "FILL");
+    cTop = dy; cBottom = dy + dh; cLeft = dx; cRight = dx + dw;
   } else {
     frame.fills = figmaImage
       ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
@@ -607,14 +1282,16 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   }
 
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 10, 60));
+  const cW = cRight - cLeft, cH = cBottom - cTop;
 
-  // Jemný tmavý gradient dole — priehľadný hore → tmavý dole (čitateľnosť textu)
-  const gradH = Math.round(format.height * STYLE.scrimHeightPct);
+  // Jemný tmavý gradient dole — ukotvený na spodok VIZUÁLU (pri contain končí na
+  // spodku obrázka, nie frame-u), aby čitateľnosť textu bola presne tam.
+  const gradH = Math.round(cH * STYLE.scrimHeightPct);
   const gradRect = figma.createRectangle();
   gradRect.name = "Gradient scrim";
-  gradRect.resize(format.width, gradH);
-  gradRect.x = 0;
-  gradRect.y = format.height - gradH;
+  gradRect.resize(cW, gradH);
+  gradRect.x = cLeft;
+  gradRect.y = cBottom - gradH;
   gradRect.fills = [{
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
@@ -625,35 +1302,66 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
   }];
   frame.appendChild(gradRect);
 
-  // Logo VPRAVO DOLE (Surď) — ~15 % šírky, min 50 px
+  // Logo VPRAVO DOLE (Surď) — na spodku vizuálu (nie frame-u)
   let logoRight = 0;
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoW = Math.max(STYLE.minLogoPx, Math.round(format.width * STYLE.logoWidthPct));
     const logoH = Math.round(logoW * 0.95); // TB square lockup ~1:0.95
-    const lx = format.width - logoW - pad;
-    const ly = format.height - logoH - pad;
+    const lx = cRight - logoW - pad;
+    const ly = cBottom - logoH - pad;
     placeLogo(frame, figmaLogo, lx, ly, logoW, logoH);
     logoRight = logoW + pad; // koľko miesta vpravo zabrať headlinu
   }
 
   if (!shouldShowHeadline(layout, headline)) return;
 
-  // Headline biely vľavo dole — nechá miesto logu vpravo
-  const fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
+  const textW = Math.max(40, cW - pad * 2 - (logoRight ? logoRight * 0.8 : 0));
+  let bottomY = cBottom - pad; // spodná kotva textového bloku = spodok vizuálu
+  // vyhraď miesto pre „AI generované" (vľavo dole), nech ho text neprekryje —
+  // zladené s aiNoteFontSize() a jeho odsadením (pad), aby nič nekolidovalo.
+  if (AI_ON) bottomY -= aiNoteFontSize(format) + pad + Math.round(pad * 0.4);
+
+  // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho.
+  // Zobrazí sa LEN na formátoch, kde je naň priestor (per-formát rozhodnutie).
+  if (SUBHEAD && hasRoomForSubhead(format, layout)) {
+    const subSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct * 0.5));
+    const sub = figma.createText();
+    sub.fontName = FONT;
+    sub.characters = SUBHEAD;
+    sub.fontSize = subSize;
+    sub.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    sub.resize(textW, Math.round(format.height * 0.25));
+    sub.textAutoResize = "HEIGHT";
+    frame.appendChild(sub);
+    sub.x = cLeft + pad;
+    sub.y = bottomY - sub.height;
+    bottomY = sub.y - Math.round(pad * 0.3);
+  }
+
+  // Headline biely vľavo dole — nechá miesto logu vpravo.
+  // AUTO-FIT (Surď: „pri dlhom headline zmenším font"): začne na 6,6 % výšky
+  // a zmenšuje font po 1 px, kým sa zalomený text nezmestí do vyhradenej výšky
+  // (max ~32 % frame, čo ostane nad logom/AI tagom). Nikdy nepôjde pod 12 px.
+  let fontSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct));
+  const maxHeadlineH = Math.max(fontSize, Math.round((bottomY - (cTop + cH * 0.5))));
   const txt = figma.createText();
   txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   try { txt.letterSpacing = { value: -2, unit: "PERCENT" }; } catch (e) {}
-  const textW = format.width - pad * 2 - (logoRight ? logoRight * 0.8 : 0);
-  txt.resize(Math.max(40, textW), Math.round(format.height * 0.4));
+  txt.resize(textW, Math.round(format.height * 0.4));
   txt.textAutoResize = "HEIGHT";
-  txt.x = pad;
-  txt.y = format.height - pad - txt.height;
   frame.appendChild(txt);
-  // po autoresize znovu ukotvi dole
-  txt.y = format.height - pad - txt.height;
+  // zmenšuj, kým zalomený headline presahuje vyhradenú výšku
+  let guard = 200;
+  while (txt.height > maxHeadlineH && fontSize > STYLE.minTextPx && guard-- > 0) {
+    fontSize = Math.max(STYLE.minTextPx, fontSize - 1);
+    txt.fontSize = fontSize;
+  }
+  txt.x = cLeft + pad;
+  txt.y = bottomY - txt.height;
+  frame.appendChild(txt);
 }
 
 // Fotka 40% vľavo, brand farba 60% vpravo, headline na pravej strane
@@ -933,3 +1641,160 @@ function addSafeRect(frame, name, x, y, w, h) {
   r.locked = true;
   frame.appendChild(r);
 }
+
+/* =====================================================================
+   EXPORT — zabalenie vygenerovaných frameov pre mediálku
+   Doplnené k existujúcemu kódu, nič neprepisuje.
+
+   Plugin vytvára jednu stránku na kanál a frames pomenúva
+   "Názov — TYP [tagging]". Export preto prechádza všetky stránky a
+   frames rozoznáva podľa pluginData (tbTagging), s fallbackom na
+   hranatú zátvorku v názve.
+   ===================================================================== */
+
+(function () {
+  "use strict";
+
+  var HELPER_PATTERNS = [
+    /^⚠/, /safe\s*zón/i, /safe\s*zone/i, /^recipe:/i,
+    /\bchecks?\b/i, /content area guide/i, /^guide\b/i, /^#guide/i
+  ];
+
+  function isHelperLayer(node) {
+    for (var i = 0; i < HELPER_PATTERNS.length; i++) {
+      if (HELPER_PATTERNS[i].test(node.name)) return true;
+    }
+    return false;
+  }
+
+  function isGeneratedFrame(n) {
+    if (!n || n.type !== "FRAME") return false;
+    try { if (n.getPluginData("tbTagging")) return true; } catch (e) {}
+    return /\[[^\]]+\]\s*$/.test(n.name);
+  }
+
+  function frameMeta(n, pageName) {
+    var d = { limit: "", formatId: "", tagging: "", channel: "" };
+    function read(key) {
+      try {
+        var v = n.getSharedPluginData("tbgen", key);
+        if (v) return v;
+      } catch (e) {}
+      try { return n.getPluginData(key) || ""; } catch (e) { return ""; }
+    }
+    d.limit = read("tbLimit");
+    d.formatId = read("tbFormatId");
+    d.tagging = read("tbTagging");
+    d.channel = read("tbChannel");
+    if (!d.tagging) {
+      var m = String(n.name).match(/\[([^\]]+)\]\s*$/);
+      d.tagging = m ? m[1] : "";
+    }
+    if (!d.channel) d.channel = pageName || "";
+    return d;
+  }
+
+  function hideHelpers(frame) {
+    var found = [];
+    try { found = frame.findAll(function (n) { return n.visible && isHelperLayer(n); }); }
+    catch (e) { found = []; }
+    for (var i = 0; i < found.length; i++) found[i].visible = false;
+    return found;
+  }
+
+  function restore(nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      try { nodes[i].visible = true; } catch (e) {}
+    }
+  }
+
+  async function pagesToScan(allPages) {
+    if (!allPages) return [figma.currentPage];
+    try { if (figma.loadAllPagesAsync) await figma.loadAllPagesAsync(); } catch (e) {}
+    return Array.prototype.slice.call(figma.root.children);
+  }
+
+  async function collectTargets(allPages) {
+    // 1) výber používateľa má prednosť; sekcie a skupiny rozbalíme
+    var sel = figma.currentPage.selection;
+    if (sel && sel.length) {
+      var picked = [];
+      for (var i = 0; i < sel.length; i++) {
+        var n = sel[i];
+        if (n.type === "FRAME") picked.push({ node: n, page: figma.currentPage.name });
+        else if (typeof n.findAll === "function") {
+          var inner = n.findAll(isGeneratedFrame);
+          for (var j = 0; j < inner.length; j++) picked.push({ node: inner[j], page: figma.currentPage.name });
+        }
+      }
+      if (picked.length) return picked;
+    }
+
+    // 2) inak prejdi stránky a nájdi vygenerované frames
+    var pages = await pagesToScan(allPages);
+    var out = [];
+    for (var p = 0; p < pages.length; p++) {
+      var page = pages[p];
+      var found;
+      try { found = page.findAll(isGeneratedFrame); } catch (e) { found = []; }
+      for (var k = 0; k < found.length; k++) out.push({ node: found[k], page: page.name });
+    }
+    return out;
+  }
+
+  async function exportFrames(msg) {
+    msg = msg || {};
+    var targets = await collectTargets(msg.allPages !== false);
+
+    if (!targets.length) {
+      figma.ui.postMessage({
+        type: "export-error",
+        error: "Nenašiel som žiadne vygenerované frames. Najprv vygeneruj formáty, alebo označ frames, ktoré chceš exportovať."
+      });
+      return;
+    }
+
+    figma.ui.postMessage({ type: "export-start", total: targets.length });
+
+    for (var i = 0; i < targets.length; i++) {
+      var f = targets[i].node;
+      var meta = frameMeta(f, targets[i].page);
+      var hidden = msg.hideHelpers === false ? [] : hideHelpers(f);
+      var bytes = null, err = null;
+
+      try {
+        bytes = await f.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 1 } });
+      } catch (e) {
+        err = String(e && e.message ? e.message : e);
+      }
+
+      restore(hidden);
+
+      figma.ui.postMessage({
+        type: "export-frame",
+        index: i,
+        total: targets.length,
+        name: f.name,
+        page: targets[i].page,
+        width: Math.round(f.width),
+        height: Math.round(f.height),
+        limit: meta.limit,
+        formatId: meta.formatId,
+        tagging: meta.tagging,
+        channel: meta.channel,
+        bytes: bytes,
+        error: err
+      });
+
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+
+    figma.ui.postMessage({ type: "export-end", total: targets.length });
+  }
+
+  var previous = figma.ui.onmessage;
+  figma.ui.onmessage = function (msg, props) {
+    if (msg && msg.type === "export-request") return exportFrames(msg);
+    if (typeof previous === "function") return previous(msg, props);
+  };
+})();

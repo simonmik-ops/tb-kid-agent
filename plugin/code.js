@@ -1199,9 +1199,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     cursorY -= headlineBoxH;
     const headlineY = cursorY;
 
+    const showsLogo = shouldShowLogo(format, layout, figmaLogo);
+    const logoTop = showsLogo ? (format.height - pad - logo.height) : format.height;
+    const logoReserve = showsLogo ? (logo.width + logoClear) : 0;
+    function widthFor(y, h) {
+      return (y + h > logoTop) ? Math.max(120, textW - logoReserve) : textW;
+    }
+
     const headlineNode = addTemplateText(
       frame, "Headline", content.headline,
-      [pad, headlineY, textW, headlineBoxH],
+      [pad, headlineY, widthFor(headlineY, headlineBoxH), headlineBoxH],
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", family === "portrait" ? "CENTER" : "LEFT"
     );
     if (headlineNode && family === "portrait") {
@@ -1210,7 +1217,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     if (layout.show_subheadline !== false) {
       addTemplateText(
         frame, "Subheadline", content.subheadline,
-        [pad, subheadlineY, textW, subheadlineBoxH],
+        [pad, subheadlineY, widthFor(subheadlineY, subheadlineBoxH), subheadlineBoxH],
         subheadlineSize,
         { r: 1, g: 1, b: 1 }, "Regular", family === "portrait" ? "CENTER" : "LEFT"
       );

@@ -1156,22 +1156,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   } else {
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
 
-    const scrimH = Math.round(format.height * (family === "portrait" ? 0.48 : 0.44));
-    const scrim = figma.createRectangle();
-    scrim.name = "Bottom readability gradient";
-    scrim.resize(format.width, scrimH);
-    scrim.x = 0;
-    scrim.y = format.height - scrimH;
-    scrim.fills = [{
-      type: "GRADIENT_LINEAR",
-      gradientTransform: [[0, 1, 0], [1, 0, 0]],
-      gradientStops: [
-        { position: 0, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.04 } },
-        { position: 1, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.80 } }
-      ]
-    }];
-    frame.appendChild(scrim);
-
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
     const gap = Math.round(headlineSize * 0.35);
@@ -1199,6 +1183,25 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
     cursorY -= headlineBoxH;
     const headlineY = cursorY;
+
+    const scrimH = Math.min(format.height, Math.max(
+      Math.round(format.height * (family === "portrait" ? 0.48 : 0.44)),
+      format.height - headlineY + Math.round(headlineSize * 0.6)
+    ));
+    const scrim = figma.createRectangle();
+    scrim.name = "Bottom readability gradient";
+    scrim.resize(format.width, scrimH);
+    scrim.x = 0;
+    scrim.y = format.height - scrimH;
+    scrim.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[0, 1, 0], [1, 0, 0]],
+      gradientStops: [
+        { position: 0, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.04 } },
+        { position: 1, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.80 } }
+      ]
+    }];
+    frame.appendChild(scrim);
 
     const showsLogo = shouldShowLogo(format, layout, figmaLogo);
     const logoTop = showsLogo ? (format.height - pad - logo.height) : format.height;

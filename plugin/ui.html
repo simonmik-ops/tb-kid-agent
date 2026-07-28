@@ -366,7 +366,10 @@
     if (!selectedFile) { showError("Nahraj vizuál"); return; }
     if (!document.getElementById("projectName").value.trim()) { showError("Doplň názov zákazky"); return; }
     const templateGroupIds = Array.from(document.querySelectorAll('input[name="templateGroup"]:checked')).map(input => input.value);
-    if (!templateGroupIds.length) { showError("Vyber aspoň jeden typ výstupu"); return; }
+    // Keď príde tabuľka od mediálky, formáty určuje ona — typy výstupov sú vtedy bezpredmetné.
+    if (!excelDims || !excelDims.length) {
+      if (!templateGroupIds.length) { showError("Vyber aspoň jeden typ výstupu, alebo nahraj tabuľku od mediálky"); return; }
+    }
 
     const btn = document.getElementById("btn");
     const progress = document.getElementById("progress");
@@ -384,7 +387,10 @@
     try {
       const visualRecipe = getVisualRecipe();
       const headline = document.getElementById("headline").value;
-      const adType = document.getElementById("adType").value;
+      // Fáza kampane (awareness/hardsell/RMK) sa z panela stratila v PR#4,
+      // keď ju nahradili typy výstupov. Ostáva len v názve frameu.
+      const adTypeEl = document.getElementById("adType");
+      const adType = adTypeEl ? adTypeEl.value : "production";
       const subheadline = document.getElementById("subheadline").value;
       const showGuides = document.getElementById("showGuides").checked;
       const aiGenerated = document.getElementById("aiGenerated").checked;

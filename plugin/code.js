@@ -4,6 +4,35 @@
 // ho externé nástroje cez getSharedPluginData.
 var TB_NS = "tbgen";
 
+var TB = {
+  headline: function (W, H) {
+    return Math.max(12, Math.round(0.1399 * Math.pow(W, 0.518) * Math.pow(H, 0.364)));
+  },
+  subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.60)); },
+  legal: function (W, H) { return Math.max(12, Math.min(24, Math.round(TB.headline(W, H) * 0.30))); },
+  padding: function (W, H) { return Math.max(12, Math.round(0.055 * Math.sqrt(W * H))); },
+  logoBox: function (W, H) {
+    var ref = [[0.5,0.110],[0.737,0.101],[1.0,0.143],[1.911,0.210],[3.88,0.304]];
+    var r = W / H, pct;
+    if (r <= ref[0][0]) pct = ref[0][1];
+    else if (r >= ref[4][0]) pct = ref[4][1];
+    else for (var i = 0; i < 4; i++) {
+      if (r >= ref[i][0] && r <= ref[i+1][0]) {
+        var t = (Math.log(r)-Math.log(ref[i][0]))/(Math.log(ref[i+1][0])-Math.log(ref[i][0]));
+        pct = ref[i][1] + t * (ref[i+1][1] - ref[i][1]); break;
+      }
+    }
+    var h = Math.max(50, Math.min(Math.round(pct * H), Math.round(0.35 * H)));
+    return { height: h, width: Math.round(h * (255/243)) };
+  },
+  logoClear: function (W, H) { return Math.max(30, Math.round(TB.logoBox(W, H).height / 3)); },
+  button: function (W, H) {
+    var h = Math.max(40, Math.round(0.10 * Math.sqrt(W * H)));
+    return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.38)),
+             radius: Math.max(4, Math.round(h * 0.08)) };
+  }
+};
+
 try {
   figma.showUI(__html__, { width: 500, height: 760 });
 } catch(e) {
@@ -1074,12 +1103,10 @@ function addMasterCta(frame, value, x, y, w, h) {
   if (!value) return;
   const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0.02, g: 0.27, b: 0.98 }, 1);
   button.cornerRadius = Math.max(2, Math.round(h * 0.08));
-  addTemplateText(
-    frame, "CTA text", value + "  ›",
-    [x + 6, y + Math.round(h * 0.24), w - 12, h * 0.55],
-    Math.round(clamp(h * 0.28, 8, 16)),
-    { r: 1, g: 1, b: 1 }, "Bold", "CENTER"
-  );
+  const labelSize = Math.max(12, Math.round(h * 0.36));
+  const label = addTemplateText(frame, "CTA text", value + "  ›", [x, y, w, h],
+    labelSize, { r: 1, g: 1, b: 1 }, "Bold", "CENTER");
+  if (label) { try { label.textAlignVertical = "CENTER"; } catch (e) {} }
 }
 
 function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
@@ -1088,7 +1115,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
   };
-  const pad = Math.round(clamp(Math.min(format.width, format.height) * 0.065, 10, 54));
+  const pad = TB.padding(format.width, format.height);
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
   if (family === "wide") {
@@ -1100,7 +1127,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     );
     const textX = imageW + pad;
     const textW = format.width - textX - pad;
-    const headlineSize = Math.round(clamp(format.height * 0.10, 16, 72));
+    const headlineSize = TB.headline(format.width, format.height);
     addTemplateText(
       frame, "Headline", content.headline,
       [textX, Math.round(format.height * 0.22), textW, Math.round(format.height * 0.30)],
@@ -1110,19 +1137,20 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       addTemplateText(
         frame, "Subheadline", content.subheadline,
         [textX, Math.round(format.height * 0.54), textW, Math.round(format.height * 0.14)],
-        Math.round(clamp(headlineSize * 0.48, 8, 18)),
+        TB.subheadline(format.width, format.height),
         { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
       );
     }
     if (layout.show_cta !== false) {
+      const btn = TB.button(format.width, format.height);
       addMasterCta(
         frame, content.ctaText, textX, Math.round(format.height * 0.72),
-        Math.min(textW * 0.46, 150), Math.round(clamp(format.height * 0.19, 28, 48))
+        btn.width, btn.height
       );
     }
     if (shouldShowLogo(format, layout, figmaLogo)) {
-      const logoH = Math.round(clamp(format.height * 0.27, 48, 82));
-      placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);
+      const logo = TB.logoBox(format.width, format.height);
+      placeLogo(frame, figmaLogo, format.width - pad - logo.width, format.height - pad - logo.height, logo.width, logo.height);
     }
   } else {
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
@@ -1143,14 +1171,37 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }];
     frame.appendChild(scrim);
 
-    const headlineSize = Math.round(clamp(
-      Math.min(format.width * 0.085, format.height * 0.060), 16, 72
-    ));
-    const headlineY = Math.round(format.height * (family === "portrait" ? 0.61 : 0.64));
+    const headlineSize = TB.headline(format.width, format.height);
+    const subheadlineSize = TB.subheadline(format.width, format.height);
+    const gap = Math.round(headlineSize * 0.35);
     const textW = format.width - pad * 2;
+    const headlineBoxH = Math.round(format.height * 0.13);
+    const subheadlineBoxH = Math.round(format.height * 0.09);
+    const btn = TB.button(format.width, format.height);
+    const logo = TB.logoBox(format.width, format.height);
+    const logoClear = TB.logoClear(format.width, format.height);
+    const btnW = Math.max(60, Math.min(btn.width, format.width - pad * 2 - logo.width - logoClear));
+
+    // Skladanie zdola nahor: pad → tlačidlo → medzera → podnadpis → medzera → headline,
+    // aby sa pri väčšom podnadpise nikdy neprekryl s tlačidlom.
+    let cursorY = format.height - pad;
+    let btnY = 0, subheadlineY = 0;
+    if (layout.show_cta !== false) {
+      cursorY -= btn.height;
+      btnY = cursorY;
+      cursorY -= gap;
+    }
+    if (layout.show_subheadline !== false) {
+      cursorY -= subheadlineBoxH;
+      subheadlineY = cursorY;
+      cursorY -= gap;
+    }
+    cursorY -= headlineBoxH;
+    const headlineY = cursorY;
+
     const headlineNode = addTemplateText(
       frame, "Headline", content.headline,
-      [pad, headlineY, textW, Math.round(format.height * 0.13)],
+      [pad, headlineY, textW, headlineBoxH],
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", family === "portrait" ? "CENTER" : "LEFT"
     );
     if (headlineNode && family === "portrait") {
@@ -1159,40 +1210,35 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     if (layout.show_subheadline !== false) {
       addTemplateText(
         frame, "Subheadline", content.subheadline,
-        [pad, headlineY + Math.round(format.height * 0.12), textW, Math.round(format.height * 0.09)],
-        Math.round(clamp(headlineSize * 0.50, 8, 18)),
+        [pad, subheadlineY, textW, subheadlineBoxH],
+        subheadlineSize,
         { r: 1, g: 1, b: 1 }, "Regular", family === "portrait" ? "CENTER" : "LEFT"
       );
     }
     if (layout.show_cta !== false) {
-      addMasterCta(
-        frame, content.ctaText, pad, Math.round(format.height * 0.82),
-        Math.round(clamp(format.width * 0.40, 88, 150)),
-        Math.round(clamp(format.height * 0.085, 30, 48))
-      );
+      addMasterCta(frame, content.ctaText, pad, btnY, btnW, btn.height);
     }
     if (shouldShowLogo(format, layout, figmaLogo)) {
-      const logoH = Math.round(clamp(Math.min(format.width, format.height) * 0.22, 50, 82));
-      placeLogo(frame, figmaLogo, format.width - pad - logoH, format.height - pad - logoH, logoH, logoH);
+      placeLogo(frame, figmaLogo, format.width - pad - logo.width, format.height - pad - logo.height, logo.width, logo.height);
     }
   }
 
   if (layout.show_badge !== false && content.badgeText) {
     const badgeW = Math.round(clamp(format.width * 0.34, 110, 260));
-    const badgeH = Math.round(clamp(format.height * 0.075, 28, 54));
+    const badgeH = Math.round(TB.headline(format.width, format.height) * 1.1);
     addSolidRect(frame, "Badge background", pad, pad, badgeW, badgeH, { r: 1, g: 1, b: 1 }, 0.94);
     addTemplateText(
       frame, "Badge", content.badgeText,
       [pad + 8, pad + Math.round(badgeH * 0.20), badgeW - 16, Math.round(badgeH * 0.60)],
-      Math.round(clamp(badgeH * 0.30, 9, 16)), BRAND_COLOR, "Bold", "CENTER"
+      Math.max(12, Math.round(badgeH * 0.42)), BRAND_COLOR, "Bold", "CENTER"
     );
   }
   if (layout.show_legal !== false && content.legalText) {
-    const legalH = Math.round(clamp(format.height * 0.045, 18, 42));
+    const legalH = Math.round(TB.legal(format.width, format.height) * 1.6);
     addTemplateText(
       frame, "Legal text", content.legalText,
       [pad, format.height - legalH - Math.max(4, Math.round(pad * 0.25)), format.width - pad * 2, legalH],
-      Math.round(clamp(Math.min(format.width, format.height) * 0.018, 8, 13)),
+      TB.legal(format.width, format.height),
       { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
     );
   }

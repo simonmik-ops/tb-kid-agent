@@ -422,7 +422,7 @@
         return Array.from(new Uint8Array(b));
       }
 
-      let formats, tagging, serverData = null;
+      let formats, tagging;
 
       if (excelDims && excelDims.length) {
         // ── Excel cesta ── formáty priamo z tabuľky od mediálky; layout vyrieši
@@ -449,7 +449,6 @@
         if (!data.formats || !data.formats.length || !data.formats.every(item => item.format && item.format.templateGroup)) {
           throw new Error("Railway ešte nemá nasadený Universal templates v0.9. Najprv treba nasadiť novú serverovú verziu.");
         }
-        serverData = data;
         formats = data.formats;
         tagging = taggingField || data.tagging;
         totalFormats = formats.length;
@@ -463,7 +462,6 @@
 
       setStatus("Vytváram " + totalFormats + " frames vo Figme...", 60);
       parent.postMessage({ pluginMessage: { type: "create-frames", payload: {
-        ...(serverData || {}),
         formats, headline, subheadline, adType, tagging,
         ctaText, legalText, badgeText,
         kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,

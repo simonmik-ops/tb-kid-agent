@@ -1006,23 +1006,34 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
       merac.remove();
     }
   } catch (e) {}
-  txt.textAutoResize = "HEIGHT";
-  txt.resize(box[2], box[3]);
-
-  const _pomer = box[3] > 0 ? (frame.height / frame.width) : 1;
+  const _pomer = frame.width > 0 ? (frame.height / frame.width) : 1;
   const maxRiadkov = _pomer >= 1.7 ? 4 : (_pomer >= 1.0 ? 3 : 2);
 
   try {
-    let velkost = txt.fontSize;
+    const m2 = figma.createText();
+    m2.fontName = txt.fontName;
+    m2.characters = String(value);
+    m2.fontSize = txt.fontSize;
+    try { m2.lineHeight = txt.lineHeight; } catch (e) {}
+    try { m2.letterSpacing = txt.letterSpacing; } catch (e) {}
+    m2.textAutoResize = "HEIGHT";
+    m2.resize(box[2], 10);
+    frame.appendChild(m2);
+
+    const riadkov = function () { return Math.max(1, Math.round(m2.height / (m2.fontSize * 1.05))); };
+    let velkost = m2.fontSize;
     let poistka = 0;
-    const riadkov = () => Math.max(1, Math.round(txt.height / (txt.fontSize * 1.05)));
-    while ((txt.height > box[3] || riadkov() > maxRiadkov) && velkost > 12 && poistka < 24) {
+    while ((m2.height > box[3] || riadkov() > maxRiadkov) && velkost > 12 && poistka < 24) {
       velkost = Math.max(12, Math.floor(velkost * 0.92));
-      txt.fontSize = velkost;
-      txt.resize(box[2], txt.height);
+      m2.fontSize = velkost;
       poistka++;
     }
+    txt.fontSize = velkost;
+    m2.remove();
   } catch (e) {}
+
+  txt.textAutoResize = "HEIGHT";
+  txt.resize(box[2], box[3]);
 
   txt.x = box[0];
   txt.y = box[1];

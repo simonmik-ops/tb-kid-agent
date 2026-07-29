@@ -1583,26 +1583,51 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
 function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   const isGoogleLogo = format.id === "google_logo_square" || format.id === "google_logo_wide";
   frame.fills = isGoogleLogo ? [] : [{ type: "SOLID", color: BRAND_COLOR }];
+  const hasLogo = !!figmaLogo;
 
   // Logo vycentrované
   const lH = Math.min(Math.round(format.height * 0.25), Math.round(format.width * 0.18), 80);
   const lW = Math.round(lH * 3.5);
   const lPad = Math.round(format.height * 0.15);
   placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), lPad, lW, lH);
+  const fallbackHeadline = !hasLogo && !!headline;
 
-  if (shouldShowHeadline(layout, headline)) {
-    const fontSize = Math.max(7, Math.min(Math.floor(format.height * 0.10), Math.floor(format.width * 0.06)));
+  if (shouldShowHeadline(layout, headline) || fallbackHeadline) {
+    const fontSize = Math.max(12, Math.min(Math.floor(format.height * 0.22), Math.floor(format.width * 0.06)));
     const txt = figma.createText();
     txt.fontName = FONT;
     txt.characters = headline;
     txt.fontSize = fontSize;
     // Pre Google logo formáty (transparentné pozadie) — tmavý text; inak biely
     txt.fills = [{ type: "SOLID", color: isGoogleLogo ? BRAND_COLOR : { r: 1, g: 1, b: 1 } }];
-    txt.resize(format.width - 24, format.height);
-    txt.textAutoResize = "HEIGHT";
+    txt.textAutoResize = "NONE";
     txt.x = 12;
-    txt.y = lPad + lH + Math.round(format.height * 0.06);
+    if (hasLogo) {
+      // pôvodné umiestnenie pod logom
+      txt.y = lPad + lH + Math.round(format.height * 0.06);
+      txt.resize(format.width - 24, format.height - txt.y);
+    } else {
+      txt.y = 0;
+      txt.resize(format.width - 24, format.height);
+    }
+    txt.textAlignHorizontal = "CENTER";
+    txt.textAlignVertical = "CENTER";
     frame.appendChild(txt);
+  }
+
+  if (!hasLogo && !headline) {
+    const warn = figma.createText();
+    warn.fontName = FONT;
+    warn.characters = "CHÝBA LOGO — tento formát je bez neho prázdny";
+    warn.fontSize = Math.max(10, Math.min(Math.floor(format.height * 0.08), Math.floor(format.width * 0.035)));
+    warn.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    warn.textAutoResize = "NONE";
+    warn.resize(format.width - 24, format.height);
+    warn.x = 12;
+    warn.y = 0;
+    warn.textAlignHorizontal = "CENTER";
+    warn.textAlignVertical = "CENTER";
+    frame.appendChild(warn);
   }
 }
 

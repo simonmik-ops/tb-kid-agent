@@ -195,13 +195,21 @@ function addAiNote(frame, format) {
   t.x = textCol !== null ? textCol : Math.max(pad, Math.round(imgLeft) + pad);
   t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
   try {
-    const prekazky = ["Logo", "CTA button", "Subheadline", "Headline"];
-    for (var pi = 0; pi < prekazky.length; pi++) {
-      var nn = frame.findOne(function (q) { return q.name === prekazky[pi]; });
-      if (!nn) continue;
-      var koliduje = (t.x < nn.x + nn.width) && (t.x + t.width > nn.x) &&
-                     (t.y < nn.y + nn.height) && (t.y + t.height > nn.y);
-      if (koliduje) t.y = Math.max(pad, nn.y - t.height - Math.round(t.height * 0.5));
+    var kolizie = ["Logo", "CTA button", "Subheadline", "Headline"]
+      .map(function (nm) { return frame.findOne(function (q) { return q.name === nm; }); })
+      .filter(function (q) {
+        return q && (t.x < q.x + q.width) && (t.x + t.width > q.x) &&
+               (t.y < q.y + q.height) && (t.y + t.height > q.y);
+      });
+    if (kolizie.length) {
+      var najvyssia = kolizie.reduce(function (a, b) { return a.y < b.y ? a : b; });
+      var novaY = najvyssia.y - t.height - Math.round(t.height * 0.5);
+      if (novaY >= pad) {
+        t.y = novaY;
+      } else {
+        t.x = pad;
+        t.y = format.height - t.height - pad;
+      }
     }
   } catch (e) {}
   t.locked = true;
@@ -1239,7 +1247,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
     if (layout.show_cta !== false) {
       const btn = TB.button(format.width, format.height);
-      const btnY = Math.round(format.height * 0.72);
+      const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
+        ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
+      const btnY = Math.min(
+        Math.round(format.height * 0.72),
+        format.height - pad - aiRezerva - btn.height
+      );
       addMasterCta(frame, content.ctaText, textX, btnY,
         Math.max(88, Math.min(btn.width, wideWidth(btnY, btn.height))), btn.height);
     }

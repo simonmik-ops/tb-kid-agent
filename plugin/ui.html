@@ -427,13 +427,13 @@
           ctx.drawImage(bitmap, 0, 0, 64, 64);
           const data = ctx.getImageData(0, 0, 64, 64).data;
           const rs = [], gs = [], bs = [];
-          for (let y = 0; y < 64; y++) {
-            for (let x = 0; x < 64; x++) {
-              if (!(y < 2 || x === 0 || x === 63)) continue;
-              const i = (y * 64 + x) * 4;
-              rs.push(data[i]);
-              gs.push(data[i + 1]);
-              bs.push(data[i + 2]);
+          const blok = 12;
+          for (let y = 0; y < blok; y++) {
+            for (let x = 0; x < blok; x++) {
+              [x, 63 - x].forEach(function (xx) {
+                const i = (y * 64 + xx) * 4;
+                rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2]);
+              });
             }
           }
           function median(arr) {
@@ -441,7 +441,10 @@
             const mid = Math.floor(sorted.length / 2);
             return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
           }
-          return { r: median(rs) / 255, g: median(gs) / 255, b: median(bs) / 255 };
+          const r = median(rs), g = median(gs), b = median(bs);
+          const jas = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+          if (jas < 0.12 || jas > 0.95) return null;
+          return { r: r / 255, g: g / 255, b: b / 255 };
         } catch (e) {
           return null;
         }

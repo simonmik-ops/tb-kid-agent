@@ -23,7 +23,14 @@ var TB = {
       }
     }
     var h = Math.max(50, Math.min(Math.round(pct * H), Math.round(0.35 * H)));
-    return { height: h, width: Math.round(h * (255/243)) };
+    var w = Math.round(h * (255/243));
+    var maxW = Math.round(W * 0.32);
+    if (w > maxW) {
+      w = maxW;
+      h = Math.round(w * (243/255));
+      if (h < 50) { h = 50; w = Math.round(h * (255/243)); }
+    }
+    return { height: h, width: w };
   },
   logoClear: function (W, H) { return Math.max(30, Math.round(TB.logoBox(W, H).height / 3)); },
   button: function (W, H) {
@@ -1215,7 +1222,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
       gradientStops: [
         { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
-        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: 0.96 } }
+        { position: Math.min(0.98, wideShift / (format.width - panelX)),
+          color: { r: brand.r, g: brand.g, b: brand.b, a: 1 } },
+        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: 1 } }
       ]
     }];
     frame.appendChild(panel);
@@ -1231,30 +1240,35 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       return (y + h > logoTop) ? Math.max(60, textW - reserve) : textW;
     }
 
-    const hlY = Math.round(format.height * 0.22);
-    const hlH = Math.round(format.height * 0.30);
+    const wBtn = TB.button(format.width, format.height);
+    const showCta = layout.show_cta !== false;
+    const showSub = layout.show_subheadline !== false;
+    const wGap = Math.round(headlineSize * 0.30);
+    const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
+      ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
+
+    let wCur = format.height - pad - aiRezerva;
+    let btnY = 0, subY = 0;
+    if (showCta) { btnY = wCur - wBtn.height; wCur = btnY - wGap; }
+    const subH = Math.round(TB.subheadline(format.width, format.height) * 1.6);
+    if (showSub) { subY = wCur - subH; wCur = subY - Math.round(wGap * 0.6); }
+    const hlDost = Math.max(20, wCur - pad);
+    const hlH = Math.min(Math.round(headlineSize * 1.15 * 2), hlDost);
+    const hlY = wCur - hlH;
+
     addTemplateText(frame, "Headline", content.headline,
       [textX, hlY, wideWidth(hlY, hlH), hlH],
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
 
-    if (layout.show_subheadline !== false) {
-      const subY = Math.round(format.height * 0.54);
-      const subH = Math.round(format.height * 0.14);
+    if (showSub) {
       addTemplateText(frame, "Subheadline", content.subheadline,
         [textX, subY, wideWidth(subY, subH), subH],
         TB.subheadline(format.width, format.height),
         { r: 1, g: 1, b: 1 }, "Regular", "LEFT");
     }
-    if (layout.show_cta !== false) {
-      const btn = TB.button(format.width, format.height);
-      const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
-        ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
-      const btnY = Math.min(
-        Math.round(format.height * 0.72),
-        format.height - pad - aiRezerva - btn.height
-      );
+    if (showCta) {
       addMasterCta(frame, content.ctaText, textX, btnY,
-        Math.max(88, Math.min(btn.width, wideWidth(btnY, btn.height))), btn.height);
+        Math.max(88, Math.min(wBtn.width, wideWidth(btnY, wBtn.height))), wBtn.height);
     }
     if (showsLogo) {
       placeLogo(frame, figmaLogo,
@@ -1327,7 +1341,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const headlineNode = addTemplateText(
       frame, "Headline", content.headline,
       [pad, headlineY, widthFor(headlineY, headlineBoxH), headlineBoxH],
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", (format.height / format.width >= 1.7) ? "CENTER" : "LEFT"
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT"
     );
     if (headlineNode && family === "portrait") {
       headlineNode.textAlignVertical = "CENTER";
@@ -1337,14 +1351,17 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         frame, "Subheadline", content.subheadline,
         [pad, subheadlineY, widthFor(subheadlineY, subheadlineBoxH), subheadlineBoxH],
         subheadlineSize,
-        { r: 1, g: 1, b: 1 }, "Regular", (format.height / format.width >= 1.7) ? "CENTER" : "LEFT"
+        { r: 1, g: 1, b: 1 }, "Regular", (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT"
       );
     }
     if (layout.show_cta !== false) {
       addMasterCta(frame, content.ctaText, pad, btnY, btnW, btn.height);
     }
     if (shouldShowLogo(format, layout, figmaLogo)) {
-      placeLogo(frame, figmaLogo, format.width - pad - logo.width, format.height - pad - logo.height, logo.width, logo.height);
+      const logoX = logoOwnRow
+        ? Math.round((format.width - logo.width) / 2)
+        : (format.width - pad - logo.width);
+      placeLogo(frame, figmaLogo, logoX, format.height - pad - logo.height, logo.width, logo.height);
     }
   }
 

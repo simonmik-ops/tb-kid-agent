@@ -1200,9 +1200,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
   if (family === "wide") {
-    const imageW = Math.round(format.width * 0.52);
+    const imageW = Math.round(format.width * 0.75);
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
-    const wideShift = Math.round(format.width * 0.10);
+    const wideShift = Math.round(format.width * 0.30);
     const panelX = imageW - wideShift;
     const brand = brandColor(layout);
     const panel = figma.createRectangle();
@@ -1219,7 +1219,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(panel);
-    const textX = imageW + pad;
+    const textX = Math.round(format.width * 0.54);
     const textW = format.width - textX - pad;
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);

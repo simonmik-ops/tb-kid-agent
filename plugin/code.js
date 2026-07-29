@@ -164,8 +164,8 @@ function addAiNote(frame, format) {
   t.characters = STYLE.aiTagText;
   t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  t.opacity = 0.72;                       // recede do vizuálu, nech nie je nalepený
-  try { t.letterSpacing = { value: 2, unit: "PERCENT" }; } catch (e) {}
+  t.opacity = 0.55;                       // recede do vizuálu, nech nie je nalepený
+  try { t.letterSpacing = { value: -3, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = TB.padding(format.width, format.height);
   frame.appendChild(t);
@@ -983,6 +983,12 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
   txt.fills = [{ type: "SOLID", color: color || { r: 1, g: 1, b: 1 } }];
   txt.textAlignHorizontal = align || "LEFT";
   try {
+    if (style !== "Regular" && style !== "Light") {
+      txt.lineHeight = { value: 100, unit: "PERCENT" };
+      txt.letterSpacing = { value: -2, unit: "PERCENT" };
+    }
+  } catch (e) {}
+  try {
     const slova = String(value).split(/\s+/);
     let najdlhsie = "";
     for (let i = 0; i < slova.length; i++)
@@ -1139,7 +1145,7 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
 
 function addMasterCta(frame, value, x, y, w, h) {
   if (!value) return;
-  const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0.02, g: 0.27, b: 0.98 }, 1);
+  const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0, g: 0.278, b: 0.973 }, 1);
   button.cornerRadius = Math.max(2, Math.round(h * 0.08));
   const labelSize = Math.max(12, Math.round(h * 0.36));
   const label = addTemplateText(frame, "CTA text", value + "  ›", [x, y, w, h],
@@ -1262,8 +1268,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       type: "GRADIENT_LINEAR",
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
       gradientStops: [
-        { position: 0, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.04 } },
-        { position: 1, color: { r: 0.03, g: 0.03, b: 0.04, a: 0.80 } }
+        { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
+        { position: 1, color: { r: 0, g: 0, b: 0, a: 1 } }
       ]
     }];
     frame.appendChild(scrim);
@@ -1271,7 +1277,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const headlineNode = addTemplateText(
       frame, "Headline", content.headline,
       [pad, headlineY, widthFor(headlineY, headlineBoxH), headlineBoxH],
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", family === "portrait" ? "CENTER" : "LEFT"
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", (format.height / format.width >= 1.7) ? "CENTER" : "LEFT"
     );
     if (headlineNode && family === "portrait") {
       headlineNode.textAlignVertical = "CENTER";
@@ -1281,7 +1287,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         frame, "Subheadline", content.subheadline,
         [pad, subheadlineY, widthFor(subheadlineY, subheadlineBoxH), subheadlineBoxH],
         subheadlineSize,
-        { r: 1, g: 1, b: 1 }, "Regular", family === "portrait" ? "CENTER" : "LEFT"
+        { r: 1, g: 1, b: 1 }, "Regular", (format.height / format.width >= 1.7) ? "CENTER" : "LEFT"
       );
     }
     if (layout.show_cta !== false) {
@@ -1401,7 +1407,7 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
 
   if (content.ctaText && rules.cta) {
     const c = rules.cta;
-    const button = addSolidRect(frame, "CTA button", c[0], c[1], c[2], c[3], { r: 0.02, g: 0.27, b: 0.98 }, 1);
+    const button = addSolidRect(frame, "CTA button", c[0], c[1], c[2], c[3], { r: 0, g: 0.278, b: 0.973 }, 1);
     button.cornerRadius = Math.round(c[3] * 0.08);
     const ctaText = content.ctaText || STYLE.ctaText;
     addTemplateText(

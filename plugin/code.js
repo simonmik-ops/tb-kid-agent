@@ -1008,6 +1008,22 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
   } catch (e) {}
   txt.textAutoResize = "HEIGHT";
   txt.resize(box[2], box[3]);
+
+  const _pomer = box[3] > 0 ? (frame.height / frame.width) : 1;
+  const maxRiadkov = _pomer >= 1.7 ? 4 : (_pomer >= 1.0 ? 3 : 2);
+
+  try {
+    let velkost = txt.fontSize;
+    let poistka = 0;
+    const riadkov = () => Math.max(1, Math.round(txt.height / (txt.fontSize * 1.05)));
+    while ((txt.height > box[3] || riadkov() > maxRiadkov) && velkost > 12 && poistka < 24) {
+      velkost = Math.max(12, Math.floor(velkost * 0.92));
+      txt.fontSize = velkost;
+      txt.resize(box[2], txt.height);
+      poistka++;
+    }
+  } catch (e) {}
+
   txt.x = box[0];
   txt.y = box[1];
   frame.appendChild(txt);
@@ -1187,29 +1203,39 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const textX = imageW + pad;
     const textW = format.width - textX - pad;
     const headlineSize = TB.headline(format.width, format.height);
-    addTemplateText(
-      frame, "Headline", content.headline,
-      [textX, Math.round(format.height * 0.22), textW, Math.round(format.height * 0.30)],
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
-    );
+    const wLogo = TB.logoBox(format.width, format.height);
+    const wClear = TB.logoClear(format.width, format.height);
+    const showsLogo = shouldShowLogo(format, layout, figmaLogo);
+    const logoTop = showsLogo ? (format.height - pad - wLogo.height) : format.height;
+    const reserve = showsLogo ? (wLogo.width + wClear) : 0;
+    function wideWidth(y, h) {
+      return (y + h > logoTop) ? Math.max(60, textW - reserve) : textW;
+    }
+
+    const hlY = Math.round(format.height * 0.22);
+    const hlH = Math.round(format.height * 0.30);
+    addTemplateText(frame, "Headline", content.headline,
+      [textX, hlY, wideWidth(hlY, hlH), hlH],
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
+
     if (layout.show_subheadline !== false) {
-      addTemplateText(
-        frame, "Subheadline", content.subheadline,
-        [textX, Math.round(format.height * 0.54), textW, Math.round(format.height * 0.14)],
+      const subY = Math.round(format.height * 0.54);
+      const subH = Math.round(format.height * 0.14);
+      addTemplateText(frame, "Subheadline", content.subheadline,
+        [textX, subY, wideWidth(subY, subH), subH],
         TB.subheadline(format.width, format.height),
-        { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
-      );
+        { r: 1, g: 1, b: 1 }, "Regular", "LEFT");
     }
     if (layout.show_cta !== false) {
       const btn = TB.button(format.width, format.height);
-      addMasterCta(
-        frame, content.ctaText, textX, Math.round(format.height * 0.72),
-        btn.width, btn.height
-      );
+      const btnY = Math.round(format.height * 0.72);
+      addMasterCta(frame, content.ctaText, textX, btnY,
+        Math.max(88, Math.min(btn.width, wideWidth(btnY, btn.height))), btn.height);
     }
-    if (shouldShowLogo(format, layout, figmaLogo)) {
-      const logo = TB.logoBox(format.width, format.height);
-      placeLogo(frame, figmaLogo, format.width - pad - logo.width, format.height - pad - logo.height, logo.width, logo.height);
+    if (showsLogo) {
+      placeLogo(frame, figmaLogo,
+        format.width - pad - wLogo.width, format.height - pad - wLogo.height,
+        wLogo.width, wLogo.height);
     }
   } else {
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);

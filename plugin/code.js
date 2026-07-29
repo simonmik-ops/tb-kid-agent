@@ -317,7 +317,7 @@ async function createAllFrames({
         "clean_image"
       ];
       const masterEligible = masterExcludedLayouts.indexOf(backendLayoutType) === -1 &&
-        format.height > 100 && !(format.width / format.height > 4.5 && format.height <= 250);
+        format.height > 100 && !(format.width / format.height > 4.5 && format.height < 150);
       const layoutType = hasLocalAdformTemplate
         ? (useMasterSafe ? "master_safe" : "adform_psd")
         : (useMasterSafe && masterEligible ? "master_safe" : backendLayoutType);
@@ -982,6 +982,24 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
   txt.fontSize = fontSize;
   txt.fills = [{ type: "SOLID", color: color || { r: 1, g: 1, b: 1 } }];
   txt.textAlignHorizontal = align || "LEFT";
+  try {
+    const slova = String(value).split(/\s+/);
+    let najdlhsie = "";
+    for (let i = 0; i < slova.length; i++)
+      if (slova[i].length > najdlhsie.length) najdlhsie = slova[i];
+    if (najdlhsie) {
+      const merac = figma.createText();
+      merac.fontName = txt.fontName;
+      merac.characters = najdlhsie;
+      merac.fontSize = fontSize;
+      merac.textAutoResize = "WIDTH_AND_HEIGHT";
+      frame.appendChild(merac);
+      if (merac.width > box[2] && merac.width > 0) {
+        txt.fontSize = Math.max(12, Math.floor(fontSize * (box[2] / merac.width)));
+      }
+      merac.remove();
+    }
+  } catch (e) {}
   txt.textAutoResize = "HEIGHT";
   txt.resize(box[2], box[3]);
   txt.x = box[0];

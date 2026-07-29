@@ -1165,11 +1165,21 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const btn = TB.button(format.width, format.height);
     const logo = TB.logoBox(format.width, format.height);
     const logoClear = TB.logoClear(format.width, format.height);
-    const btnW = Math.max(60, Math.min(btn.width, format.width - pad * 2 - logo.width - logoClear));
+    const showsLogo = shouldShowLogo(format, layout, figmaLogo);
+    const logoOwnRow = showsLogo && (logo.width + logoClear) > textW * 0.5;
+    const logoTop = (showsLogo && !logoOwnRow) ? (format.height - pad - logo.height) : format.height;
+    const logoReserve = (showsLogo && !logoOwnRow) ? (logo.width + logoClear) : 0;
+    function widthFor(y, h) {
+      if (!logoReserve || y + h <= logoTop) return textW;
+      return Math.max(60, textW - logoReserve);
+    }
+    const btnW = Math.max(60, Math.min(btn.width,
+      format.width - pad * 2 - ((logo.width + logoClear > (format.width - pad * 2) * 0.5) ? 0 : logo.width + logoClear)));
 
     // Skladanie zdola nahor: pad → tlačidlo → medzera → podnadpis → medzera → headline,
     // aby sa pri väčšom podnadpise nikdy neprekryl s tlačidlom.
     let cursorY = format.height - pad;
+    if (logoOwnRow) cursorY -= (logo.height + logoClear);
     let btnY = 0, subheadlineY = 0;
     if (layout.show_cta !== false) {
       cursorY -= btn.height;
@@ -1202,13 +1212,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(scrim);
-
-    const showsLogo = shouldShowLogo(format, layout, figmaLogo);
-    const logoTop = showsLogo ? (format.height - pad - logo.height) : format.height;
-    const logoReserve = showsLogo ? (logo.width + logoClear) : 0;
-    function widthFor(y, h) {
-      return (y + h > logoTop) ? Math.max(120, textW - logoReserve) : textW;
-    }
 
     const headlineNode = addTemplateText(
       frame, "Headline", content.headline,

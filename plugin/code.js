@@ -167,7 +167,7 @@ function addAiNote(frame, format) {
   t.opacity = 0.72;                       // recede do vizuálu, nech nie je nalepený
   try { t.letterSpacing = { value: 2, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
-  const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 8, 60));
+  const pad = TB.padding(format.width, format.height);
   frame.appendChild(t);
   // Ukotvi tag na spodok SKUTOČNÉHO KV obrázka, nech je vždy NA vizuáli a nie
   // v prázdnom brand páse pod ním. Nájde najväčší rect s IMAGE výplňou (mimo
@@ -189,6 +189,15 @@ function addAiNote(frame, format) {
   const imgLeft = img ? img.x : 0;
   t.x = Math.max(pad, Math.round(imgLeft) + pad);
   t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
+  try {
+    const logoNode = frame.findOne(function (n) { return n.name === "Logo"; });
+    if (logoNode) {
+      const lx = logoNode.x, ly = logoNode.y, lw = logoNode.width, lh = logoNode.height;
+      const prekryv = (t.x < lx + lw) && (t.x + t.width > lx) &&
+                      (t.y < ly + lh) && (t.y + t.height > ly);
+      if (prekryv) t.y = Math.max(pad, ly - t.height - Math.round(t.height * 0.5));
+    }
+  } catch (e) {}
   t.locked = true;
 }
 
@@ -607,7 +616,7 @@ function resolveLayoutLocal(format) {
     image_fit: "fill",
     headline_size_px: Math.min(72, Math.max(10, Math.round(format.height * 0.07)))
   };
-  if (format.height <= 100 || (ratio > 4.5 && format.height <= 250)) {
+  if (format.height <= 120 || (ratio > 6 && format.height <= 150)) {
     return Object.assign({}, base, { layout_type: "logo_only", image_fit: "none", show_headline: false });
   }
   if (ratio > 3.5 && format.height < 300) return Object.assign({}, base, { layout_type: "strip" });

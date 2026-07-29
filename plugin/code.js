@@ -190,12 +190,13 @@ function addAiNote(frame, format) {
   t.x = Math.max(pad, Math.round(imgLeft) + pad);
   t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
   try {
-    const logoNode = frame.findOne(function (n) { return n.name === "Logo"; });
-    if (logoNode) {
-      const lx = logoNode.x, ly = logoNode.y, lw = logoNode.width, lh = logoNode.height;
-      const prekryv = (t.x < lx + lw) && (t.x + t.width > lx) &&
-                      (t.y < ly + lh) && (t.y + t.height > ly);
-      if (prekryv) t.y = Math.max(pad, ly - t.height - Math.round(t.height * 0.5));
+    const prekazky = ["Logo", "CTA button", "Subheadline", "Headline"];
+    for (var pi = 0; pi < prekazky.length; pi++) {
+      var nn = frame.findOne(function (q) { return q.name === prekazky[pi]; });
+      if (!nn) continue;
+      var koliduje = (t.x < nn.x + nn.width) && (t.x + t.width > nn.x) &&
+                     (t.y < nn.y + nn.height) && (t.y + t.height > nn.y);
+      if (koliduje) t.y = Math.max(pad, nn.y - t.height - Math.round(t.height * 0.5));
     }
   } catch (e) {}
   t.locked = true;
@@ -1120,7 +1121,9 @@ function addMasterCta(frame, value, x, y, w, h) {
 }
 
 function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
-  const family = layout.master_family || "square";
+  const _ratio = format.width / format.height;
+  const family = layout.master_family ||
+    (_ratio > 1.45 ? "wide" : (_ratio < 0.75 ? "portrait" : "square"));
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
@@ -1188,6 +1191,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // Skladanie zdola nahor: pad → tlačidlo → medzera → podnadpis → medzera → headline,
     // aby sa pri väčšom podnadpise nikdy neprekryl s tlačidlom.
     let cursorY = format.height - pad;
+    if (content.aiGenerated && layout.show_ai_disclosure !== false) {
+      cursorY -= Math.round(aiNoteFontSize(format) * 2.2);
+    }
     if (logoOwnRow) cursorY -= (logo.height + logoClear);
     let btnY = 0, subheadlineY = 0;
     if (layout.show_cta !== false) {

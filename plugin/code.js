@@ -187,7 +187,12 @@ function addAiNote(frame, format) {
   } catch (e) {}
   const imgBottom = img ? (img.y + img.height) : format.height;
   const imgLeft = img ? img.x : 0;
-  t.x = Math.max(pad, Math.round(imgLeft) + pad);
+  var textCol = null;
+  try {
+    var hlNode = frame.findOne(function (q) { return q.name === "Headline"; });
+    if (hlNode) textCol = Math.round(hlNode.x);
+  } catch (e) {}
+  t.x = textCol !== null ? textCol : Math.max(pad, Math.round(imgLeft) + pad);
   t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
   try {
     const prekazky = ["Logo", "CTA button", "Subheadline", "Headline"];

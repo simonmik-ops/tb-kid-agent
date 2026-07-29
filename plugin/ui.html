@@ -416,6 +416,37 @@
       const projectName = (document.getElementById("projectName").value || "").trim();
       const taggingField = (document.getElementById("tagging").value || "").trim();
 
+      async function kvBackgroundColor(file) {
+        if (!file) return null;
+        try {
+          const bitmap = await createImageBitmap(file);
+          const canvas = document.createElement("canvas");
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(bitmap, 0, 0, 64, 64);
+          const data = ctx.getImageData(0, 0, 64, 64).data;
+          const rs = [], gs = [], bs = [];
+          for (let y = 0; y < 64; y++) {
+            for (let x = 0; x < 64; x++) {
+              if (!(y < 2 || x === 0 || x === 63)) continue;
+              const i = (y * 64 + x) * 4;
+              rs.push(data[i]);
+              gs.push(data[i + 1]);
+              bs.push(data[i + 2]);
+            }
+          }
+          function median(arr) {
+            const sorted = arr.slice().sort(function (a, b) { return a - b; });
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+          }
+          return { r: median(rs) / 255, g: median(gs) / 255, b: median(bs) / 255 };
+        } catch (e) {
+          return null;
+        }
+      }
+
       async function toBytes(file) {
         if (!file) return null;
         const b = await file.arrayBuffer();
@@ -464,6 +495,7 @@
       const kvPortraitBytes = await toBytes(selectedPortrait);
       const kvLandscapeBytes = await toBytes(selectedLandscape);
       const logoBytes = await toBytes(selectedLogo);
+      const kvBg = await kvBackgroundColor(selectedFile);
 
       setStatus("Vytváram " + totalFormats + " frames vo Figme...", 60);
       parent.postMessage({ pluginMessage: { type: "create-frames", payload: {
@@ -471,7 +503,7 @@
         ctaText, legalText, badgeText,
         kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
         imageBytes: kvSquareBytes,
-        logoBytes,
+        logoBytes, kvBg,
         visualRecipe, showGuides, aiGenerated
       } } }, "*");
 

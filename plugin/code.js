@@ -210,7 +210,7 @@ function addAiNote(frame, format) {
 async function createAllFrames({
   formats, headline, subheadline, ctaText, legalText, badgeText, adType,
   imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
-  logoBytes, visualRecipe, tagging, showGuides, aiGenerated
+  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg
 }) {
   SUBHEAD = (subheadline || "").trim();
 
@@ -325,6 +325,10 @@ async function createAllFrames({
         const ratio = format.width / format.height;
         layout.master_family = ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square");
         layout.master_safe_zone = true;
+      }
+
+      if (kvBg && typeof layout.bg_r !== "number") {
+        layout.bg_r = kvBg.r; layout.bg_g = kvBg.g; layout.bg_b = kvBg.b;
       }
 
       // --- KV podľa orientácie formátu (vetva clean-frames) ---------------
@@ -1139,10 +1143,23 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.52);
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
-    addSolidRect(
-      frame, "Wide content panel", imageW, 0, format.width - imageW, format.height,
-      brandColor(layout), 0.96
-    );
+    const wideShift = Math.round(format.width * 0.10);
+    const panelX = imageW - wideShift;
+    const brand = brandColor(layout);
+    const panel = figma.createRectangle();
+    panel.name = "Wide content panel";
+    panel.resize(format.width - panelX, format.height);
+    panel.x = panelX;
+    panel.y = 0;
+    panel.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
+        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: 0.96 } }
+      ]
+    }];
+    frame.appendChild(panel);
     const textX = imageW + pad;
     const textW = format.width - textX - pad;
     const headlineSize = TB.headline(format.width, format.height);

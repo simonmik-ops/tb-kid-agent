@@ -1333,7 +1333,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
       gradientStops: [
         { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
-        { position: 1, color: { r: 0, g: 0, b: 0, a: 1 } }
+        { position: 0.55, color: { r: 0, g: 0, b: 0, a: 0.55 } },
+        { position: 1, color: { r: 0, g: 0, b: 0, a: 0.82 } }
       ]
     }];
     frame.appendChild(scrim);

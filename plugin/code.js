@@ -1031,8 +1031,8 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
     m2.fontSize = txt.fontSize;
     try { m2.lineHeight = txt.lineHeight; } catch (e) {}
     try { m2.letterSpacing = txt.letterSpacing; } catch (e) {}
-    m2.textAutoResize = "HEIGHT";
     m2.resize(box[2], 10);
+    m2.textAutoResize = "HEIGHT";
     frame.appendChild(m2);
 
     const riadkov = function () { return Math.max(1, Math.round(m2.height / (m2.fontSize * 1.05))); };
@@ -1047,8 +1047,8 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
     m2.remove();
   } catch (e) {}
 
-  txt.textAutoResize = "HEIGHT";
   txt.resize(box[2], box[3]);
+  txt.textAutoResize = "HEIGHT";
 
   txt.x = box[0];
   txt.y = box[1];
@@ -1166,7 +1166,7 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   rect.resize(renderedW, renderedH);
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
   rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
-  rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.25, 0.75) * renderedH, zone[3] - renderedH, 0);
+  rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
   holder.appendChild(rect);
 
   if (showGuide) {
@@ -1201,7 +1201,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     (_ratio > 1.45 ? "wide" : (_ratio < 0.75 ? "portrait" : "square"));
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
-    y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
+    y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y
+       : (format.width / format.height >= 3 ? 0.28
+         : (format.width / format.height >= 1.8 ? 0.36 : 0.5))
   };
   const pad = TB.padding(format.width, format.height);
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
@@ -1242,7 +1244,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
     const wBtn = TB.button(format.width, format.height);
     const showCta = layout.show_cta !== false;
-    const showSub = layout.show_subheadline !== false;
+    const showSub = layout.show_subheadline !== false && format.height >= 260;
     const wGap = Math.round(headlineSize * 0.30);
     const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
       ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
@@ -1320,8 +1322,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const headlineY = cursorY;
 
     const scrimH = Math.min(format.height, Math.max(
-      Math.round(format.height * (family === "portrait" ? 0.48 : 0.44)),
-      format.height - headlineY + Math.round(headlineSize * 0.6)
+      Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
+      format.height - headlineY
     ));
     const scrim = figma.createRectangle();
     scrim.name = "Bottom readability gradient";
@@ -1332,9 +1334,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       type: "GRADIENT_LINEAR",
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
       gradientStops: [
-        { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
-        { position: 0.55, color: { r: 0, g: 0, b: 0, a: 0.55 } },
-        { position: 1, color: { r: 0, g: 0, b: 0, a: 0.82 } }
+        { position: 0.00, color: { r: 0.40, g: 0.40, b: 0.40, a: 0.00 } },
+        { position: 0.15, color: { r: 0.34, g: 0.34, b: 0.34, a: 0.08 } },
+        { position: 0.35, color: { r: 0.26, g: 0.26, b: 0.26, a: 0.28 } },
+        { position: 0.55, color: { r: 0.17, g: 0.17, b: 0.17, a: 0.50 } },
+        { position: 0.78, color: { r: 0.08, g: 0.08, b: 0.08, a: 0.72 } },
+        { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: 0.90 } }
       ]
     }];
     frame.appendChild(scrim);

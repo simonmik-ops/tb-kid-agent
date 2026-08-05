@@ -334,7 +334,7 @@ async function createAllFrames({
       const masterEligible = masterExcludedLayouts.indexOf(backendLayoutType) === -1 &&
         format.height > 100 && !(format.width / format.height > 4.5 && format.height < 150);
       const layoutType = hasLocalAdformTemplate
-        ? (useMasterSafe ? "master_safe" : "adform_psd")
+        ? "adform_psd"
         : (useMasterSafe && masterEligible ? "master_safe" : backendLayoutType);
       if (useMasterSafe && (hasLocalAdformTemplate || masterEligible) && backendLayoutType === "master_safe") {
         const ratio = format.width / format.height;

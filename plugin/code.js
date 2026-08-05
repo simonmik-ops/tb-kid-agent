@@ -1299,6 +1299,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const panelX = imageW - wideShift;
     const brand = brandColor(layout);
     const panelAlpha = scrimAlphaFor(layout);
+    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
+    const textRight = cb.x + cb.w - pad;
+    const textW = Math.max(60, textRight - textX);
     const panel = figma.createRectangle();
     panel.name = "Wide content panel";
     panel.resize(format.width - panelX, format.height);
@@ -1309,15 +1312,14 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
       gradientStops: [
         { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
-        { position: Math.min(0.98, wideShift / (format.width - panelX)),
+        // Plne krycí presne tam, kde začína text (textX), nie o kus ďalej —
+        // inak časť headline boxu leží nad ešte priesvitným panelom (P0-8).
+        { position: Math.min(0.98, (textX - panelX) / (format.width - panelX)),
           color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } },
         { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } }
       ]
     }];
     frame.appendChild(panel);
-    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
-    const textRight = cb.x + cb.w - pad;
-    const textW = Math.max(60, textRight - textX);
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);
     const wClear = TB.logoClear(format.width, format.height);

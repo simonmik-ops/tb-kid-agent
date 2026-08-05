@@ -988,7 +988,7 @@ const ADFORM_PSD_RULES = {
   }
 };
 
-function addTemplateText(frame, name, value, box, fontSize, color, style, align) {
+function addTemplateText(frame, name, value, box, fontSize, color, style, align, vAlign) {
   if (!value || !box) return null;
   const txt = figma.createText();
   txt.name = name;
@@ -1047,8 +1047,14 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align)
     m2.remove();
   } catch (e) {}
 
-  txt.resize(box[2], box[3]);
-  txt.textAutoResize = "HEIGHT";
+  if (vAlign === "CENTER") {
+    txt.textAutoResize = "NONE";
+    txt.resize(box[2], box[3]);
+    txt.textAlignVertical = "CENTER";
+  } else {
+    txt.resize(box[2], box[3]);
+    txt.textAutoResize = "HEIGHT";
+  }
 
   txt.x = box[0];
   txt.y = box[1];
@@ -1190,9 +1196,8 @@ function addMasterCta(frame, value, x, y, w, h) {
   const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0, g: 0.278, b: 0.973 }, 1);
   button.cornerRadius = Math.max(2, Math.round(h * 0.08));
   const labelSize = Math.max(12, Math.round(h * 0.36));
-  const label = addTemplateText(frame, "CTA text", value + "  ›", [x, y, w, h],
-    labelSize, { r: 1, g: 1, b: 1 }, "Bold", "CENTER");
-  if (label) { try { label.textAlignVertical = "CENTER"; } catch (e) {} }
+  addTemplateText(frame, "CTA text", value + "  ›", [x, y, w, h],
+    labelSize, { r: 1, g: 1, b: 1 }, "Bold", "CENTER", "CENTER");
 }
 
 function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
@@ -1484,9 +1489,9 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     button.cornerRadius = Math.round(c[3] * 0.08);
     const ctaText = content.ctaText || STYLE.ctaText;
     addTemplateText(
-      frame, "CTA text", ctaText + "  ›", [c[0] + 8, c[1] + Math.round(c[3] * 0.25), c[2] - 16, c[3] * 0.5],
+      frame, "CTA text", ctaText + "  ›", [c[0] + 8, c[1], c[2] - 16, c[3]],
       Math.round(clamp(c[3] * 0.28, 9, 15)),
-      { r: 1, g: 1, b: 1 }, "Bold", "CENTER"
+      { r: 1, g: 1, b: 1 }, "Bold", "CENTER", "CENTER"
     );
   }
 

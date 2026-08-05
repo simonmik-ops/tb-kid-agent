@@ -158,7 +158,7 @@ function brandColor(layout) {
 
 // Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
 function aiNoteFontSize(format) {
-  return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 11, 18));
+  return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 12, 18));
 }
 
 // AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
@@ -169,10 +169,10 @@ function addAiNote(frame, format, contentBox) {
   const t = figma.createText();
   t.name = "AI generované";
   t.fontName = FONT;
-  t.characters = STYLE.aiTagText;
+  t.characters = "✧  " + STYLE.aiTagText;
   t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  t.opacity = 0.55;                       // recede do vizuálu, nech nie je nalepený
+  t.opacity = 0.85;                       // dostatočný kontrast aj na svetlom KV
   try { t.letterSpacing = { value: -3, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = TB.padding(format.width, format.height);
@@ -203,7 +203,7 @@ function addAiNote(frame, format, contentBox) {
   t.x = textCol !== null ? textCol : Math.max(cb.x + pad, Math.round(imgLeft) + pad);
   t.y = Math.min(cb.y + cb.h - t.height - pad, Math.round(imgBottom) - t.height - pad);
   try {
-    var kolizie = ["Logo", "CTA button", "Subheadline", "Headline"]
+    var kolizie = ["Logo", "CTA button", "Subheadline", "Headline", "Legal text"]
       .map(function (nm) { return frame.findOne(function (q) { return q.name === nm; }); })
       .filter(function (q) {
         return q && (t.x < q.x + q.width) && (t.x + t.width > q.x) &&
@@ -221,6 +221,21 @@ function addAiNote(frame, format, contentBox) {
     }
   } catch (e) {}
   t.locked = true;
+
+  // Tmavá podložka za textom, nech kontrast obstojí aj na svetlom KV
+  // (bez nej sme namerali priemerne 2,90 : 1 naprieč formátmi).
+  try {
+    const bp = 4;
+    const backing = figma.createRectangle();
+    backing.name = "AI generované — podložka";
+    backing.resize(t.width + bp * 2, t.height + bp * 2);
+    backing.x = t.x - bp;
+    backing.y = t.y - bp;
+    backing.cornerRadius = 3;
+    backing.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.45 }];
+    backing.locked = true;
+    frame.insertChild(frame.children.indexOf(t), backing);
+  } catch (e) {}
 }
 
 async function createAllFrames({

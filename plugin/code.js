@@ -1313,6 +1313,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     function wideWidth(y, h) {
       return (y + h > logoTop) ? Math.max(60, textW - reserve) : textW;
     }
+    // Rezerva sa má zapnúť podľa SKUTOČNEJ výšky textu, nie výšky boxu —
+    // preto najprv skúsime plnú šírku a až keď reálne kolíduje s logom
+    // (podľa odmeranej node.height), prekreslíme užšie.
+    function placeReserveWide(name, value, y, boxH, fontSize, color, style) {
+      let node = addTemplateText(frame, name, value, [textX, y, textW, boxH], fontSize, color, style, "LEFT");
+      if (node && reserve && (y + node.height) > logoTop) {
+        node.remove();
+        node = addTemplateText(frame, name, value,
+          [textX, y, Math.max(60, textW - reserve), boxH], fontSize, color, style, "LEFT");
+      }
+      return node;
+    }
 
     const wBtn = TB.button(format.width, format.height);
     const showCta = layout.show_cta !== false;
@@ -1330,15 +1342,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const hlH = Math.min(Math.round(headlineSize * 1.15 * 2), hlDost);
     const hlY = wCur - hlH;
 
-    addTemplateText(frame, "Headline", content.headline,
-      [textX, hlY, wideWidth(hlY, hlH), hlH],
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
+    placeReserveWide("Headline", content.headline, hlY, hlH, headlineSize, { r: 1, g: 1, b: 1 }, "Bold");
 
     if (showSub) {
-      addTemplateText(frame, "Subheadline", content.subheadline,
-        [textX, subY, wideWidth(subY, subH), subH],
-        TB.subheadline(format.width, format.height),
-        { r: 1, g: 1, b: 1 }, "Regular", "LEFT");
+      placeReserveWide("Subheadline", content.subheadline, subY, subH,
+        TB.subheadline(format.width, format.height), { r: 1, g: 1, b: 1 }, "Regular");
     }
     if (showCta) {
       addMasterCta(frame, content.ctaText, textX, btnY,
@@ -1365,9 +1373,17 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const logoOwnRow = showsLogo && (logo.width + logoClear) > textW * 0.5;
     const logoTop = (showsLogo && !logoOwnRow) ? (cb.y + cb.h - pad - logo.height) : (cb.y + cb.h);
     const logoReserve = (showsLogo && !logoOwnRow) ? (logo.width + logoClear) : 0;
-    function widthFor(y, h) {
-      if (!logoReserve || y + h <= logoTop) return textW;
-      return Math.max(60, textW - logoReserve);
+    // Rezerva podľa SKUTOČNEJ výšky textu (node.height), nie výšky boxu —
+    // box headline/subheadline je percento formátu, reálny text v ňom
+    // môže byť podstatne nižší, a rezerva sa vtedy zapínala zbytočne.
+    function placeReserveText(name, value, x, y, boxH, fontSize, color, style, align) {
+      let node = addTemplateText(frame, name, value, [x, y, textW, boxH], fontSize, color, style, align);
+      if (node && logoReserve && (y + node.height) > logoTop) {
+        node.remove();
+        node = addTemplateText(frame, name, value,
+          [x, y, Math.max(60, textW - logoReserve), boxH], fontSize, color, style, align);
+      }
+      return node;
     }
     const btnW = Math.max(60, Math.min(btn.width,
       textW - ((logo.width + logoClear > textW * 0.5) ? 0 : logo.width + logoClear)));
@@ -1416,20 +1432,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }];
     frame.appendChild(scrim);
 
-    const headlineNode = addTemplateText(
-      frame, "Headline", content.headline,
-      [cb.x + pad, headlineY, widthFor(headlineY, headlineBoxH), headlineBoxH],
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT"
+    const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
+    const headlineNode = placeReserveText(
+      "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
     );
     if (headlineNode && family === "portrait") {
       headlineNode.textAlignVertical = "CENTER";
     }
     if (layout.show_subheadline !== false) {
-      addTemplateText(
-        frame, "Subheadline", content.subheadline,
-        [cb.x + pad, subheadlineY, widthFor(subheadlineY, subheadlineBoxH), subheadlineBoxH],
-        subheadlineSize,
-        { r: 1, g: 1, b: 1 }, "Regular", (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT"
+      placeReserveText(
+        "Subheadline", content.subheadline, cb.x + pad, subheadlineY, subheadlineBoxH,
+        subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", textAlign
       );
     }
     if (layout.show_cta !== false) {

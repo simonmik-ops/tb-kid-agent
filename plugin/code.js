@@ -245,7 +245,10 @@ async function createAllFrames({
 }) {
   SUBHEAD = (subheadline || "").trim();
 
-  if (visualRecipe && visualRecipe.masterSafeMode !== false) {
+  // Univerzálny (master_safe) layout je fallback pre formáty bez šablóny,
+  // nie voľba používateľa — preto sa dedup jedného master vizuálu na
+  // formát vždy aplikuje, bez podmienky na visualRecipe.
+  {
     const seenSingleMasters = {};
     formats = formats.filter(item => {
       const format = item.format;
@@ -331,7 +334,10 @@ async function createAllFrames({
       // Lokálny plugin môže testovať PSD šablóny ešte pred nasadením nového
       // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
       const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
-      const useMasterSafe = visualRecipe && visualRecipe.masterSafeMode !== false;
+      // Univerzálny master_safe layout je fallback pre formáty bez šablóny,
+      // nie prepínateľná voľba — šablóna (adform_psd) má aj tak vždy prednosť
+      // cez hasLocalAdformTemplate nižšie.
+      const useMasterSafe = true;
       const localRule = localKkVisaRule(format);
       if (localRule) {
         layout.show_headline = localRule.headline;

@@ -450,6 +450,32 @@
         }
       }
 
+      // Priemerná luminancia dolných 40 % KV — pixely sa vo Figma plugine
+      // priamo čítať nedajú, preto sa počítajú tu cez <canvas>+getImageData
+      // a posielajú sa v payloade ako kv_luma_bottom (P0-7: krytie scrimu
+      // podľa jasu KV).
+      async function kvBottomLuma(file) {
+        if (!file) return null;
+        try {
+          const bitmap = await createImageBitmap(file);
+          const canvas = document.createElement("canvas");
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(bitmap, 0, 0, 64, 64);
+          const startY = Math.round(64 * 0.6);
+          const data = ctx.getImageData(0, startY, 64, 64 - startY).data;
+          let sum = 0, count = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            sum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+            count++;
+          }
+          return count ? sum / count : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
       async function toBytes(file) {
         if (!file) return null;
         const b = await file.arrayBuffer();
@@ -499,6 +525,7 @@
       const kvLandscapeBytes = await toBytes(selectedLandscape);
       const logoBytes = await toBytes(selectedLogo);
       const kvBg = await kvBackgroundColor(selectedFile);
+      const kvLumaBottom = await kvBottomLuma(selectedFile);
 
       setStatus("Vytváram " + totalFormats + " frames vo Figme...", 60);
       parent.postMessage({ pluginMessage: { type: "create-frames", payload: {
@@ -506,7 +533,7 @@
         ctaText, legalText, badgeText,
         kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
         imageBytes: kvSquareBytes,
-        logoBytes, kvBg,
+        logoBytes, kvBg, kvLumaBottom,
         visualRecipe, showGuides, aiGenerated
       } } }, "*");
 

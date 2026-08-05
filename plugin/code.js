@@ -241,7 +241,7 @@ function addAiNote(frame, format, contentBox) {
 async function createAllFrames({
   formats, headline, subheadline, ctaText, legalText, badgeText, adType,
   imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
-  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg
+  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvLumaBottom
 }) {
   SUBHEAD = (subheadline || "").trim();
 
@@ -360,6 +360,9 @@ async function createAllFrames({
 
       if (kvBg && typeof layout.bg_r !== "number") {
         layout.bg_r = kvBg.r; layout.bg_g = kvBg.g; layout.bg_b = kvBg.b;
+      }
+      if (typeof kvLumaBottom === "number" && typeof layout.kv_luma_bottom !== "number") {
+        layout.kv_luma_bottom = kvLumaBottom;
       }
 
       // --- KV podľa orientácie formátu (vetva clean-frames) ---------------
@@ -693,6 +696,16 @@ function hasRoomForSubhead(format, layout) {
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
+}
+
+// Krytie scrimu/panelu odvodené z priemernej luminancie dolných 40 % KV
+// (layout.kv_luma_bottom, poslané z ui.html cez <canvas>+getImageData).
+// Svetlý KV → menej krytia (35–45 %), tmavý → viac (70–90 %). Bez dát
+// (napr. Excel cesta bez obrázku) defaultuje na luma=0 → pôvodné 0,90,
+// nech sa vizuál pri chýbajúcom KV nezmení.
+function scrimAlphaFor(layout) {
+  const luma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 0;
+  return clamp(0.35 + (1 - luma) * 0.55, 0.35, 0.90);
 }
 
 function addImageRect(frame, figmaImage, name, x, y, w, h, scaleMode) {
@@ -1285,6 +1298,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const wideShift = Math.round(format.width * 0.30);
     const panelX = imageW - wideShift;
     const brand = brandColor(layout);
+    const panelAlpha = scrimAlphaFor(layout);
     const panel = figma.createRectangle();
     panel.name = "Wide content panel";
     panel.resize(format.width - panelX, format.height);
@@ -1296,8 +1310,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       gradientStops: [
         { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
         { position: Math.min(0.98, wideShift / (format.width - panelX)),
-          color: { r: brand.r, g: brand.g, b: brand.b, a: 1 } },
-        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: 1 } }
+          color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } },
+        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } }
       ]
     }];
     frame.appendChild(panel);
@@ -1413,6 +1427,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
       format.height - headlineY
     ));
+    const scrimAlpha = scrimAlphaFor(layout);
+    const scrimScale = scrimAlpha / 0.90;
     const scrim = figma.createRectangle();
     scrim.name = "Bottom readability gradient";
     scrim.resize(format.width, scrimH);
@@ -1423,11 +1439,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
       gradientStops: [
         { position: 0.00, color: { r: 0.40, g: 0.40, b: 0.40, a: 0.00 } },
-        { position: 0.15, color: { r: 0.34, g: 0.34, b: 0.34, a: 0.08 } },
-        { position: 0.35, color: { r: 0.26, g: 0.26, b: 0.26, a: 0.28 } },
-        { position: 0.55, color: { r: 0.17, g: 0.17, b: 0.17, a: 0.50 } },
-        { position: 0.78, color: { r: 0.08, g: 0.08, b: 0.08, a: 0.72 } },
-        { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: 0.90 } }
+        { position: 0.15, color: { r: 0.34, g: 0.34, b: 0.34, a: Math.round(0.08 * scrimScale * 100) / 100 } },
+        { position: 0.35, color: { r: 0.26, g: 0.26, b: 0.26, a: Math.round(0.28 * scrimScale * 100) / 100 } },
+        { position: 0.55, color: { r: 0.17, g: 0.17, b: 0.17, a: Math.round(0.50 * scrimScale * 100) / 100 } },
+        { position: 0.78, color: { r: 0.08, g: 0.08, b: 0.08, a: Math.round(0.72 * scrimScale * 100) / 100 } },
+        { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: scrimAlpha } }
       ]
     }];
     frame.appendChild(scrim);

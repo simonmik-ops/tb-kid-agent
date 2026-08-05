@@ -328,7 +328,7 @@ async function createAllFrames({
       }
       const backendLayoutType = (localRule && localRule.layoutType) || layout.layout_type || "full_bleed";
       const masterExcludedLayouts = [
-        "video_placeholder", "logo_only", "branding_skin", "side_safe",
+        "video_placeholder", "logo_only", "micro", "branding_skin", "side_safe",
         "interscroller_safe", "native_center", "email_layout", "pinterest_pin",
         "clean_image"
       ];
@@ -415,6 +415,8 @@ async function createAllFrames({
         buildBlurredBgLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "logo_only") {
         buildLogoOnlyLayout(frame, format, layout, hl, figmaLogo);
+      } else if (layoutType === "micro") {
+        buildMicroLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "adform_psd") {
         buildAdformPsdLayout(frame, format, layout, {
           headline,
@@ -441,7 +443,7 @@ async function createAllFrames({
       // AI disclosure (vľavo dole) — mimo logo-only a native formátov
       if (
         aiNote && layout.show_ai_disclosure !== false &&
-        layoutType !== "logo_only" && layoutType !== "clean_image" &&
+        layoutType !== "logo_only" && layoutType !== "micro" && layoutType !== "clean_image" &&
         layoutType !== "adform_psd" && layoutType !== "master_safe"
       ) {
         addAiNote(frame, format);
@@ -643,7 +645,12 @@ function resolveLayoutLocal(format) {
     headline_size_px: Math.min(72, Math.max(10, Math.round(format.height * 0.07)))
   };
   if (format.height <= 120 || (ratio > 6 && format.height <= 150)) {
-    return Object.assign({}, base, { layout_type: "logo_only", image_fit: "none", show_headline: false });
+    const forcedLogoOnly = (format.id && format.id.indexOf("google_logo") !== -1) ||
+      !!(format.rules && format.rules.logoOnly);
+    if (forcedLogoOnly) {
+      return Object.assign({}, base, { layout_type: "logo_only", image_fit: "none", show_headline: false });
+    }
+    return Object.assign({}, base, { layout_type: "micro" });
   }
   if (ratio > 3.5 && format.height < 300) return Object.assign({}, base, { layout_type: "strip" });
   if (ratio > 3.5) return Object.assign({}, base, { layout_type: "split" });
@@ -1767,6 +1774,77 @@ function buildStackedLayout(frame, format, layout, headline, figmaImage, figmaLo
 }
 
 // Žiadna fotka — logo + text. Google logo formáty majú transparentné pozadie.
+// Mikro bannery (h ≤ 120, napr. 728×90, 320×50) — na logo_only sú príliš
+// malé na to, aby v nich chýbal KV úplne. KV na celý frame + ľavý tmavý
+// scrim na čitateľnosť, logo vľavo, jednoriadkový headline vpravo od loga.
+// Bez CTA, subheadlinu aj prelepky — na to tu nie je miesto.
+function buildMicroLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+
+  const imgW = CUR_IMG_W || format.width, imgH = CUR_IMG_H || format.height;
+  addFocalImageFrame(
+    frame, figmaImage, { width: imgW, height: imgH }, "Key visual",
+    [0, 0, format.width, format.height], { x: 0.5, y: 0.5 }, { x: 0.5, y: 0.35 }
+  );
+
+  const scrim = figma.createRectangle();
+  scrim.name = "Left readability scrim";
+  scrim.resize(Math.round(format.width * 0.55), format.height);
+  scrim.x = 0;
+  scrim.y = 0;
+  scrim.fills = [{
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[1, 0, 0], [0, 1, 0]],
+    gradientStops: [
+      { position: 0, color: { r: 0, g: 0, b: 0, a: 0.75 } },
+      { position: 1, color: { r: 0, g: 0, b: 0, a: 0 } }
+    ]
+  }];
+  frame.appendChild(scrim);
+
+  const pad = Math.max(6, Math.round(format.height * 0.12));
+  const hasLogo = shouldShowLogo(format, layout, figmaLogo);
+  let contentX = pad;
+  if (hasLogo) {
+    const logoH = Math.min(format.height - pad * 2, Math.round(format.height * 0.6));
+    const logoW = Math.max(50, Math.round(logoH * (255 / 243)));
+    placeLogo(frame, figmaLogo, pad, Math.round((format.height - logoH) / 2), logoW, logoH);
+    contentX = pad + logoW + Math.round(pad * 0.8);
+  }
+
+  if (shouldShowHeadline(layout, headline)) {
+    const availW = Math.max(40, format.width - contentX - pad);
+    let fontSize = Math.max(11, Math.min(Math.round(format.height * 0.32), 22));
+    try {
+      const meas = figma.createText();
+      meas.fontName = FONT;
+      meas.characters = headline;
+      meas.fontSize = fontSize;
+      meas.textAutoResize = "WIDTH_AND_HEIGHT";
+      frame.appendChild(meas);
+      if (meas.width > availW && meas.width > 0) {
+        fontSize = Math.max(9, Math.floor(fontSize * (availW / meas.width)));
+      }
+      meas.remove();
+    } catch (e) {}
+
+    const txt = figma.createText();
+    txt.name = "Headline";
+    txt.fontName = FONT;
+    txt.characters = headline;
+    txt.fontSize = fontSize;
+    txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    txt.textAutoResize = "NONE";
+    txt.x = contentX;
+    txt.y = 0;
+    txt.resize(availW, format.height);
+    txt.textAlignHorizontal = "LEFT";
+    txt.textAlignVertical = "CENTER";
+    try { txt.maxLines = 1; txt.textTruncation = "ENDING"; } catch (e) {}
+    frame.appendChild(txt);
+  }
+}
+
 function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   const isGoogleLogo = format.id === "google_logo_square" || format.id === "google_logo_wide";
   frame.fills = isGoogleLogo ? [] : [{ type: "SOLID", color: BRAND_COLOR }];

@@ -164,7 +164,8 @@ function aiNoteFontSize(format) {
 // AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
 // Ladený tak, aby pôsobil ako súčasť kompozície: nižšia sýtosť, jemný
 // letter-spacing, zarovnaný na rovnaký ľavý okraj ako headline.
-function addAiNote(frame, format) {
+function addAiNote(frame, format, contentBox) {
+  const cb = contentBox || { x: 0, y: 0, w: format.width, h: format.height };
   const t = figma.createText();
   t.name = "AI generované";
   t.fontName = FONT;
@@ -192,15 +193,15 @@ function addAiNote(frame, format) {
       }
     }
   } catch (e) {}
-  const imgBottom = img ? (img.y + img.height) : format.height;
-  const imgLeft = img ? img.x : 0;
+  const imgBottom = img ? (img.y + img.height) : (cb.y + cb.h);
+  const imgLeft = img ? img.x : cb.x;
   var textCol = null;
   try {
     var hlNode = frame.findOne(function (q) { return q.name === "Headline"; });
     if (hlNode) textCol = Math.round(hlNode.x);
   } catch (e) {}
-  t.x = textCol !== null ? textCol : Math.max(pad, Math.round(imgLeft) + pad);
-  t.y = Math.min(format.height - t.height - pad, Math.round(imgBottom) - t.height - pad);
+  t.x = textCol !== null ? textCol : Math.max(cb.x + pad, Math.round(imgLeft) + pad);
+  t.y = Math.min(cb.y + cb.h - t.height - pad, Math.round(imgBottom) - t.height - pad);
   try {
     var kolizie = ["Logo", "CTA button", "Subheadline", "Headline"]
       .map(function (nm) { return frame.findOne(function (q) { return q.name === nm; }); })
@@ -432,7 +433,7 @@ async function createAllFrames({
           badgeText,
           aiGenerated: aiNote,
           showGuides: guides
-        }, figmaImage, curImgSize, figmaLogo);
+        }, figmaImage, curImgSize, figmaLogo, resolveContentBox(format));
       } else {
         buildFullBleedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       }
@@ -1200,7 +1201,50 @@ function addMasterCta(frame, value, x, y, w, h) {
     labelSize, { r: 1, g: 1, b: 1 }, "Bold", "CENTER", "CENTER");
 }
 
-function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
+// Vypočíta obdĺžnik, do ktorého smie master_safe layout klásť text/logo/AI tag.
+// Obrázok (addMasterCoreImage) sa naň neviaže — kreslí sa vždy na celý frame.
+function resolveContentBox(format) {
+  const W = format.width, H = format.height;
+  const sz = format.safeZones;
+  if (!sz) return { x: 0, y: 0, w: W, h: H };
+
+  // JOJ / Markíza branding: centerWidth + topOffset označuje DEAD zónu
+  // (napr. vysielacia grafika), nie safe priestor — obsah patrí do bočného
+  // pásu mimo nej.
+  if (sz.centerWidth && sz.topOffset !== undefined) {
+    const sideW = Math.round((W - sz.centerWidth) / 2);
+    const leftW = sideW;
+    const rightW = W - sz.centerWidth - sideW;
+    return rightW > leftW
+      ? { x: W - rightW, y: 0, w: rightW, h: H }
+      : { x: 0, y: 0, w: leftW, h: H };
+  }
+
+  // Topky / ženské weby SIDE: centrovaná vnútorná safe zóna pevnej veľkosti.
+  if (sz.safeInner) {
+    const iw = sz.safeInner.width, ih = sz.safeInner.height;
+    return {
+      x: Math.round((W - iw) / 2),
+      y: Math.round((H - ih) / 2),
+      w: iw,
+      h: ih
+    };
+  }
+
+  // Všeobecné odsadenie od hrán (top/bottom/sides/left/right).
+  const top = sz.top || 0;
+  const bottom = sz.bottom || 0;
+  const left = (sz.left || 0) + (sz.sides || 0);
+  const right = (sz.right || 0) + (sz.sides || 0);
+  if (top || bottom || left || right) {
+    return { x: left, y: top, w: Math.max(0, W - left - right), h: Math.max(0, H - top - bottom) };
+  }
+
+  return { x: 0, y: 0, w: W, h: H };
+}
+
+function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo, contentBox) {
+  const cb = contentBox || resolveContentBox(format);
   const _ratio = format.width / format.height;
   const family = layout.master_family ||
     (_ratio > 1.45 ? "wide" : (_ratio < 0.75 ? "portrait" : "square"));
@@ -1235,13 +1279,14 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(panel);
-    const textX = Math.round(format.width * 0.54);
-    const textW = format.width - textX - pad;
+    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
+    const textRight = cb.x + cb.w - pad;
+    const textW = Math.max(60, textRight - textX);
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);
     const wClear = TB.logoClear(format.width, format.height);
     const showsLogo = shouldShowLogo(format, layout, figmaLogo);
-    const logoTop = showsLogo ? (format.height - pad - wLogo.height) : format.height;
+    const logoTop = showsLogo ? (cb.y + cb.h - pad - wLogo.height) : (cb.y + cb.h);
     const reserve = showsLogo ? (wLogo.width + wClear) : 0;
     function wideWidth(y, h) {
       return (y + h > logoTop) ? Math.max(60, textW - reserve) : textW;
@@ -1254,7 +1299,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
       ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
 
-    let wCur = format.height - pad - aiRezerva;
+    let wCur = cb.y + cb.h - pad - aiRezerva;
     let btnY = 0, subY = 0;
     if (showCta) { btnY = wCur - wBtn.height; wCur = btnY - wGap; }
     const subH = Math.round(TB.subheadline(format.width, format.height) * 1.6);
@@ -1279,7 +1324,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
     if (showsLogo) {
       placeLogo(frame, figmaLogo,
-        format.width - pad - wLogo.width, format.height - pad - wLogo.height,
+        cb.x + cb.w - pad - wLogo.width, cb.y + cb.h - pad - wLogo.height,
         wLogo.width, wLogo.height);
     }
   } else {
@@ -1288,7 +1333,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
     const gap = Math.round(headlineSize * 0.35);
-    const textW = format.width - pad * 2;
+    const textW = cb.w - pad * 2;
     const headlineBoxH = Math.round(format.height * 0.13);
     const subheadlineBoxH = Math.round(format.height * 0.09);
     const btn = TB.button(format.width, format.height);
@@ -1296,18 +1341,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const logoClear = TB.logoClear(format.width, format.height);
     const showsLogo = shouldShowLogo(format, layout, figmaLogo);
     const logoOwnRow = showsLogo && (logo.width + logoClear) > textW * 0.5;
-    const logoTop = (showsLogo && !logoOwnRow) ? (format.height - pad - logo.height) : format.height;
+    const logoTop = (showsLogo && !logoOwnRow) ? (cb.y + cb.h - pad - logo.height) : (cb.y + cb.h);
     const logoReserve = (showsLogo && !logoOwnRow) ? (logo.width + logoClear) : 0;
     function widthFor(y, h) {
       if (!logoReserve || y + h <= logoTop) return textW;
       return Math.max(60, textW - logoReserve);
     }
     const btnW = Math.max(60, Math.min(btn.width,
-      format.width - pad * 2 - ((logo.width + logoClear > (format.width - pad * 2) * 0.5) ? 0 : logo.width + logoClear)));
+      textW - ((logo.width + logoClear > textW * 0.5) ? 0 : logo.width + logoClear)));
 
     // Skladanie zdola nahor: pad → tlačidlo → medzera → podnadpis → medzera → headline,
     // aby sa pri väčšom podnadpise nikdy neprekryl s tlačidlom.
-    let cursorY = format.height - pad;
+    let cursorY = cb.y + cb.h - pad;
     if (content.aiGenerated && layout.show_ai_disclosure !== false) {
       cursorY -= Math.round(aiNoteFontSize(format) * 2.2);
     }
@@ -1351,7 +1396,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
     const headlineNode = addTemplateText(
       frame, "Headline", content.headline,
-      [pad, headlineY, widthFor(headlineY, headlineBoxH), headlineBoxH],
+      [cb.x + pad, headlineY, widthFor(headlineY, headlineBoxH), headlineBoxH],
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT"
     );
     if (headlineNode && family === "portrait") {
@@ -1360,29 +1405,29 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     if (layout.show_subheadline !== false) {
       addTemplateText(
         frame, "Subheadline", content.subheadline,
-        [pad, subheadlineY, widthFor(subheadlineY, subheadlineBoxH), subheadlineBoxH],
+        [cb.x + pad, subheadlineY, widthFor(subheadlineY, subheadlineBoxH), subheadlineBoxH],
         subheadlineSize,
         { r: 1, g: 1, b: 1 }, "Regular", (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT"
       );
     }
     if (layout.show_cta !== false) {
-      addMasterCta(frame, content.ctaText, pad, btnY, btnW, btn.height);
+      addMasterCta(frame, content.ctaText, cb.x + pad, btnY, btnW, btn.height);
     }
     if (shouldShowLogo(format, layout, figmaLogo)) {
       const logoX = logoOwnRow
-        ? Math.round((format.width - logo.width) / 2)
-        : (format.width - pad - logo.width);
-      placeLogo(frame, figmaLogo, logoX, format.height - pad - logo.height, logo.width, logo.height);
+        ? Math.round(cb.x + (cb.w - logo.width) / 2)
+        : (cb.x + cb.w - pad - logo.width);
+      placeLogo(frame, figmaLogo, logoX, cb.y + cb.h - pad - logo.height, logo.width, logo.height);
     }
   }
 
   if (layout.show_badge !== false && content.badgeText) {
-    const badgeW = Math.round(clamp(format.width * 0.34, 110, 260));
+    const badgeW = Math.round(clamp(Math.min(format.width, cb.w) * 0.34, 110, Math.min(260, cb.w - pad * 2)));
     const badgeH = Math.round(TB.headline(format.width, format.height) * 1.1);
-    addSolidRect(frame, "Badge background", pad, pad, badgeW, badgeH, { r: 1, g: 1, b: 1 }, 0.94);
+    addSolidRect(frame, "Badge background", cb.x + pad, cb.y + pad, badgeW, badgeH, { r: 1, g: 1, b: 1 }, 0.94);
     addTemplateText(
       frame, "Badge", content.badgeText,
-      [pad + 8, pad + Math.round(badgeH * 0.20), badgeW - 16, Math.round(badgeH * 0.60)],
+      [cb.x + pad + 8, cb.y + pad + Math.round(badgeH * 0.20), badgeW - 16, Math.round(badgeH * 0.60)],
       Math.max(12, Math.round(badgeH * 0.42)), BRAND_COLOR, "Bold", "CENTER"
     );
   }
@@ -1390,12 +1435,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const legalH = Math.round(TB.legal(format.width, format.height) * 1.6);
     addTemplateText(
       frame, "Legal text", content.legalText,
-      [pad, format.height - legalH - Math.max(4, Math.round(pad * 0.25)), format.width - pad * 2, legalH],
+      [cb.x + pad, cb.y + cb.h - legalH - Math.max(4, Math.round(pad * 0.25)), cb.w - pad * 2, legalH],
       TB.legal(format.width, format.height),
       { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
     );
   }
-  if (content.aiGenerated && layout.show_ai_disclosure !== false) addAiNote(frame, format);
+  if (content.aiGenerated && layout.show_ai_disclosure !== false) addAiNote(frame, format, cb);
 }
 
 function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {

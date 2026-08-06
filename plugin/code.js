@@ -34,8 +34,10 @@ var TB = {
   },
   logoClear: function (W, H) { return Math.max(30, Math.round(TB.logoBox(W, H).height / 3)); },
   button: function (W, H) {
-    var h = Math.max(40, Math.round(0.10 * Math.sqrt(W * H)));
-    return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.38)),
+    // CTA nesmie dominovať nad headline/KV. Predošlých 10 % geometrického
+    // priemeru vytváralo na 1200×1200 až 120 px vysoké tlačidlo.
+    var h = Math.max(36, Math.min(72, Math.round(0.07 * Math.sqrt(W * H))));
+    return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.36)),
              radius: Math.max(4, Math.round(h * 0.08)) };
   }
 };
@@ -888,7 +890,16 @@ function getReadablePad(format) {
 // Google RSA / Demand Gen image assets: no text, no logo.
 function buildCleanImageLayout(frame, format, layout, figmaImage) {
   frame.fills = [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
-  addImageRect(frame, figmaImage, "Image asset - no text / no logo", 0, 0, format.width, format.height, layout.image_fit === "contain" ? "FIT" : "FILL");
+  if (layout.image_fit === "contain" || !CUR_IMG_W || !CUR_IMG_H) {
+    addImageRect(frame, figmaImage, "Image asset - no text / no logo", 0, 0, format.width, format.height, layout.image_fit === "contain" ? "FIT" : "FILL");
+  } else {
+    // Clean assets majú vyplniť plátno bez bielych technických pásov z KV.
+    addFocalImageFrame(
+      frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
+      "Image asset - no text / no logo", [0, 0, format.width, format.height],
+      { x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 }, 1.025
+    );
+  }
 }
 
 // Performance Max: headline only, system adds CTA/logo.
@@ -1356,7 +1367,7 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId) {
   frame.appendChild(gradient);
 }
 
-function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, desired) {
+function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, desired, overscan) {
   const holder = figma.createFrame();
   holder.name = name;
   holder.resize(zone[2], zone[3]);
@@ -1371,7 +1382,7 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
     return holder;
   }
 
-  const scale = Math.max(zone[2] / imageSize.width, zone[3] / imageSize.height);
+  const scale = Math.max(zone[2] / imageSize.width, zone[3] / imageSize.height) * (overscan || 1);
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();
@@ -2133,8 +2144,12 @@ function buildMicroLayout(frame, format, layout, headline, figmaImage, figmaLogo
 }
 
 function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
-  const isGoogleLogo = format.id === "google_logo_square" || format.id === "google_logo_wide";
-  frame.fills = isGoogleLogo ? [] : [{ type: "SOLID", color: BRAND_COLOR }];
+  // Logo-only je exportný PNG asset. Excel vytvára unikátne xls_* ID, preto
+  // kontrola dvoch presných katalógových ID nechávala nesprávne modré pozadie.
+  const isGoogleLogo = format.role === "logo_only" ||
+    (format.rules && format.rules.logoOnly) ||
+    /google_logo|logo-only|logo_only/.test(String(format.id || ""));
+  frame.fills = [];
   const hasLogo = !!figmaLogo;
 
   // Logo vycentrované

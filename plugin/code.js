@@ -106,6 +106,7 @@ function resolveCreativeRule(format) {
     full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
     headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
+    video_placeholder: { layoutType: "video_placeholder", headline: false, subheadline: false, cta: false, logo: false, ai: false },
     publisher_branding: { layoutType: null, headline: true, subheadline: true, cta: true, logo: true, ai: true },
     // P0-9b: JOJ/Markíza skin, bočné skyscrapery, interscroller a e-mail —
     // CTA aj AI disclosure zostávajú zapnuté (rovnako ako predtým cez
@@ -134,6 +135,7 @@ function resolveCreativeRule(format) {
       meta_full: "meta_full",
       full_creative: "full_creative",
       native: "native_clean",
+      video_placeholder: "video_placeholder",
       branding_full: "branding_full",
       branding_side: "branding_side",
       interscroller: "interscroller",

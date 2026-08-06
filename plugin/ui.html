@@ -43,7 +43,7 @@
   </style>
 </head>
 <body>
-  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.5.4 · Meta composition QA</span></h1>
+  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.5.5 · Video placement fix</span></h1>
   <p class="sub">Nová zákazka → key visual → typy výstupov → editovateľné frames vo Figme</p>
 
   <label>Názov novej zákazky</label>
@@ -271,6 +271,12 @@
   function roleFromContext(placement, asset) {
     const p = normalizedCell(placement), a = normalizedCell(asset);
     if (/video|texty?|sprievodny/.test(a)) return "skip";
+    // Video placements can still list a KV/thumbnail in the Assets column.
+    // Detect the placement before the generic publisher fallback, otherwise
+    // a 16:9 YouTube row is rendered as a static split banner.
+    if (/youtube.*(?:video|in-stream|instream|reach campaign)|(?:video|in-stream|instream).*youtube/.test(p)) {
+      return "video_placeholder";
+    }
     if (/logo/.test(a)) return "logo_only";
     if (/responsive|rsa/.test(p)) return "clean_image";
     if (/performance max|pmax/.test(p)) return "headline_only";

@@ -91,7 +91,14 @@ function resolveCreativeRule(format) {
     full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
     headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
-    publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true }
+    publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    // P0-9b: JOJ/Markíza skin, bočné skyscrapery, interscroller a e-mail —
+    // CTA aj AI disclosure zostávajú zapnuté (rovnako ako predtým cez
+    // master_safe / publisher_branding fallback — nedropovať, čo tam bolo).
+    branding_full: { layoutType: "branding_skin", headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    branding_side: { layoutType: "side_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    interscroller: { layoutType: "interscroller_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    email: { layoutType: "email_layout", headline: true, subheadline: false, cta: true, logo: true, ai: true }
   };
 
   let profile = null;
@@ -111,8 +118,11 @@ function resolveCreativeRule(format) {
       headline_only: "headline_only",
       meta_full: "meta_full",
       full_creative: "full_creative",
-      native: "native_clean"
-      // branding_full / branding_side / interscroller / email: P0-9b
+      native: "native_clean",
+      branding_full: "branding_full",
+      branding_side: "branding_side",
+      interscroller: "interscroller",
+      email: "email"
     };
     profile = roleMap[format.role] || null;
   }
@@ -461,15 +471,15 @@ async function createAllFrames({
       } else if (layoutType === "headline_only") {
         buildHeadlineOnlyLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "branding_skin") {
-        buildBrandingSkinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
+        buildBrandingSkinLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
       } else if (layoutType === "side_safe") {
-        buildSideSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
+        buildSideSafeLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
       } else if (layoutType === "interscroller_safe") {
-        buildInterscrollerSafeLayout(frame, format, layout, hl, figmaImage, figmaLogo);
+        buildInterscrollerSafeLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
       } else if (layoutType === "native_center") {
         buildNativeCenterLayout(frame, format, layout, hl, figmaImage);
       } else if (layoutType === "email_layout") {
-        buildEmailLayout(frame, format, layout, hl, figmaImage, figmaLogo);
+        buildEmailLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
       } else if (layoutType === "pinterest_pin") {
         buildPinterestPinLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "strip") {
@@ -852,7 +862,7 @@ function buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage) {
 }
 
 // Full page branding: keep central website content readable/empty.
-function buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
   addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
   addSolidRect(frame, "Dim brand background", 0, 0, format.width, format.height, BRAND_COLOR, 0.34);
@@ -869,11 +879,22 @@ function buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, fi
     placeLogo(frame, figmaLogo, format.width - sideW + pad, 48, logoW, logoH);
   }
 
+  const headlineY = topOffset + 80;
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = 42;
-    const y = topOffset + 80;
-    addText(frame, headline, pad, y, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
-    addText(frame, headline, format.width - sideW + pad, y, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
+    addText(frame, headline, pad, headlineY, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
+    addText(frame, headline, format.width - sideW + pad, headlineY, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
+  }
+
+  // CTA v oboch stĺpcoch, zrkadlené rovnako ako logo/headline vyššie —
+  // rovnaký #0047F8 button ako master_safe/PSD (P0-9b, na žiadosť
+  // nedropovať CTA, ktoré tu predtým bolo cez master_safe).
+  if (layout.show_cta !== false && ctaText) {
+    const btnH = 54;
+    const btnY = headlineY + 260 + 24;
+    const btnW = sideW - pad * 2;
+    addMasterCta(frame, ctaText, pad, btnY, btnW, btnH);
+    addMasterCta(frame, ctaText, format.width - sideW + pad, btnY, btnW, btnH);
   }
 
   const isJoj = format.id === "joj_branding";
@@ -889,12 +910,15 @@ function buildBrandingSkinLayout(frame, format, layout, headline, figmaImage, fi
   );
 }
 
-function buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
   addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
   addSolidRect(frame, "Brand overlay", 0, 0, format.width, format.height, BRAND_COLOR, 0.62);
 
-  const safe = layout.safe_content || {};
+  // Bug (P0-9): čítalo layout.safe_content, čo sa nikde nenastavuje —
+  // vždy padlo na default 160×600 bez ohľadu na skutočnú safe zónu
+  // formátu (napr. pravda 200×700 má safeInner 120×600, nie 160×600).
+  const safe = (format.safeZones && format.safeZones.safeInner) || {};
   const contentW = Math.min(format.width, safe.width || 160);
   const contentH = Math.min(format.height, safe.height || 600);
   const x = Math.round((format.width - contentW) / 2);
@@ -907,10 +931,23 @@ function buildSideSafeLayout(frame, format, layout, headline, figmaImage, figmaL
     placeLogo(frame, figmaLogo, x + pad, y + pad, logoW, logoH);
   }
 
+  // CTA nad spodným okrajom safe zóny — rovnaký button ako master_safe/PSD
+  // ("CTA above the bank lockup" v PSD referencii pre 160×600). Rezervuje
+  // sa PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
+  const showCta = layout.show_cta !== false && !!ctaText;
+  let ctaTop = y + contentH - pad;
+  if (showCta) {
+    const btnH = Math.round(clamp(contentH * 0.08, 26, 44));
+    const btnW = contentW - pad * 2;
+    const btnY = y + contentH - pad - btnH;
+    addMasterCta(frame, ctaText, x + pad, btnY, btnW, btnH);
+    ctaTop = btnY - Math.round(pad * 0.6);
+  }
+
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));
     const textY = y + Math.round(contentH * 0.28);
-    addText(frame, headline, x + pad, textY, contentW - pad * 2, contentH - (textY - y) - pad, fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
+    addText(frame, headline, x + pad, textY, contentW - pad * 2, Math.max(20, ctaTop - textY), fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
   }
 }
 
@@ -926,7 +963,7 @@ function getInterscrollerSafeBox(format) {
   };
 }
 
-function buildInterscrollerSafeLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: { r: layout.bg_r || 0.05, g: layout.bg_g || 0.07, b: layout.bg_b || 0.16 } }];
   addImageRect(frame, figmaImage, "Image background", 0, 0, format.width, format.height, "FILL");
 
@@ -942,9 +979,23 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, figmaImag
     placeLogo(frame, figmaLogo, safe.x + pad, safe.y + pad, logoW, logoH);
   }
 
+  // CTA v spodnej časti panelu — rovnaký button ako master_safe/PSD
+  // ("CTA bottom-left" v PSD referencii pre 300×600). Rezervované miesto
+  // sa odráta od výšky headlinu, nech nekolidujú.
+  const showCta = layout.show_cta !== false && !!ctaText;
+  let ctaBudget = 0;
+  if (showCta) {
+    const btnH = Math.round(clamp(panelH * 0.22, 32, 56));
+    const btnW = Math.max(88, Math.round((safe.w - pad * 3.1) * 0.55));
+    const btnX = safe.x + pad * 1.55;
+    const btnY = panelY + panelH - pad - btnH;
+    addMasterCta(frame, ctaText, btnX, btnY, btnW, btnH);
+    ctaBudget = btnH + Math.round(pad * 0.6);
+  }
+
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(panelH * 0.20, 24, 58));
-    addText(frame, headline, safe.x + pad * 1.55, panelY + pad, safe.w - pad * 3.1, panelH - pad * 2, fontSize, { r: 1, g: 1, b: 1 });
+    addText(frame, headline, safe.x + pad * 1.55, panelY + pad, safe.w - pad * 3.1, panelH - pad * 2 - ctaBudget, fontSize, { r: 1, g: 1, b: 1 });
   }
 }
 
@@ -960,7 +1011,7 @@ function buildNativeCenterLayout(frame, format, layout, headline, figmaImage) {
   }
 }
 
-function buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   const heroH = Math.round(format.height * 0.54);
   addImageRect(frame, figmaImage, "Hero image", 0, 0, format.width, heroH, "FILL");
@@ -972,10 +1023,25 @@ function buildEmailLayout(frame, format, layout, headline, figmaImage, figmaLogo
     placeLogo(frame, figmaLogo, pad, heroH + pad, Math.round(logoH * 3.5), logoH);
   }
 
+  // CTA v spodnej časti content area — rovnaký button ako master_safe/PSD.
+  // Rezervované PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
+  const showCta = layout.show_cta !== false && !!ctaText;
+  let contentBottom = format.height - pad;
+  if (showCta) {
+    const btnH = Math.round(clamp(format.width * 0.09, 36, 56));
+    const btnW = Math.max(120, Math.round(format.width * 0.30));
+    const btnY = format.height - pad - btnH;
+    addMasterCta(frame, ctaText, pad, btnY, btnW, btnH);
+    contentBottom = btnY - Math.round(pad * 0.5);
+  }
+
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(format.width * 0.055, 28, 44));
-    const textY = heroH + pad + Math.round(format.width * 0.13);
-    addText(frame, headline, pad, textY, format.width - pad * 2, format.height - textY - pad, fontSize, BRAND_COLOR);
+    // Pôvodná medzera (13 % šírky) rátala s celou content area voľnou pre
+    // headline. Keď CTA zabral spodok, rovnaká medzera by headline
+    // stlačila na pár px — s CTA použi menšiu, pevnú medzeru.
+    const textY = heroH + pad + Math.round(showCta ? pad * 0.4 : format.width * 0.13);
+    addText(frame, headline, pad, textY, format.width - pad * 2, Math.max(20, contentBottom - textY), fontSize, BRAND_COLOR);
   }
 }
 

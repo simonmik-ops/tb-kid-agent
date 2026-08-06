@@ -51,7 +51,7 @@ const CREATIVE_PROFILES = {
   publisher_branding: {
     layoutType: null,
     elements: {
-      headline: true, subheadline: false, cta: true,
+      headline: true, subheadline: true, cta: true,
       logo: true, legal: false, badge: false, aiDisclosure: true
     }
   },

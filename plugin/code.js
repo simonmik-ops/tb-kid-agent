@@ -104,7 +104,7 @@ function resolveCreativeRule(format) {
     full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
     headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
-    publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    publisher_branding: { layoutType: null, headline: true, subheadline: true, cta: true, logo: true, ai: true },
     // P0-9b: JOJ/Markíza skin, bočné skyscrapery, interscroller a e-mail —
     // CTA aj AI disclosure zostávajú zapnuté (rovnako ako predtým cez
     // master_safe / publisher_branding fallback — nedropovať, čo tam bolo).
@@ -330,7 +330,9 @@ async function createAllFrames({
   }
 
   const campaignTag = tagging || "kid-062026";
-  const guides = showGuides !== false;
+  // QA vrstvy sú opt-in. Ak staršia UI verzia hodnotu vôbec nepošle,
+  // produkčný frame musí zostať čistý a bez exportovateľného ohraničenia.
+  const guides = showGuides === true;
   const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
   AI_ON = aiNote;
 
@@ -597,10 +599,6 @@ function addRiskFlagBadge(frame, format, flags) {
   const WARN_COLOR = { r: 0.93, g: 0.52, b: 0.05 };
   const labels = flags.map(f => RISK_FLAG_LABELS[f] || f);
 
-  frame.strokes = [{ type: "SOLID", color: WARN_COLOR }];
-  frame.strokeWeight = Math.max(2, Math.round(Math.min(format.width, format.height) * 0.012));
-  frame.strokeAlign = "INSIDE";
-
   const badge = figma.createText();
   badge.name = "Risk flag text";
   badge.fontName = { family: "Inter", style: "Bold" };
@@ -782,7 +780,6 @@ function shouldShowLogo(format, layout, figmaLogo) {
 // minimálny rozmer formátu.
 function shouldShowSubheadline(format, layout, availableHeight) {
   if (layout && layout.show_subheadline === false) return false;
-  if (Math.min(format.width, format.height) < 400) return false;
   if (typeof availableHeight === "number" &&
       availableHeight < TB.subheadline(format.width, format.height) * 1.6) {
     return false;

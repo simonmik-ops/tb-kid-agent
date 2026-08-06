@@ -19,7 +19,7 @@ function resolveCreativeRule(format) {
     full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
     headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
-    publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true }
+    publisher_branding: { layoutType: null, headline: true, subheadline: true, cta: true, logo: true, ai: true }
   };
 
   let profile = null;
@@ -64,7 +64,6 @@ function shouldShowSubheadline(format, layout, availableHeight) {
     0.1399 * Math.pow(format.width, 0.518) * Math.pow(format.height, 0.364) * 0.60
   ));
   if (layout && layout.show_subheadline === false) return false;
-  if (Math.min(format.width, format.height) < 400) return false;
   if (typeof availableHeight === "number" && availableHeight < subheadlineSize * 1.6) {
     return false;
   }
@@ -136,16 +135,13 @@ function findFormat(id) {
   assert.notStrictEqual(rule, null, id + " must resolve a rule outside kkvisa");
 });
 
-// ── žiadny formát s min(W,H) < 400 nemá subheadline ────────────────────────
-FORMATS
-  .filter((f) => Math.min(f.width, f.height) < 400)
-  .forEach((f) => {
-    assert.strictEqual(
-      shouldShowSubheadline(f, {}),
-      false,
-      f.id + " (" + f.width + "x" + f.height + ") must not show subheadline, min side < 400"
-    );
-  });
+// Malý rozmer sám osebe nesmie zahodiť dodaný podnadpis. Renderer ho môže
+// vypnúť až podľa skutočne dostupnej výšky po odpočítaní CTA a loga.
+assert.strictEqual(
+  shouldShowSubheadline({ width: 300, height: 250 }, {}),
+  true,
+  "small formats may show a subheadline when the template has room"
+);
 
 // ── nedostatok reálne dostupnej výšky vypne subheadline aj nad 400 px ─────
 assert.strictEqual(

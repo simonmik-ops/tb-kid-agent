@@ -1407,10 +1407,12 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
     return holder;
   }
 
+  // Jemný presah odstráni 1–2 % technický/brandový okraj, ktorý býva
+  // súčasťou exportovaného KV. Centrálne 50 % jadro ostáva bezpečné.
   const scale = Math.max(
     zone[2] / imageSize.width,
     zone[3] / imageSize.height
-  );
+  ) * 1.025;
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();

@@ -43,7 +43,7 @@
   </style>
 </head>
 <body>
-  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.4.2 · clean output</span></h1>
+  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.4.3 · Excel roles fixed</span></h1>
   <p class="sub">Nová zákazka → key visual → typy výstupov → editovateľné frames vo Figme</p>
 
   <label>Názov novej zákazky</label>
@@ -456,12 +456,16 @@
     // Každý riadok/placement mediálneho plánu musí ostať samostatný. Rovnaký
     // rozmer u dvoch publisherov nie je duplicita a nesmie sa zlúčiť.
     var uniqueId = "xls_" + index + "_" + normalizedCell(placement).replace(/[^a-z0-9]+/g, "_") + "_" + sourceId;
-    var rules = matched && matched.rules ? Object.assign({}, matched.rules) : {
+    // Kandidát sa hľadá najmä podľa rozmeru. Rovnaký rozmer však môže patriť
+    // napr. Meta kreatíve aj Google clean assetu. Pravidlá preto vždy odvodíme
+    // z role konkrétneho riadka Excelu; nesmieme preniesť noText/noLogo z
+    // rozmerovo zhodného, ale významovo iného katalógového formátu.
+    var rules = {
       headlineOnly: role === "headline_only",
       noText: role === "clean_image" || role === "native",
       noLogo: role === "clean_image" || role === "native" || role === "headline_only",
       logoOnly: role === "logo_only",
-      logoTop: false,
+      logoTop: !!(matched && matched.rules && matched.role === role && matched.rules.logoTop),
       ctaBySystem: role === "meta_full" || role === "headline_only"
     };
     var format = Object.assign({}, matched || {}, {

@@ -59,9 +59,26 @@ assert.strictEqual(sameSizeA.format.channel, "Google Responsive Ads");
 assert.strictEqual(sameSizeB.format.channel, "Google Demand Gen");
 assert.notStrictEqual(sameSizeA.format.baseId, sameSizeB.format.baseId, "same dimensions from different placements must not deduplicate");
 
+// Regression: Meta 1200×628 môže rozmerovo trafiť Google clean asset.
+// Rola riadka z Excelu musí vyhrať aj nad skopírovanými pravidlami kandidáta.
+const metaWithWrongSizeCandidate = api.materializeExcelFormat({
+  w: 1200, h: 628, placement: "Meta (Facebook & Instagram) - Automatic placements",
+  assetType: "obrázok", roleHint: "meta_full",
+  candidates: [{
+    id: "tpl_clean_landscape", channel: "Clean assets", role: "clean_image",
+    width: 1200, height: 628,
+    rules: { noText: true, noLogo: true, headlineOnly: false, logoOnly: false }
+  }],
+  selectedId: "tpl_clean_landscape"
+}, 2);
+assert.strictEqual(metaWithWrongSizeCandidate.format.role, "meta_full");
+assert.strictEqual(metaWithWrongSizeCandidate.format.rules.noText, false);
+assert.strictEqual(metaWithWrongSizeCandidate.format.rules.noLogo, false);
+assert.strictEqual(metaWithWrongSizeCandidate.format.rules.ctaBySystem, true);
+
 const adform = api.materializeExcelFormat({
   w: 300, h: 250, placement: "Adform", assetType: "IAB banner", roleHint: "full_creative", candidates: []
-}, 2);
+}, 3);
 assert.strictEqual(adform.format.template, "adform_300x250");
 
 const directWorkbook = {

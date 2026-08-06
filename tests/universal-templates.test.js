@@ -70,4 +70,9 @@ const chosen = getRequestedFormats(["meta_full", "native_clean"]);
 assert.strictEqual(chosen.length, 4);
 assert(chosen.every(item => !item.campaign), "Universal formats must not belong to historical campaigns");
 
+const meta45 = getRequestedFormats(["meta_full"]).find((f) => f.id === "tpl_meta_4x5");
+assert.deepStrictEqual([meta45.width, meta45.height], [1200, 1628]);
+const rsaStory = getRequestedFormats(["clean_image"]).find((f) => f.id === "tpl_clean_portrait");
+assert.deepStrictEqual([rsaStory.width, rsaStory.height], [900, 1600]);
+
 console.log("universal templates: ok");

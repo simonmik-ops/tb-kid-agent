@@ -22,6 +22,8 @@ staticMeta45.forEach((format) => {
 });
 
 assert.strictEqual(FORMATS.find((f) => f.id === "topky_branding").name, "Topky branding 450×800");
+assert.strictEqual(FORMATS.find((f) => f.id === "bsu_adform_300x250").template, "adform_300x250");
+assert.strictEqual(FORMATS.find((f) => f.id === "hyp_adform_970x250").template, "adform_970x250");
 assert.strictEqual(getCreativeRule(FORMATS.find((f) => f.id === "hyp_google_rsa_landscape")).id, "clean_image");
 assert.strictEqual(getCreativeRule(FORMATS.find((f) => f.id === "bsu_google_logo_square")).id, "logo_only");
 assert.strictEqual(getCreativeRule(FORMATS.find((f) => f.id === "tig_demandgen_landscape")).id, "full_creative");

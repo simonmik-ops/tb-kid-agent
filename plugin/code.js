@@ -70,6 +70,19 @@ const LOCAL_ADFORM_PSD_IDS = [
   "adform_970x250"
 ];
 
+function adformTemplateId(format) {
+  if (!format) return null;
+  if (format.template && LOCAL_ADFORM_PSD_IDS.indexOf(format.template) !== -1) return format.template;
+  const key = String(format.width) + "x" + String(format.height);
+  const bySize = {
+    "300x250": "adform_300x250", "300x600": "adform_300x600",
+    "160x600": "adform_160x600", "970x250": "adform_970x250"
+  };
+  const isAdform = String(format.id || "").toLowerCase().indexOf("adform") !== -1 ||
+    String(format.channel || "").toLowerCase() === "adform";
+  return isAdform ? (bySize[key] || null) : null;
+}
+
 // Rozhoduje, ktoré prvky (headline/subheadline/CTA/logo/AI tag) sa pre daný
 // formát vôbec majú kresliť. Pôvodne (localKkVisaRule) fungovalo len pre
 // campaign==="kkvisa" — pre hypo/bsu/tiger sa nikdy nič nenastavilo a
@@ -386,7 +399,8 @@ async function createAllFrames({
       // --- pravidlá univerzálnych šablón (vetva adform-psd) ---------------
       // Lokálny plugin môže testovať PSD šablóny ešte pred nasadením nového
       // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
-      const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
+      const localAdformTemplate = adformTemplateId(format);
+      const hasLocalAdformTemplate = !!localAdformTemplate;
       // Univerzálny master_safe layout je fallback pre formáty bez šablóny,
       // nie prepínateľná voľba — šablóna (adform_psd) má aj tak vždy prednosť
       // cez hasLocalAdformTemplate nižšie.
@@ -510,7 +524,7 @@ async function createAllFrames({
           legalText,
           badgeText,
           aiGenerated: aiNote
-        }, figmaImage, curImgSize, figmaLogo);
+        }, figmaImage, curImgSize, figmaLogo, localAdformTemplate);
       } else if (layoutType === "master_safe") {
         buildMasterSafeLayout(frame, format, layout, {
           headline,
@@ -1242,8 +1256,9 @@ function addSloganLogo(frame, box) {
   );
 }
 
-function addAdformBackgroundTreatment(frame, format, rules) {
-  if (format.id === "adform_970x250") {
+function addAdformBackgroundTreatment(frame, format, rules, templateId) {
+  const activeTemplate = templateId || adformTemplateId(format) || format.id;
+  if (activeTemplate === "adform_970x250") {
     // PSD: KV na ľavej strane, pevný modrosivý brand panel vpravo.
     addSolidRect(frame, "Brand panel", 425, 0, 545, 250, { r: 0.19, g: 0.27, b: 0.37 }, 1);
     return;
@@ -1258,13 +1273,13 @@ function addAdformBackgroundTreatment(frame, format, rules) {
   }
 
   const gradient = figma.createRectangle();
-  gradient.name = format.id === "adform_300x600" ? "Bottom readability gradient" : "Left readability gradient";
+  gradient.name = activeTemplate === "adform_300x600" ? "Bottom readability gradient" : "Left readability gradient";
   gradient.resize(format.width, format.height);
   gradient.x = 0;
   gradient.y = 0;
   gradient.fills = [{
     type: "GRADIENT_LINEAR",
-    gradientTransform: format.id === "adform_300x600"
+    gradientTransform: activeTemplate === "adform_300x600"
       ? [[0, 1, 0], [1, 0, 0]]
       : [[1, 0, 0], [0, 1, 0]],
     gradientStops: [
@@ -1653,8 +1668,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   if (content.aiGenerated && layout.show_ai_disclosure !== false) addAiNote(frame, format, cb);
 }
 
-function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
-  const rules = ADFORM_PSD_RULES[format.id];
+function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo, templateId) {
+  const activeTemplate = templateId || adformTemplateId(format) || format.id;
+  const rules = ADFORM_PSD_RULES[activeTemplate];
   if (!rules) {
     buildFullBleedLayout(frame, format, layout, content.headline, figmaImage, figmaLogo);
     return;
@@ -1665,17 +1681,17 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
   };
-  if (format.id === "adform_970x250") {
+  if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 });
-  } else if (format.id === "adform_160x600") {
+  } else if (activeTemplate === "adform_160x600") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 });
-  } else if (format.id === "adform_300x250") {
+  } else if (activeTemplate === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 });
   } else {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 });
   }
 
-  addAdformBackgroundTreatment(frame, format, rules);
+  addAdformBackgroundTreatment(frame, format, rules, activeTemplate);
   addSloganLogo(frame, rules.slogan);
 
   // Nahraný lockup patrí do veľkého štvorcového brand prvku, nie do horného sloganu.

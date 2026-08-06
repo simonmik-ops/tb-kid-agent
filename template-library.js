@@ -8,7 +8,7 @@ const TEMPLATE_GROUPS = [
     description: "Headline, subheadline a logo. CTA doplní platforma.",
     formats: [
       { id: "tpl_meta_1x1", name: "Meta image 1:1", channel: "Meta", width: 1200, height: 1200, ratio: "1:1" },
-      { id: "tpl_meta_4x5", name: "Meta image 4:5", channel: "Meta", width: 1200, height: 1500, ratio: "4:5" },
+      { id: "tpl_meta_4x5", name: "Meta image 4:5", channel: "Meta", width: 1200, height: 1628, ratio: "4:5" },
       { id: "tpl_meta_9x16", name: "Meta image 9:16", channel: "Meta", width: 1080, height: 1920, ratio: "9:16" }
     ]
   },
@@ -19,7 +19,7 @@ const TEMPLATE_GROUPS = [
     formats: [
       { id: "tpl_clean_landscape", name: "Clean image landscape", channel: "Clean assets", width: 1200, height: 628, ratio: "1.91:1" },
       { id: "tpl_clean_square", name: "Clean image square", channel: "Clean assets", width: 1200, height: 1200, ratio: "1:1" },
-      { id: "tpl_clean_portrait", name: "Clean image portrait", channel: "Clean assets", width: 960, height: 1200, ratio: "4:5" }
+      { id: "tpl_clean_portrait", name: "Google RSA story", channel: "Clean assets", width: 900, height: 1600, ratio: "9:16" }
     ]
   },
   {

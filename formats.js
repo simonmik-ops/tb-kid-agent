@@ -823,8 +823,16 @@ function normalizeFormat(format) {
     ctaBySystem: normalized.role === "meta_full" || normalized.role === "headline_only"
   };
   normalized.limit = normalized.limit || inferLimit(normalized.notes);
-  normalized.template = ["adform_300x250", "adform_300x600", "adform_160x600", "adform_970x250"].indexOf(normalized.id) !== -1
-    ? normalized.id : null;
+  const adformTemplates = {
+    "300x250": "adform_300x250",
+    "300x600": "adform_300x600",
+    "160x600": "adform_160x600",
+    "970x250": "adform_970x250"
+  };
+  const dimensionKey = normalized.width + "x" + normalized.height;
+  const isAdform = String(normalized.id || "").toLowerCase().indexOf("adform") !== -1 ||
+    String(normalized.channel || "").toLowerCase() === "adform";
+  normalized.template = isAdform ? (adformTemplates[dimensionKey] || null) : null;
   return normalized;
 }
 

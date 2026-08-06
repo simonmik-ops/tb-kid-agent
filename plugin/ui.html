@@ -43,7 +43,7 @@
   </style>
 </head>
 <body>
-  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">Universal templates v0.9</span></h1>
+  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.2 · PSD + Media Tables</span></h1>
   <p class="sub">Nová zákazka → key visual → typy výstupov → editovateľné frames vo Figme</p>
 
   <label>Názov novej zákazky</label>
@@ -91,8 +91,8 @@
   <label>Podnadpis (voliteľné)</label>
   <input type="text" id="subheadline" placeholder="Doplňujúca informácia pod headline">
 
-  <label>Tabuľka rozmerov od mediálky (.xlsx) — voliteľné</label>
-  <input type="file" id="excelInput" accept=".xlsx" onchange="onExcelPicked(event)">
+  <label>Tabuľka rozmerov od mediálky (.xlsx, .xls, .csv) — voliteľné</label>
+  <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" onchange="onExcelPicked(event)">
   <div class="hint" id="excelHint" style="margin-top:4px;">Ak nahráš tabuľku, formáty sa vezmú z nej. Bez tabuľky sa použijú typy výstupov vybrané nižšie.</div>
   <div id="excelReview" style="margin-top:8px;"></div>
 
@@ -240,39 +240,142 @@
   // ── Excel (tabuľka od mediálky) → rozmery ──────────────────────────────────
   let excelDims = null;
   let formatCatalog = null;
-  // Šum, ktorý negenerujeme ako bannery (min. veľkosti loga, safe-zóny, video rozlíšenia).
-  const DIM_BLOCK = { "128x128":1,"512x128":1,"1280x720":1,
-    "640x480":1,"640x360":1,"480x360":1,"600x314":1,"480x600":1,"375x491":1,
-    "375x812":1,"750x982":1,"480x600":1 };
+  function normalizedCell(value) {
+    return String(value == null ? "" : value).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/\s+/g, " ").trim();
+  }
+  function findHeader(rows) {
+    for (let r = 0; r < Math.min(rows.length, 20); r++) {
+      const cells = (rows[r] || []).map(normalizedCell);
+      const dimension = cells.findIndex(function (cell) { return /^(rozmery|resolution)/.test(cell); });
+      const placementColumn = cells.findIndex(function (cell) { return cell === "placement"; });
+      const formatColumn = cells.findIndex(function (cell) { return cell === "format"; });
+      const placement = placementColumn !== -1 ? placementColumn : formatColumn;
+      if (dimension !== -1 && placement !== -1) {
+        return {
+          row: r,
+          dimension: dimension,
+          placement: placement,
+          formatType: formatColumn,
+          asset: cells.findIndex(function (cell) { return /^(podklady|asset|assets)$/.test(cell); }),
+          phase: cells.findIndex(function (cell) { return /^(faza|phase)$/.test(cell); }),
+          specification: cells.findIndex(function (cell) { return /^(specifikacie|technical specification|dodatocne info)$/.test(cell); })
+        };
+      }
+    }
+    return null;
+  }
+  function roleFromContext(placement, asset) {
+    const p = normalizedCell(placement), a = normalizedCell(asset);
+    if (/video|texty?|sprievodny/.test(a)) return "skip";
+    if (/logo/.test(a)) return "logo_only";
+    if (/responsive|rsa/.test(p)) return "clean_image";
+    if (/performance max|pmax/.test(p)) return "headline_only";
+    if (/demand gen/.test(p)) return "full_creative";
+    if (/meta|facebook|instagram/.test(p)) return "meta_full";
+    if (/engerio|native/.test(p)) return "native";
+    if (/interscroller/.test(p)) return "interscroller";
+    if (/branding/.test(p)) return "branding_full";
+    return "publisher_branding";
+  }
+  function refineRole(role, placement, dimension) {
+    const context = normalizedCell(placement);
+    if (/adform/.test(context)) return "full_creative";
+    if (/branding/.test(context) && /interscroller/.test(context)) {
+      if (dimension.w <= 220 && dimension.h >= 500) return "branding_side";
+      if (dimension.w / dimension.h >= 3.5 || dimension.h <= 250) return "branding_full";
+      return "interscroller";
+    }
+    return role;
+  }
+  function safeZonesFromContext(dimension, context) {
+    const text = normalizedCell(context);
+    const safe = { top: 0, bottom: 0 };
+    const sideMatch = text.match(/safe\s+area\s+(\d+)\s*px\s+left[^\d]+(\d+)\s*px\s+right/);
+    if (sideMatch) safe.sides = Math.max(Number(sideMatch[1]), Number(sideMatch[2]));
+    const centerMatch = text.match(/center\s+safe\s+zone\s+(\d{2,4})\s*[x×]\s*(\d{2,4})/);
+    if (centerMatch && dimension.h > dimension.w) {
+      safe.safeInner = { width: Number(centerMatch[1]), height: Number(centerMatch[2]) };
+    }
+    if (dimension.w === 2000 && dimension.h === 1400) {
+      if (/1000\s*px.*strede|1000\s*px.*center|1000px in the centre/.test(text)) {
+        safe.centerWidth = 1000;
+        safe.topOffset = 200;
+      }
+    }
+    if (dimension.w <= 220 && dimension.h >= 600 && /120\s*px\s+width.*600\s*px\s+height/.test(text)) {
+      safe.safeInner = { width: 120, height: 600 };
+    }
+    return safe;
+  }
+  function deliverableDimensions(value) {
+    let text = normalizedCell(value);
+    // Odstráň pomocné rozmery, nie celý riadok: minimum, safe/dead zóny a
+    // odporúčané video rozlíšenia sú parametre, nie samostatné výstupy.
+    text = text.replace(/\([^)]*(?:min|minimal|minimum|safe|ochrann|density)[^)]*\)/g, " ");
+    text = text.replace(/(?:center\s+)?safe\s+(?:area|zone)[^\n,;]*/g, " ");
+    text = text.replace(/(?:min(?:imum)?\s+(?:resolution|rozlisenie)|minimalne?\s+rozlisenie)[^\n,;]*/g, " ");
+    const results = [];
+    const re = /(\d{2,4})\s*[x×X*]\s*(\d{2,4})/g;
+    let match;
+    while ((match = re.exec(text))) {
+      const w = Number(match[1]), h = Number(match[2]);
+      if (w >= 50 && h >= 50 && w <= 4000 && h <= 4000) results.push({ w: w, h: h });
+    }
+    if (!results.length) {
+      const width = text.match(/max\s+sirka\s*:?\s*(\d{2,4})\s*px/);
+      const height = text.match(/min\s+vyska\s*:?\s*(\d{2,4})\s*px/);
+      if (width && height) results.push({ w: Number(width[1]), h: Number(height[1]) });
+    }
+    return results;
+  }
   function extractDims(wb) {
     const seen = {}, out = [];
     (wb.SheetNames || []).forEach(function (sn) {
       const ws = wb.Sheets[sn];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-      rows.forEach(function (r) {
-        (r || []).forEach(function (c) {
-          const s = String(c);
-          const lower = s.toLowerCase();
-          if (/\b(min|max|safe|video|rozlíšenie|rozlisenie|density)\b/.test(lower)) return;
-          const re = /(\d{2,4})\s*[x××X*]\s*(\d{2,4})/g;
-          let m;
-          while ((m = re.exec(s))) {
-            const w = +m[1], h = +m[2];
-            if (w < 50 || h < 50 || w > 4000 || h > 4000) continue;
-            const key = w + "x" + h;
-            if (DIM_BLOCK[key]) continue;
-            if (!seen[key]) { seen[key] = 1; out.push({ w: w, h: h, context: (sn + " " + s).toLowerCase() }); }
+      const header = findHeader(rows);
+      if (!header) return;
+      const sheetContext = rows.slice(0, header.row).map(function (row) {
+        return (row || []).map(String).join(" ");
+      }).join(" ");
+      let inheritedPlacement = "", inheritedPhase = "";
+      rows.slice(header.row + 1).forEach(function (row) {
+        const placementCell = String(row[header.placement] || "").trim();
+        const phaseCell = header.phase >= 0 ? String(row[header.phase] || "").trim() : "";
+        if (placementCell) inheritedPlacement = placementCell;
+        if (phaseCell) inheritedPhase = phaseCell;
+        const asset = header.asset >= 0 ? String(row[header.asset] || "") : "";
+        const formatType = header.formatType >= 0 ? String(row[header.formatType] || "") : "";
+        const dimensionCell = String(row[header.dimension] || "");
+        const baseRole = roleFromContext(inheritedPlacement + " " + formatType, asset);
+        if (baseRole === "skip" || !dimensionCell) return;
+        const specification = header.specification >= 0 ? String(row[header.specification] || "") : "";
+        const context = [sn, sheetContext, inheritedPhase, inheritedPlacement, formatType, asset, specification].join(" ").toLowerCase();
+        deliverableDimensions(dimensionCell).forEach(function (dimension) {
+          const roleHint = refineRole(baseRole, inheritedPlacement + " " + formatType, dimension);
+          const key = [dimension.w + "x" + dimension.h, normalizedCell(inheritedPlacement), normalizedCell(formatType), normalizedCell(asset)].join("|");
+          if (!seen[key]) {
+            seen[key] = 1;
+            out.push({
+              w: dimension.w, h: dimension.h, context: context,
+              placement: inheritedPlacement || "Neurčený placement",
+              assetType: asset || "obrázok",
+              roleHint: roleHint,
+              safeZones: safeZonesFromContext(dimension, dimensionCell + " " + specification)
+            });
           }
         });
       });
     });
     return out;
   }
-  function scoreCandidate(format, context) {
+  function scoreCandidate(format, context, roleHint) {
     const hay = String(context || "");
+    let score = format.role === roleHint ? 12 : 0;
     const words = [format.channel, format.name, format.id]
       .join(" ").toLowerCase().split(/[^a-z0-9á-ž]+/).filter(function (w) { return w.length > 2; });
-    return words.reduce(function (score, word) { return score + (hay.indexOf(word) !== -1 ? 1 : 0); }, 0);
+    return words.reduce(function (total, word) { return total + (hay.indexOf(word) !== -1 ? 1 : 0); }, score);
   }
   async function resolveExcelDims(dims) {
     if (!formatCatalog) {
@@ -295,7 +398,7 @@
       const candidates = formatCatalog.filter(function (format) {
         return format.width === dim.w && format.height === dim.h;
       }).sort(function (a, b) {
-        return scoreCandidate(b, dim.context) - scoreCandidate(a, dim.context);
+        return scoreCandidate(b, dim.context, dim.roleHint) - scoreCandidate(a, dim.context, dim.roleHint);
       });
       dim.candidates = candidates;
       dim.selectedId = candidates.length ? candidates[0].id : null;
@@ -312,6 +415,7 @@
       size.style.minWidth = "72px";
       size.textContent = dim.w + "×" + dim.h;
       row.appendChild(size);
+      row.title = (dim.placement || "") + " · " + (dim.assetType || "");
       if (!dim.candidates || !dim.candidates.length) {
         const warning = document.createElement("span");
         warning.style.color = "#a15c00";
@@ -560,9 +664,21 @@
           var PSD = { "300x250": "adform_300x250", "300x600": "adform_300x600",
                       "160x600": "adform_160x600", "970x250": "adform_970x250" };
           var key = d.w + "x" + d.h;
-          var id = PSD[key] || ("xls_" + key);
+          var isAdform = /adform/i.test(d.placement || "");
+          var id = isAdform && PSD[key] ? PSD[key] : ("xls_" + key + "_" + (d.roleHint || "format"));
+          var role = d.roleHint || "publisher_branding";
+          var rules = {
+            headlineOnly: role === "headline_only",
+            noText: role === "clean_image" || role === "native",
+            noLogo: role === "clean_image" || role === "native" || role === "headline_only",
+            logoOnly: role === "logo_only",
+            logoTop: false,
+            ctaBySystem: role === "meta_full" || role === "headline_only"
+          };
           return { format: { id: id, width: d.w, height: d.h, name: (d.w + "×" + d.h),
-                   channel: PSD[key] ? "Adform" : "Z tabuľky" }, layout: null };
+                   channel: d.placement || (isAdform ? "Adform" : "Z tabuľky"), role: role,
+                   rules: rules, safeZones: d.safeZones || { top: 0, bottom: 0 },
+                   template: isAdform ? (PSD[key] || null) : null }, layout: null };
         });
         tagging = taggingField || "kampan";
         totalFormats = formats.length;

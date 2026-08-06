@@ -94,6 +94,7 @@
   <label>Tabuľka rozmerov od mediálky (.xlsx) — voliteľné</label>
   <input type="file" id="excelInput" accept=".xlsx" onchange="onExcelPicked(event)">
   <div class="hint" id="excelHint" style="margin-top:4px;">Ak nahráš tabuľku, formáty sa vezmú z nej. Bez tabuľky sa použijú typy výstupov vybrané nižšie.</div>
+  <div id="excelReview" style="margin-top:8px;"></div>
 
   <label style="margin-top:12px;">Tagging kampane</label>
   <input type="text" id="tagging" placeholder="napr. kk-visa-072026" oninput="taggingEdited = (this.value.trim().length > 0)">
@@ -238,8 +239,9 @@
 
   // ── Excel (tabuľka od mediálky) → rozmery ──────────────────────────────────
   let excelDims = null;
+  let formatCatalog = null;
   // Šum, ktorý negenerujeme ako bannery (min. veľkosti loga, safe-zóny, video rozlíšenia).
-  const DIM_BLOCK = { "128x128":1,"512x128":1,"300x60":1,"1920x1080":1,"1280x720":1,
+  const DIM_BLOCK = { "128x128":1,"512x128":1,"1280x720":1,
     "640x480":1,"640x360":1,"480x360":1,"600x314":1,"480x600":1,"375x491":1,
     "375x812":1,"750x982":1,"480x600":1 };
   function extractDims(wb) {
@@ -250,6 +252,8 @@
       rows.forEach(function (r) {
         (r || []).forEach(function (c) {
           const s = String(c);
+          const lower = s.toLowerCase();
+          if (/\b(min|max|safe|video|rozlíšenie|rozlisenie|density)\b/.test(lower)) return;
           const re = /(\d{2,4})\s*[x××X*]\s*(\d{2,4})/g;
           let m;
           while ((m = re.exec(s))) {
@@ -257,12 +261,68 @@
             if (w < 50 || h < 50 || w > 4000 || h > 4000) continue;
             const key = w + "x" + h;
             if (DIM_BLOCK[key]) continue;
-            if (!seen[key]) { seen[key] = 1; out.push({ w: w, h: h }); }
+            if (!seen[key]) { seen[key] = 1; out.push({ w: w, h: h, context: (sn + " " + s).toLowerCase() }); }
           }
         });
       });
     });
     return out;
+  }
+  function scoreCandidate(format, context) {
+    const hay = String(context || "");
+    const words = [format.channel, format.name, format.id]
+      .join(" ").toLowerCase().split(/[^a-z0-9á-ž]+/).filter(function (w) { return w.length > 2; });
+    return words.reduce(function (score, word) { return score + (hay.indexOf(word) !== -1 ? 1 : 0); }, 0);
+  }
+  async function resolveExcelDims(dims) {
+    if (!formatCatalog) {
+      const serverUrl = document.getElementById("serverUrl").value.trim();
+      const response = await fetch(serverUrl + "/formats");
+      if (!response.ok) throw new Error("Server neposkytol aktuálny katalóg formátov.");
+      const data = await response.json();
+      formatCatalog = data.formats || [];
+    }
+    return dims.map(function (dim) {
+      const candidates = formatCatalog.filter(function (format) {
+        return format.width === dim.w && format.height === dim.h;
+      }).sort(function (a, b) {
+        return scoreCandidate(b, dim.context) - scoreCandidate(a, dim.context);
+      });
+      dim.candidates = candidates;
+      dim.selectedId = candidates.length ? candidates[0].id : null;
+      return dim;
+    });
+  }
+  function renderExcelReview() {
+    const box = document.getElementById("excelReview");
+    box.innerHTML = "";
+    (excelDims || []).forEach(function (dim, index) {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;align-items:center;margin:5px 0;font-size:11px";
+      const size = document.createElement("strong");
+      size.style.minWidth = "72px";
+      size.textContent = dim.w + "×" + dim.h;
+      row.appendChild(size);
+      if (!dim.candidates || !dim.candidates.length) {
+        const warning = document.createElement("span");
+        warning.style.color = "#a15c00";
+        warning.textContent = "Neznámy rozmer — vytvorí sa univerzálny layout na kontrolu";
+        row.appendChild(warning);
+      } else {
+        const select = document.createElement("select");
+        select.style.cssText = "flex:1;padding:5px;font-size:11px";
+        dim.candidates.forEach(function (format) {
+          const option = document.createElement("option");
+          option.value = format.id;
+          option.textContent = format.channel + " — " + format.name;
+          select.appendChild(option);
+        });
+        select.value = dim.selectedId;
+        select.onchange = function () { excelDims[index].selectedId = select.value; };
+        row.appendChild(select);
+      }
+      box.appendChild(row);
+    });
   }
   function onExcelPicked(e) {
     const f = e.target.files && e.target.files[0];
@@ -270,13 +330,15 @@
     if (!f) { excelDims = null; return; }
     if (typeof XLSX === "undefined") { hint.textContent = "Excel parser sa nenačítal (offline?). Použi výber kampane."; excelDims = null; return; }
     const reader = new FileReader();
-    reader.onload = function (ev) {
+    reader.onload = async function (ev) {
       try {
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
         const dims = extractDims(wb);
-        excelDims = dims;
+        excelDims = await resolveExcelDims(dims);
+        renderExcelReview();
+        const ambiguous = excelDims.filter(function (d) { return d.candidates && d.candidates.length > 1; }).length;
         hint.textContent = dims.length
-          ? ("✓ Našiel som " + dims.length + " rozmerov: " + dims.map(function (d) { return d.w + "×" + d.h; }).join(", "))
+          ? ("✓ Našiel som " + dims.length + " rozmerov." + (ambiguous ? " Skontroluj kanál pri " + ambiguous + " nejednoznačných rozmeroch." : ""))
           : "Nenašiel som rozmery — použi výber kampane.";
       } catch (err) { hint.textContent = "Nepodarilo sa načítať tabuľku: " + err.message; excelDims = null; }
     };
@@ -484,6 +546,8 @@
         // ── Excel cesta ── formáty priamo z tabuľky od mediálky; layout vyrieši
         // code.js lokálne z rozmerov (bez servera).
         formats = excelDims.map(function (d) {
+          var matched = (d.candidates || []).find(function (format) { return format.id === d.selectedId; });
+          if (matched) return { format: matched, layout: null };
           var PSD = { "300x250": "adform_300x250", "300x600": "adform_300x600",
                       "160x600": "adform_160x600", "970x250": "adform_970x250" };
           var key = d.w + "x" + d.h;
@@ -508,7 +572,7 @@
         if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Server error"); }
         const data = await res.json();
         if (!data.formats || !data.formats.length || !data.formats.every(item => item.format && item.format.templateGroup)) {
-          throw new Error("Railway ešte nemá nasadený Universal templates v0.9. Najprv treba nasadiť novú serverovú verziu.");
+          throw new Error("Server nemá nasadený aktuálny katalóg šablón. Obnov nasadenie z hlavnej vetvy.");
         }
         formats = data.formats;
         tagging = taggingField || data.tagging;

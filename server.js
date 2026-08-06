@@ -13,6 +13,16 @@ const upload = multer({ dest: "uploads/" });
 
 app.use(express.json());
 
+// CORS musí byť pred endpointmi; inak /formats a /health síce odpovedajú,
+// ale Figma UI ich v prehliadačovom sandboxe nesmie prečítať.
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
 app.get("/template-groups", (req, res) => {
   res.json({ groups: TEMPLATE_GROUPS.map(({ formats, ...group }) => ({
     ...group,
@@ -20,13 +30,12 @@ app.get("/template-groups", (req, res) => {
   })) });
 });
 
-// CORS — plugin beží na figma.com doméne, potrebuje prístup k serveru
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
+app.get("/health", (req, res) => {
+  res.json({ ok: true, service: "tb-kid-agent", version: require("./package.json").version });
+});
+
+app.get("/formats", (req, res) => {
+  res.json({ formats: FORMATS });
 });
 
 // Hlavný endpoint — Claude analýza a plánovanie layoutov

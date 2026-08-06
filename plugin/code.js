@@ -3,6 +3,8 @@
 // Menný priestor pre metadáta na frameoch. Musí zostať stabilný — čítajú
 // ho externé nástroje cez getSharedPluginData.
 var TB_NS = "tbgen";
+var TB_GENERATOR_VERSION = "1.6.0";
+var TB_QA_SCOPE = "runtime-geometry+material-rules; pixel-reference-required";
 
 var TB = {
   headline: function (W, H) {
@@ -228,6 +230,83 @@ function brandColor(layout) {
   return BRAND_COLOR;
 }
 
+function brandEdgeColor(layout, edge) {
+  const prefix = edge === "top" ? "bg_top_" : "bg_bottom_";
+  if (layout && typeof layout[prefix + "r"] === "number") {
+    return { r: layout[prefix + "r"], g: layout[prefix + "g"], b: layout[prefix + "b"] };
+  }
+  return brandColor(layout);
+}
+
+function shadedColor(color, factor) {
+  return {
+    r: clamp(color.r * factor, 0, 1),
+    g: clamp(color.g * factor, 0, 1),
+    b: clamp(color.b * factor, 0, 1)
+  };
+}
+
+function sampledBrandGradient(layout, shade) {
+  const factor = typeof shade === "number" ? shade : 1;
+  const vertical = layout && Array.isArray(layout.bg_vertical_stops)
+    ? layout.bg_vertical_stops.filter(function (stop) {
+        return stop && typeof stop.position === "number" && stop.color &&
+          typeof stop.color.r === "number" && typeof stop.color.g === "number" &&
+          typeof stop.color.b === "number";
+      })
+    : [];
+  if (vertical.length >= 3) {
+    return {
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[0, 1, 0], [1, 0, 0]],
+      gradientStops: vertical.map(function (stop) {
+        const c = shadedColor(stop.color, factor);
+        return { position: clamp(stop.position, 0, 1), color: { r: c.r, g: c.g, b: c.b, a: 1 } };
+      })
+    };
+  }
+  const top = shadedColor(brandEdgeColor(layout, "top"), factor);
+  const bottom = shadedColor(brandEdgeColor(layout, "bottom"), factor);
+  return {
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[0, 1, 0], [1, 0, 0]],
+    gradientStops: [
+      { position: 0, color: { r: top.r, g: top.g, b: top.b, a: 1 } },
+      { position: 1, color: { r: bottom.r, g: bottom.g, b: bottom.b, a: 1 } }
+    ]
+  };
+}
+
+function sampledLowerPanelGradient(layout, bottomShade) {
+  const edge = brandEdgeColor(layout, "bottom");
+  const dark = shadedColor(edge, typeof bottomShade === "number" ? bottomShade : 0.46);
+  return {
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[0, 1, 0], [1, 0, 0]],
+    gradientStops: [
+      { position: 0, color: { r: edge.r, g: edge.g, b: edge.b, a: 1 } },
+      { position: 1, color: { r: dark.r, g: dark.g, b: dark.b, a: 1 } }
+    ]
+  };
+}
+
+function sampledPortraitOverlayGradient(layout, imageBoundaryStop, bottomShade) {
+  const edge = brandEdgeColor(layout, "bottom");
+  const dark = shadedColor(edge, typeof bottomShade === "number" ? bottomShade : 0.46);
+  const boundary = clamp(imageBoundaryStop, 0.16, 0.72);
+  const firstDark = Math.max(0.06, boundary * 0.48);
+  return {
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[0, 1, 0], [1, 0, 0]],
+    gradientStops: [
+      { position: 0, color: { r: edge.r, g: edge.g, b: edge.b, a: 0 } },
+      { position: firstDark, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.58 } },
+      { position: boundary, color: { r: dark.r, g: dark.g, b: dark.b, a: 1 } },
+      { position: 1, color: { r: dark.r, g: dark.g, b: dark.b, a: 1 } }
+    ]
+  };
+}
+
 // Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
 function aiNoteFontSize(format) {
   return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 12, 18));
@@ -299,7 +378,8 @@ function addAiNote(frame, format, contentBox) {
 async function createAllFrames({
   formats, headline, subheadline, ctaText, legalText, badgeText, adType,
   imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
-  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvLumaBottom
+  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvBgTop, kvBgBottom,
+  kvLumaBottom, kvInputCleanup, kvBgVertical
 }) {
   SUBHEAD = (subheadline || "").trim();
 
@@ -345,13 +425,32 @@ async function createAllFrames({
   const imgPortrait = mkImage(kvPortraitBytes);
   const imgLandscape = mkImage(kvLandscapeBytes);
 
-  // Vyber KV podľa orientácie formátu — každý formát dostane vizuál pre svoj
-  // tvar, takže sa nič neoreže zle. Fallback na dostupné.
-  function pickKV(format) {
+  function assetKindForFormat(format) {
     const r = format.width / format.height;
-    if (r >= 1.25) return imgLandscape || imgSquare || imgPortrait;
-    if (r <= 0.8) return imgPortrait || imgSquare || imgLandscape;
-    return imgSquare || imgPortrait || imgLandscape;
+    if (r >= 1.25) return "landscape";
+    if (r <= 0.8) return "portrait";
+    return "square";
+  }
+
+  function pickExactKV(format) {
+    const kind = assetKindForFormat(format);
+    return kind === "landscape" ? imgLandscape : (kind === "portrait" ? imgPortrait : imgSquare);
+  }
+
+  // Surd single-master rule: an absent orientation must not become a full-frame
+  // cover crop. We still use the available master, but the renderer receives
+  // an explicit fallback flag and switches to a protected composition with a
+  // sampled-colour extension.
+  function pickAdaptiveKV(format) {
+    return pickExactKV(format) || imgSquare || imgPortrait || imgLandscape;
+  }
+
+  function sourceKindForImage(image) {
+    if (!image) return "missing";
+    if (image === imgSquare) return "square";
+    if (image === imgPortrait) return "portrait";
+    if (image === imgLandscape) return "landscape";
+    return "unknown";
   }
 
   // Šablóny z vetvy adform-psd počítajú s jedným vizuálom a jeho rozmermi.
@@ -389,6 +488,14 @@ async function createAllFrames({
     }
 
     let xOffset = 0;
+    // Never stack a new run exactly over an older one. Apart from making the
+    // canvas unreadable, overlapping runs made it look as if a code change had
+    // no effect because an older frame could remain selected/visible.
+    const runYOffset = page.children.length
+      ? Math.max.apply(null, page.children.map(function (n) {
+          return (typeof n.y === "number" && typeof n.height === "number") ? n.y + n.height : 0;
+        })) + 160
+      : 0;
 
     for (const item of items) {
       const format = item.format;
@@ -430,19 +537,38 @@ async function createAllFrames({
         : (useMasterSafe && masterEligible ? "master_safe" : backendLayoutType);
       if (useMasterSafe && (hasLocalAdformTemplate || masterEligible) && backendLayoutType === "master_safe") {
         const ratio = format.width / format.height;
-        layout.master_family = ratio > 1.45 ? "wide" : (ratio < 0.75 ? "portrait" : "square");
+        // Keep the family boundary identical to assetKindForFormat(). A 4:5
+        // output (ratio 0.8) previously requested a portrait KV but rendered
+        // with the square cover-crop layout, which enlarged faces and ignored
+        // the colour-extension panel.
+        layout.master_family = ratio >= 1.25 ? "wide" : (ratio <= 0.8 ? "portrait" : "square");
         layout.master_safe_zone = true;
       }
 
       if (kvBg && typeof layout.bg_r !== "number") {
         layout.bg_r = kvBg.r; layout.bg_g = kvBg.g; layout.bg_b = kvBg.b;
       }
+      if (kvBgTop && typeof layout.bg_top_r !== "number") {
+        layout.bg_top_r = kvBgTop.r; layout.bg_top_g = kvBgTop.g; layout.bg_top_b = kvBgTop.b;
+      }
+      if (kvBgBottom && typeof layout.bg_bottom_r !== "number") {
+        layout.bg_bottom_r = kvBgBottom.r; layout.bg_bottom_g = kvBgBottom.g; layout.bg_bottom_b = kvBgBottom.b;
+      }
+      if (Array.isArray(kvBgVertical) && kvBgVertical.length >= 3 && !layout.bg_vertical_stops) {
+        layout.bg_vertical_stops = kvBgVertical;
+      }
       if (typeof kvLumaBottom === "number" && typeof layout.kv_luma_bottom !== "number") {
         layout.kv_luma_bottom = kvLumaBottom;
       }
 
       // --- KV podľa orientácie formátu (vetva clean-frames) ---------------
-      const figmaImage = pickKV(format);
+      const requiredAssetKind = assetKindForFormat(format);
+      const exactImage = pickExactKV(format);
+      const figmaImage = pickAdaptiveKV(format);
+      const adaptedFromSingleMaster = !exactImage && !!figmaImage;
+      layout.asset_fallback_kind = adaptedFromSingleMaster ? requiredAssetKind : null;
+      layout.kv_source_kind = sourceKindForImage(figmaImage);
+      layout.kv_strategy = adaptedFromSingleMaster ? "protected-single-master" : "exact-orientation";
 
       // Rozmery zvoleného KV (na výpočet viditeľnej plochy pri contain).
       CUR_IMG_W = 0; CUR_IMG_H = 0;
@@ -477,7 +603,14 @@ async function createAllFrames({
           tbTagging: String(campaignTag || ""),
           tbChannel: String(format.channel || channel || ""),
           tbWidth: String(format.width || ""),
-          tbHeight: String(format.height || "")
+          tbHeight: String(format.height || ""),
+          tbGeneratedBy: "tb-kid-agent@" + TB_GENERATOR_VERSION,
+          tbQaScope: TB_QA_SCOPE,
+          tbVisualReview: "REQUIRED_FOR_NEW_CAMPAIGN",
+          tbKvRequired: requiredAssetKind,
+          tbKvSource: layout.kv_source_kind,
+          tbKvStrategy: layout.kv_strategy,
+          tbInputCleanup: JSON.stringify(kvInputCleanup || {})
         };
         for (var mk in meta) {
           frame.setPluginData(mk, meta[mk]);
@@ -486,7 +619,7 @@ async function createAllFrames({
       } catch (e) {}
       frame.resize(format.width, format.height);
       frame.x = xOffset;
-      frame.y = 0;
+      frame.y = runYOffset;
       frame.clipsContent = true;
 
       if (layoutType === "video_placeholder") {
@@ -551,6 +684,13 @@ async function createAllFrames({
         addAiNote(frame, format);
       }
 
+      // Builders may refine the strategy (for example Adform protected
+      // single-master). Persist the final value, not only the initial picker.
+      try {
+        frame.setPluginData("tbKvStrategy", String(layout.kv_strategy || ""));
+        frame.setSharedPluginData(TB_NS, "tbKvStrategy", String(layout.kv_strategy || ""));
+      } catch (e) {}
+
       // Povinná post-render kontrola skutočných Figma uzlov. Na rozdiel od
       // statických unit testov kontroluje každý práve vytvorený frame: font,
       // rozmery, overflow, kolízie a pri Adform šablónach aj PSD súradnice.
@@ -558,6 +698,8 @@ async function createAllFrames({
         headline: headline,
         subheadline: subheadline,
         ctaText: ctaText,
+        legalText: legalText,
+        badgeText: badgeText,
         aiGenerated: aiNote,
         hasLogo: !!figmaLogo
       }, localAdformTemplate);
@@ -721,6 +863,7 @@ function humanizeWarnings(warnings) {
     qa_cta_style: "CTA nemá schválenú výšku alebo modrú farbu.",
     qa_text_spacing: "Headline a subheadline sú od seba opticky príliš ďaleko.",
     qa_wide_color_extension: "Landscape farebná plocha sa nenapája plynulo na vizuál.",
+    qa_unsafe_single_master_crop: "Štvorcový master sa pri inom pomere strán orezáva namiesto bezpečného contain/extension layoutu.",
     qa_psd_geometry: "Adform prvok nesedí na PSD súradnice.",
     qa_unexpected_effect: "Frame obsahuje neželaný tieň alebo efekt.",
     qa_unclipped_frame: "Frame nemá zapnuté orezanie obsahu."
@@ -806,9 +949,12 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
     if (qaOverlap(qaBox(pair[0], frame), qaBox(pair[1], frame), 2)) add("qa_content_overlap");
   }
 
+  const resolvedAdformRules = layoutType === "adform_psd"
+    ? resolveAdformPsdRules(templateId, content, layout) : null;
+
   if (headline && headline.type === "TEXT") {
-    const expected = layoutType === "adform_psd" && ADFORM_PSD_RULES[templateId]
-      ? ADFORM_PSD_RULES[templateId].headlineSize
+    const expected = resolvedAdformRules
+      ? resolvedAdformRules.headlineSize
       : TB.headline(format.width, format.height);
     const size = typeof headline.fontSize === "number" ? headline.fontSize : expected;
     if (size < expected * 0.82 || size > expected * 1.08) add("qa_typography_scale");
@@ -856,8 +1002,19 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
     }
   }
 
-  if (layoutType === "adform_psd" && ADFORM_PSD_RULES[templateId]) {
-    const rules = ADFORM_PSD_RULES[templateId];
+  if (layout.asset_fallback_kind && (layoutType === "master_safe" || layoutType === "adform_psd")) {
+    const protectedMaster = qaFind(frame, "Key visual — protected full master");
+    if (!protectedMaster) add("qa_unsafe_single_master_crop");
+    if (protectedMaster && protectedMaster.parent) {
+      if (protectedMaster.width > protectedMaster.parent.width + 1 ||
+          protectedMaster.height > protectedMaster.parent.height + 1) {
+        add("qa_unsafe_single_master_crop");
+      }
+    }
+  }
+
+  if (layoutType === "adform_psd" && resolvedAdformRules) {
+    const rules = resolvedAdformRules;
     const checks = [
       [headline, rules.headline, false],
       [cta, rules.cta, true],
@@ -871,6 +1028,15 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
           !qaNear(box.w, ref[2], 2) || (check[2] && !qaNear(box.h, ref[3], 2))) {
         add("qa_psd_geometry");
       }
+    }
+    if (templateId === "adform_970x250") {
+      const brandPanel = qaFind(frame, "Brand panel");
+      let sampledGradient = false;
+      try {
+        const fill = brandPanel && brandPanel.fills && brandPanel.fills[0];
+        sampledGradient = !!fill && fill.type === "GRADIENT_LINEAR" && fill.gradientStops.length >= 2;
+      } catch (e) {}
+      if (!sampledGradient) add("qa_wide_color_extension");
     }
   }
 
@@ -1089,7 +1255,41 @@ function getReadablePad(format) {
 
 // Google RSA / Demand Gen image assets: no text, no logo.
 function buildCleanImageLayout(frame, format, layout, figmaImage) {
-  frame.fills = [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
+  frame.fills = layout.asset_fallback_kind
+    ? [sampledBrandGradient(layout, 1)]
+    : [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
+  if (layout.asset_fallback_kind && figmaImage && CUR_IMG_W && CUR_IMG_H) {
+    // Protected single-master rule applies to clean assets too. Preserve the
+    // whole composition and extend it with the KV colour instead of producing
+    // a face-only portrait or a vertically sliced landscape crop.
+    const family = format.width / format.height >= 1.25 ? "wide" :
+      (format.width / format.height <= 0.8 ? "portrait" : "square");
+    addProtectedImageFrame(
+      frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
+      "Adapted clean master — full composition",
+      [0, 0, format.width, format.height],
+      family === "wide" ? { x: 0, y: 0.5 } :
+        (family === "portrait" ? { x: 0.5, y: 0 } : { x: 0.5, y: 0.5 })
+    );
+    if (family === "portrait") {
+      const cleanScale = Math.min(format.width / CUR_IMG_W, format.height / CUR_IMG_H);
+      const cleanImageH = Math.min(format.height, CUR_IMG_H * cleanScale);
+      if (cleanImageH < format.height - 1) {
+        const extensionY = Math.round(cleanImageH * 0.78);
+        const extension = figma.createRectangle();
+        extension.name = "Clean portrait colour extension";
+        extension.resize(format.width, format.height - extensionY);
+        extension.x = 0;
+        extension.y = extensionY;
+        const cleanBoundaryStop = (cleanImageH - extensionY) /
+          Math.max(1, format.height - extensionY);
+        extension.fills = [sampledPortraitOverlayGradient(layout, cleanBoundaryStop, 0.78)];
+        frame.appendChild(extension);
+      }
+    }
+    layout.kv_strategy = "clean-protected-single-master";
+    return;
+  }
   if (layout.image_fit === "contain" || !CUR_IMG_W || !CUR_IMG_H) {
     addImageRect(frame, figmaImage, "Image asset - no text / no logo", 0, 0, format.width, format.height, layout.image_fit === "contain" ? "FIT" : "FILL");
   } else {
@@ -1449,6 +1649,56 @@ const ADFORM_PSD_RULES = {
   }
 };
 
+function resolveAdformPsdRules(templateId, content, layout) {
+  const baseRules = ADFORM_PSD_RULES[templateId];
+  if (!baseRules) return null;
+  const rules = Object.assign({}, baseRules);
+  const compactCopy = String((content && content.headline) || "").trim().length <= 22 &&
+    !(content && content.badgeText) && !(content && content.legalText);
+  rules.compactCopy = compactCopy;
+  if (compactCopy) {
+    const compact = {
+      adform_300x250: {
+        headline: [20, 54, 150, 48], headlineSize: 20,
+        cta: [20, 164, 110, 38], bankLogo: [224, 174, 55, 54]
+      },
+      adform_300x600: {
+        headline: [20, 392, 230, 58], headlineSize: 25,
+        cta: [20, 482, 124, 42], bankLogo: [216, 504, 64, 62]
+      },
+      adform_160x600: {
+        headline: [12, 316, 136, 54], headlineSize: 22,
+        cta: [15, 382, 130, 42], bankLogo: [43, 450, 74, 73],
+        ai: [30, 548, 100, 19]
+      },
+      adform_970x250: {
+        headline: [460, 52, 330, 72], headlineSize: 36,
+        cta: [460, 148, 125, 42]
+      }
+    }[templateId];
+    if (compact) Object.assign(rules, compact);
+  }
+
+  const adaptedPortrait = layout && layout.asset_fallback_kind === "portrait";
+  if (adaptedPortrait && templateId === "adform_300x600") {
+    Object.assign(rules, {
+      panel: [0, 300, 300, 300],
+      headline: [20, 365, 230, 58], headlineSize: 25,
+      cta: [20, 455, 124, 42], bankLogo: [216, 480, 64, 62],
+      ai: [23, 562, 100, 19]
+    });
+  }
+  if (adaptedPortrait && templateId === "adform_160x600") {
+    Object.assign(rules, {
+      panel: [0, 160, 160, 440],
+      headline: [12, 250, 136, 54], headlineSize: 22,
+      cta: [15, 320, 130, 42], bankLogo: [43, 390, 74, 73],
+      ai: [30, 548, 100, 19]
+    });
+  }
+  return rules;
+}
+
 function addTemplateText(frame, name, value, box, fontSize, color, style, align, vAlign) {
   if (!value || !box) return null;
   const txt = figma.createText();
@@ -1536,19 +1786,65 @@ function addSloganLogo(frame, box) {
   );
 }
 
-function addAdformBackgroundTreatment(frame, format, rules, templateId) {
+function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) {
   const activeTemplate = templateId || adformTemplateId(format) || format.id;
   if (activeTemplate === "adform_970x250") {
-    // PSD: KV na ľavej strane, pevný modrosivý brand panel vpravo.
-    addSolidRect(frame, "Brand panel", 425, 0, 545, 250, { r: 0.19, g: 0.27, b: 0.37 }, 1);
+    // The PSD example happens to use a blue-grey campaign panel. Surd's
+    // system rule is broader: the extension follows the current KV colour.
+    // A hard-coded blue panel is therefore wrong for the orange Investovanie
+    // master and creates an unrelated second colour world.
+    const panel = figma.createRectangle();
+    panel.name = "Brand panel";
+    panel.resize(545, 250);
+    panel.x = 425;
+    panel.y = 0;
+    panel.fills = [sampledBrandGradient(layout, 0.64)];
+    frame.appendChild(panel);
     return;
   }
   if (rules.panel) {
-    addSolidRect(
-      frame, "Dark lower panel",
-      rules.panel[0], rules.panel[1], rules.panel[2], rules.panel[3],
-      { r: 0.12, g: 0.10, b: 0.10 }, 0.94
-    );
+    if (layout && layout.asset_fallback_kind) {
+      const panel = figma.createRectangle();
+      panel.name = "Dark lower panel";
+      panel.resize(rules.panel[2], rules.panel[3]);
+      panel.x = rules.panel[0];
+      panel.y = rules.panel[1];
+      panel.fills = [sampledLowerPanelGradient(layout, 0.46)];
+      frame.appendChild(panel);
+    } else {
+      addSolidRect(
+        frame, "Dark lower panel",
+        rules.panel[0], rules.panel[1], rules.panel[2], rules.panel[3],
+        { r: 0.12, g: 0.10, b: 0.10 }, 0.94
+      );
+    }
+    return;
+  }
+
+  // 300×250 is the smallest composite artboard and is especially sensitive
+  // to a flat square KV: the baked campaign graphic and subject can sit under
+  // the copy even when every PSD coordinate is technically correct. Recreate
+  // the PSD's dark left-side image treatment from the current KV hue. The
+  // opaque part covers the full text column and feathers out before the bank
+  // lockup/subject, so readability is deterministic rather than crop-dependent.
+  if (activeTemplate === "adform_300x250") {
+    const sampled = shadedColor(brandEdgeColor(layout, "bottom"), 0.38);
+    const leftScrim = figma.createRectangle();
+    leftScrim.name = "PSD left readability treatment";
+    leftScrim.resize(format.width, format.height);
+    leftScrim.x = 0;
+    leftScrim.y = 0;
+    leftScrim.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0.00, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.96 } },
+        { position: 0.52, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: rules.compactCopy ? 0.92 : 0.88 } },
+        { position: 0.72, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.50 } },
+        { position: 1.00, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.00 } }
+      ]
+    }];
+    frame.appendChild(leftScrim);
     return;
   }
 
@@ -1599,6 +1895,39 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
   const targetY = zone[3] * desired.y;
   rect.x = clamp(targetX - focalX * renderedW, zone[2] - renderedW, 0);
   rect.y = clamp(targetY - focalY * renderedH, zone[3] - renderedH, 0);
+  holder.appendChild(rect);
+  return holder;
+}
+
+// Preserve the complete master when it is reused for another orientation.
+// The remaining area is intentionally transparent so the sampled frame colour
+// continues the visual, exactly as the Surd master-safe rule specifies.
+function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, alignment) {
+  const holder = figma.createFrame();
+  holder.name = name;
+  holder.resize(zone[2], zone[3]);
+  holder.x = zone[0];
+  holder.y = zone[1];
+  holder.clipsContent = true;
+  holder.fills = [];
+  parent.appendChild(holder);
+
+  if (!figmaImage || !imageSize || !imageSize.width || !imageSize.height) {
+    holder.fills = [{ type: "SOLID", color: { r: 0.84, g: 0.86, b: 0.9 } }];
+    return holder;
+  }
+
+  const scale = Math.min(zone[2] / imageSize.width, zone[3] / imageSize.height);
+  const renderedW = imageSize.width * scale;
+  const renderedH = imageSize.height * scale;
+  const rect = figma.createRectangle();
+  rect.name = "Key visual — protected full master";
+  rect.resize(renderedW, renderedH);
+  rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+  const ax = alignment && typeof alignment.x === "number" ? alignment.x : 0.5;
+  const ay = alignment && typeof alignment.y === "number" ? alignment.y : 0.5;
+  rect.x = Math.round((zone[2] - renderedW) * clamp(ax, 0, 1));
+  rect.y = Math.round((zone[3] - renderedH) * clamp(ay, 0, 1));
   holder.appendChild(rect);
   return holder;
 }
@@ -1727,7 +2056,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   const cb = contentBox || resolveContentBox(format);
   const _ratio = format.width / format.height;
   const family = layout.master_family ||
-    (_ratio > 1.45 ? "wide" : (_ratio < 0.75 ? "portrait" : "square"));
+    (_ratio >= 1.25 ? "wide" : (_ratio <= 0.8 ? "portrait" : "square"));
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y
@@ -1735,14 +2064,25 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
          : (format.width / format.height >= 1.8 ? 0.36 : 0.5))
   };
   const pad = TB.padding(format.width, format.height);
-  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+  frame.fills = [sampledBrandGradient(layout, 1)];
 
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.75);
-    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
+    const adaptedWide = !!layout.asset_fallback_kind;
+    if (adaptedWide) {
+      addProtectedImageFrame(
+        frame, figmaImage, imageSize, "Protected single master — wide image zone",
+        [0, 0, imageW, format.height], { x: 0, y: 0.5 }
+      );
+      layout.kv_strategy = "master-protected-single-master";
+    } else {
+      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
+    }
     const wideShift = Math.round(format.width * 0.30);
     const panelX = imageW - wideShift;
-    const brand = brandColor(layout);
+    // Keep the KV hue, but darken the copy panel enough for white Tatra Sans
+    // to remain readable. This replaces the unrelated hard-coded navy panel.
+    const brand = shadedColor(brandColor(layout), 0.64);
     const panelAlpha = scrimAlphaFor(layout);
     const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
     const textRight = cb.x + cb.w - pad;
@@ -1849,7 +2189,38 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         wLogo.width, wLogo.height);
     }
   } else {
-    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+    const adaptedPortrait = family === "portrait" && !!layout.asset_fallback_kind;
+    if (adaptedPortrait) {
+      const fittedMasterH = imageSize && imageSize.width
+        ? Math.round(format.width * imageSize.height / imageSize.width)
+        : Math.round(format.height * 0.62);
+      // Keep the square master at full target width. The older 62%-high
+      // contain box shrank 4:5 masters and created side bars; cover-cropping
+      // the same input made the face unacceptably large. A colour overlay
+      // begins inside the lower extension zone and becomes opaque exactly by
+      // the image boundary, leaving room for copy without a hard horizontal
+      // band.
+      const portraitImageH = Math.min(format.height, fittedMasterH);
+      addProtectedImageFrame(
+        frame, figmaImage, imageSize, "Protected single master — portrait image zone",
+        [0, 0, format.width, portraitImageH], { x: 0.5, y: 0 }
+      );
+      const panelY = Math.min(
+        Math.round(format.height * 0.58),
+        Math.round(portraitImageH * 0.78)
+      );
+      const adaptivePanel = figma.createRectangle();
+      adaptivePanel.name = "Adaptive portrait content panel";
+      adaptivePanel.resize(format.width, format.height - panelY);
+      adaptivePanel.x = 0;
+      adaptivePanel.y = panelY;
+      const boundaryStop = (portraitImageH - panelY) / Math.max(1, format.height - panelY);
+      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 0.46)];
+      frame.appendChild(adaptivePanel);
+      layout.kv_strategy = "master-protected-single-master";
+    } else {
+      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+    }
 
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
@@ -1931,6 +2302,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(scrim);
+    if (adaptedPortrait) scrim.visible = false;
 
     const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
     let headlineNode = placeReserveText(
@@ -1998,28 +2370,50 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
 function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo, templateId) {
   const activeTemplate = templateId || adformTemplateId(format) || format.id;
-  const rules = ADFORM_PSD_RULES[activeTemplate];
+  const rules = resolveAdformPsdRules(activeTemplate, content, layout);
   if (!rules) {
     buildFullBleedLayout(frame, format, layout, content.headline, figmaImage, figmaLogo);
     return;
   }
+  const adaptedPortrait = layout.asset_fallback_kind === "portrait";
+  const compactCopy = String(content.headline || "").trim().length <= 22 &&
+    !content.badgeText && !content.legalText;
 
-  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+  frame.fills = [sampledBrandGradient(layout, 1)];
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
   };
-  if (activeTemplate === "adform_970x250") {
+  const adapted = !!layout.asset_fallback_kind;
+  if (adapted && activeTemplate === "adform_970x250") {
+    addProtectedImageFrame(
+      frame, figmaImage, imageSize, "Protected square master — left zone",
+      [0, 0, 425, 250], { x: 1, y: 0.5 }
+    );
+    layout.kv_strategy = "adform-protected-single-master";
+  } else if (adaptedPortrait && activeTemplate === "adform_160x600") {
+    addProtectedImageFrame(
+      frame, figmaImage, imageSize, "Protected square master — top zone",
+      [0, 0, 160, 160], { x: 0.5, y: 0 }
+    );
+    layout.kv_strategy = "adform-protected-single-master";
+  } else if (adaptedPortrait && activeTemplate === "adform_300x600") {
+    addProtectedImageFrame(
+      frame, figmaImage, imageSize, "Protected square master — upper zone",
+      [0, 0, 300, 300], { x: 0.5, y: 0 }
+    );
+    layout.kv_strategy = "adform-protected-single-master";
+  } else if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 }, 1.02);
   } else if (activeTemplate === "adform_160x600") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 }, 1.02);
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.48 }, 1.02);
   } else if (activeTemplate === "adform_300x250") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 }, 1.02);
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 }, compactCopy ? 1.16 : 1.02);
   } else {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 }, 1.02);
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: compactCopy ? 0.72 : 0.68, y: 0.40 }, 1.02);
   }
 
-  addAdformBackgroundTreatment(frame, format, rules, activeTemplate);
+  addAdformBackgroundTreatment(frame, format, rules, activeTemplate, layout);
   addSloganLogo(frame, rules.slogan);
 
   // Nahraný lockup patrí do veľkého štvorcového brand prvku, nie do horného sloganu.

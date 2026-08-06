@@ -1,4 +1,4 @@
-# Visual system QA — v1.5.1
+# Visual system QA — v1.6.0
 
 Sources checked:
 
@@ -21,6 +21,15 @@ Sources checked:
 - Image-derived brand panel colour is retained.
 - Readability scrim is luminance-aware but limited to 46–64%; default 58%.
 - AI disclosure is white Regular text at 80% opacity, without a black backing pill.
+- A square master reused in a wide output is anchored to the left image zone;
+  its continuation uses five measured colour stops from the master's left edge.
+  This replaces the old centred image with two unrelated colour bars.
+- A square master reused in a portrait/4:5 output remains full-width at the top.
+  The lower content panel starts as a transparent overlay inside the bottom of
+  the image and is fully opaque by the image boundary, avoiding both a face-only
+  cover crop and a hard horizontal band.
+- Figma-export padding and selection outlines are removed before colour sampling
+  and layout adaptation.
 
 ## Brand geometry
 
@@ -40,8 +49,10 @@ for pixel. Exact reproduction requires a transparent subject asset or segmentati
 
 Every newly generated Figma frame is checked after all production layers are
 created. The result is saved as `tbQaStatus` and `tbQaIssues` plugin metadata.
-The generation summary reports the number of PASS/FAIL frames; failed frames
-are also listed on the `Validation report` page.
+The generation summary reports runtime PASS/FAIL frames; failed frames are also
+listed on the `Validation report` page. Runtime PASS is not campaign-specific
+visual approval: every new campaign is marked `REQUIRED_FOR_NEW_CAMPAIGN` and
+must still pass a native-size PNG comparison.
 
 The runtime audit checks:
 
@@ -51,6 +62,9 @@ The runtime audit checks:
 - typography scale tolerance;
 - effects/shadows and frame clipping;
 - exact Adform headline, CTA, and logo geometry against the PSD tables.
+- protected-master usage whenever the requested orientation asset is missing;
+- sampled multi-stop colour continuation on wide formats;
+- explicit campaign/version/QA metadata on every generated frame.
 
 ## Golden-image pixel comparison
 

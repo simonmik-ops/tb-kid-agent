@@ -27,5 +27,9 @@ assert(source.includes('qa_logo_scale'), "logo dimensions must be validated agai
 assert(source.includes('qa_cta_style'), "CTA size and brand blue must be validated");
 assert(source.includes('qa_text_spacing'), "headline/subheadline optical spacing must be validated");
 assert(source.includes('qa_wide_color_extension'), "wide color continuation must be validated against seams");
+assert(source.includes('qa_unsafe_single_master_crop'), "unsafe square-to-portrait/landscape cover crops must fail QA");
+assert(source.includes('tbGeneratedBy: "tb-kid-agent@" + TB_GENERATOR_VERSION'), "every frame must identify the exact generator version");
+assert(source.includes('tbVisualReview: "REQUIRED_FOR_NEW_CAMPAIGN"'), "runtime QA must not be presented as campaign-specific pixel approval");
+assert(source.includes('TB_QA_SCOPE = "runtime-geometry+material-rules; pixel-reference-required"'), "every format must declare that pixel review is a separate mandatory gate");
 
 console.log("frame visual QA: ok");

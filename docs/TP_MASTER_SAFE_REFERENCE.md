@@ -21,8 +21,15 @@ master is scaled into the image area; the central 2000 × 2000 core defines what
 must survive cropping, but is never enlarged to fill the complete output:
 
 - `square`: full-bleed central core, copy and CTA in the lower part;
-- `portrait`: protected central subject, copy and CTA below the focal area;
-- `wide`: master visual on the left, copy, CTA and bank lockup on the right.
+- `portrait`: the protected master stays full-width at the top; a sampled-colour
+  overlay blends through its lower extension zone and carries copy/CTA below;
+- `wide`: the protected master is anchored to the left image zone; copy, CTA and
+  bank lockup sit on a darkened continuation of that master on the right.
+
+When only one square master is supplied, the generator must never centre it in
+another aspect ratio and leave symmetric technical bars. It uses the requested
+format family above and records `tbKvStrategy` on the resulting frame. Exact
+portrait/landscape assets, when provided, remain preferred.
 
 For Google Responsive Ads, the verified Figma frames use:
 

@@ -83,9 +83,18 @@ specific panels. Exact subject cut-outs will require either:
 Anthropic image analysis can identify a focal point but does not return a
 pixel-level subject mask.
 
-All Adform image zones use a 2% protected overscan. This removes one-pixel
-technical/brand borders present on some exported master KVs without changing
-the PSD-owned coordinates of copy, CTA, slogan, disclosure or bank logo.
+Adform image zones use only the overscan required by the format. Standard zones
+keep a 2% protected overscan to remove one-pixel technical borders. The compact
+300×250 fallback may use up to 16% overscan together with a KV-colour-derived
+left readability treatment; this protects the PSD copy column when the input is
+a flat square master whose subject and campaign graphic cannot be repositioned
+independently. The copy, CTA, slogan, disclosure and bank-logo coordinates stay
+owned by the PSD template.
+
+For 970×250, the solid/right-hand campaign area follows the actual KV colour.
+Five measured stops from the left edge of the cleaned master continue its
+vertical photographic gradient into the landscape extension. The example PSD's
+blue-grey panel is not treated as a universal colour rule.
 
 ## Automation rule
 

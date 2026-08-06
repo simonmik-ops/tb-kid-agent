@@ -43,7 +43,7 @@
   </style>
 </head>
 <body>
-  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.5.2 · material-calibrated</span></h1>
+  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.6.0 · protected master + PSD</span></h1>
   <p class="sub">Nová zákazka → key visual → typy výstupov → editovateľné frames vo Figme</p>
 
   <label>Názov novej zákazky</label>
@@ -670,6 +670,119 @@
       const projectName = (document.getElementById("projectName").value || "").trim();
       const taggingField = (document.getElementById("tagging").value || "").trim();
 
+      // Exports copied from Figma can contain transparent canvas padding and
+      // even the purple selection outline. Detect the largest continuous
+      // opaque rectangle on a small probe and crop the original bitmap before
+      // it reaches the renderer. A normal opaque KV remains byte-for-byte
+      // unchanged; only a clearly padded input is rewritten as PNG.
+      async function normalizeKvFile(file) {
+        if (!file) return { file: null, cleanup: { cropped: false } };
+        try {
+          const bitmap = await createImageBitmap(file);
+          const scale = Math.min(1, 512 / Math.max(bitmap.width, bitmap.height));
+          const pw = Math.max(1, Math.round(bitmap.width * scale));
+          const ph = Math.max(1, Math.round(bitmap.height * scale));
+          const probe = document.createElement("canvas");
+          probe.width = pw; probe.height = ph;
+          const pctx = probe.getContext("2d");
+          pctx.clearRect(0, 0, pw, ph);
+          pctx.drawImage(bitmap, 0, 0, pw, ph);
+          const data = pctx.getImageData(0, 0, pw, ph).data;
+          const rows = new Array(ph).fill(false);
+          const cols = new Array(pw).fill(false);
+          for (let y = 0; y < ph; y++) {
+            let opaque = 0;
+            for (let x = 0; x < pw; x++) if (data[(y * pw + x) * 4 + 3] >= 245) opaque++;
+            rows[y] = opaque / pw >= 0.70;
+          }
+          for (let x = 0; x < pw; x++) {
+            let opaque = 0;
+            for (let y = 0; y < ph; y++) if (data[(y * pw + x) * 4 + 3] >= 245) opaque++;
+            cols[x] = opaque / ph >= 0.70;
+          }
+          function longestRun(flags) {
+            let bestStart = 0, bestEnd = -1, start = -1;
+            for (let i = 0; i <= flags.length; i++) {
+              if (i < flags.length && flags[i]) {
+                if (start < 0) start = i;
+              } else if (start >= 0) {
+                if (i - 1 - start > bestEnd - bestStart) { bestStart = start; bestEnd = i - 1; }
+                start = -1;
+              }
+            }
+            return { start: bestStart, end: bestEnd, length: Math.max(0, bestEnd - bestStart + 1) };
+          }
+          const xr = longestRun(cols), yr = longestRun(rows);
+          const clearlyPadded = xr.length >= pw * 0.65 && yr.length >= ph * 0.65 &&
+            (xr.start > pw * 0.004 || xr.end < pw - 1 - pw * 0.004 ||
+             yr.start > ph * 0.004 || yr.end < ph - 1 - ph * 0.004);
+          if (!clearlyPadded) {
+            return { file, cleanup: { cropped: false, original: bitmap.width + "x" + bitmap.height } };
+          }
+          const sx = Math.max(0, Math.floor(xr.start / pw * bitmap.width));
+          const sy = Math.max(0, Math.floor(yr.start / ph * bitmap.height));
+          const ex = Math.min(bitmap.width, Math.ceil((xr.end + 1) / pw * bitmap.width));
+          const ey = Math.min(bitmap.height, Math.ceil((yr.end + 1) / ph * bitmap.height));
+          const out = document.createElement("canvas");
+          out.width = Math.max(1, ex - sx); out.height = Math.max(1, ey - sy);
+          out.getContext("2d").drawImage(bitmap, sx, sy, out.width, out.height, 0, 0, out.width, out.height);
+          const blob = await new Promise(function (resolve, reject) {
+            out.toBlob(function (b) { b ? resolve(b) : reject(new Error("PNG normalization failed")); }, "image/png");
+          });
+          return {
+            file: blob,
+            cleanup: {
+              cropped: true,
+              original: bitmap.width + "x" + bitmap.height,
+              output: out.width + "x" + out.height,
+              reason: "transparent-or-selection-edge"
+            }
+          };
+        } catch (e) {
+          return { file, cleanup: { cropped: false, error: String(e && e.message || e) } };
+        }
+      }
+
+      async function kvEdgePalette(file) {
+        if (!file) return { top: null, bottom: null, vertical: [] };
+        try {
+          const bitmap = await createImageBitmap(file);
+          const canvas = document.createElement("canvas");
+          canvas.width = 64; canvas.height = 64;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(bitmap, 0, 0, 64, 64);
+          const data = ctx.getImageData(0, 0, 64, 64).data;
+          function bandColor(y0, y1, x0, x1) {
+            const rs = [], gs = [], bs = [];
+            const fromX = typeof x0 === "number" ? x0 : 0;
+            const toX = typeof x1 === "number" ? x1 : 64;
+            for (let y = y0; y < y1; y++) for (let x = fromX; x < toX; x++) {
+              const i = (y * 64 + x) * 4;
+              if (data[i + 3] < 240) continue;
+              rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2]);
+            }
+            if (!rs.length) return null;
+            function median(a) { a.sort(function (u, v) { return u - v; }); return a[Math.floor(a.length / 2)]; }
+            return { r: median(rs) / 255, g: median(gs) / 255, b: median(bs) / 255 };
+          }
+          // Wide single-master formats extend the LEFT edge of the square KV.
+          // Two colours are insufficient for a non-linear photographic
+          // gradient and produce a visible vertical seam. Capture five small
+          // left-edge bands so the continuation follows the actual visual.
+          const positions = [0, 0.25, 0.5, 0.75, 1];
+          const vertical = positions.map(function (position) {
+            const cy = Math.round(position * 63);
+            return {
+              position: position,
+              color: bandColor(Math.max(0, cy - 3), Math.min(64, cy + 4), 0, 8)
+            };
+          }).filter(function (stop) { return !!stop.color; });
+          return { top: bandColor(0, 12), bottom: bandColor(52, 64), vertical: vertical };
+        } catch (e) {
+          return { top: null, bottom: null, vertical: [] };
+        }
+      }
+
       async function kvBackgroundColor(file) {
         if (!file) return null;
         try {
@@ -767,12 +880,21 @@
       }
 
       setStatus("Načítavam obrázok...", 55);
-      const kvSquareBytes = await toBytes(selectedFile);
-      const kvPortraitBytes = await toBytes(selectedPortrait);
-      const kvLandscapeBytes = await toBytes(selectedLandscape);
+      const preparedSquare = await normalizeKvFile(selectedFile);
+      const preparedPortrait = await normalizeKvFile(selectedPortrait);
+      const preparedLandscape = await normalizeKvFile(selectedLandscape);
+      const kvSquareBytes = await toBytes(preparedSquare.file);
+      const kvPortraitBytes = await toBytes(preparedPortrait.file);
+      const kvLandscapeBytes = await toBytes(preparedLandscape.file);
       const logoBytes = await toBytes(selectedLogo);
-      const kvBg = await kvBackgroundColor(selectedFile);
-      const kvLumaBottom = await kvBottomLuma(selectedFile);
+      const kvBg = await kvBackgroundColor(preparedSquare.file);
+      const kvEdges = await kvEdgePalette(preparedSquare.file);
+      const kvLumaBottom = await kvBottomLuma(preparedSquare.file);
+      const kvInputCleanup = {
+        square: preparedSquare.cleanup,
+        portrait: preparedPortrait.cleanup,
+        landscape: preparedLandscape.cleanup
+      };
 
       setStatus("Vytváram " + totalFormats + " frames vo Figme...", 60);
       parent.postMessage({ pluginMessage: { type: "create-frames", payload: {
@@ -780,7 +902,9 @@
         ctaText, legalText, badgeText,
         kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
         imageBytes: kvSquareBytes,
-        logoBytes, kvBg, kvLumaBottom,
+        logoBytes, kvBg, kvBgTop: kvEdges.top, kvBgBottom: kvEdges.bottom,
+        kvBgVertical: kvEdges.vertical,
+        kvLumaBottom, kvInputCleanup,
         visualRecipe, showGuides, aiGenerated
       } } }, "*");
 
@@ -809,7 +933,7 @@
       if (msg.qaFailedCount > 0) {
         sub += ` ❌ ${msg.qaFailedCount} formátov neprešlo povinnou vizuálnou kontrolou (${msg.qaIssueCount} problémov). Detaily sú na page Validation report; tieto framy nepovažuj za produkčné.`;
       } else {
-        sub += ` ✅ ${msg.qaPassedCount || msg.formatCount} formátov prešlo kontrolou geometrie, typografie, loga a referenčných súradníc.`;
+        sub += ` ✅ ${msg.qaPassedCount || msg.formatCount} formátov prešlo runtime kontrolou geometrie, typografie, loga, crop stratégie a referenčných súradníc. Pri novej kampani je pred exportom stále povinné vizuálne/pixelové porovnanie s referenciou.`;
       }
       if (msg.riskFlaggedCount > 0) {
         sub += ` ⚠ Pri ${msg.riskFlaggedCount} formátoch si plugin nebol istý (napr. možný text/logo už v obrázku). Oranžové označenie sa zobrazí iba v režime safe zón.`;

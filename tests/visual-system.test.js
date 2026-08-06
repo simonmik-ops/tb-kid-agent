@@ -3,6 +3,7 @@ const fs = require("fs");
 const vm = require("vm");
 
 const source = fs.readFileSync(require.resolve("../plugin/code.js"), "utf8");
+const uiSource = fs.readFileSync(require.resolve("../plugin/ui.html"), "utf8");
 const tbSource = source.slice(0, source.indexOf("try {\n  figma.showUI"));
 const context = {
   clamp: (n, min, max) => Math.max(min, Math.min(max, n))
@@ -33,6 +34,22 @@ assert(source.includes('style === "Regular" ? -1.5 : -2.5'), "tracking must foll
 assert(source.includes('return clamp(0.46 + (1 - luma) * 0.18, 0.46, 0.64)'), "scrim must stay in the gentle 46–64% range");
 assert(source.includes('imageBoundaryStop'), "wide color extension must become opaque at the image boundary");
 assert(source.includes('headlineBottom - headlineNode.height'), "single-line headline must be optically anchored to subheadline");
-assert(source.includes('{ x: 0.68, y: 0.40 }, 1.02'), "Adform crops must remove one-pixel technical KV borders");
+assert(source.includes('compactCopy ? 1.16 : 1.02'), "small Adform crops must remove technical KV borders and protect compact copy");
+assert(source.includes('PSD left readability treatment'), "300x250 must recreate the PSD dark copy zone for flat master KVs");
+assert(source.includes('brandEdgeColor(layout, "bottom"), 0.38'), "the 300x250 copy zone must follow the current KV colour");
+assert(source.includes('function pickAdaptiveKV(format)'), "single-master inputs must use the adaptive orientation picker");
+assert(source.includes('function addProtectedImageFrame'), "single-master fallbacks must preserve the complete KV");
+assert(source.includes('Adaptive portrait content panel'), "portrait fallbacks must use a dedicated colour-extension panel");
+assert(source.includes('function sampledPortraitOverlayGradient'), "portrait fallbacks must blend the text panel through the image boundary");
+assert(source.includes('family === "wide" ? { x: 0, y: 0.5 }'), "clean wide assets must anchor the protected master to the left instead of centering two colour bars");
+assert(source.includes('Clean portrait colour extension'), "clean portrait assets must continue from the master's bottom edge without a light horizontal band");
+assert(source.includes('[0, 0, imageW, format.height], { x: 0, y: 0.5 }'), "wide creative masters must keep the focal visual on the left as in the Surd reference");
+assert(source.includes('ratio >= 1.25 ? "wide" : (ratio <= 0.8 ? "portrait" : "square")'), "4:5 and other orientation boundaries must match the KV picker exactly");
+assert(source.includes('panel.fills = [sampledBrandGradient(layout, 0.64)]'), "970x250 must derive its panel from the current KV instead of hard-coded navy");
+assert(source.includes('const runYOffset = page.children.length'), "a new generation must not overlap an older run");
+assert(uiSource.includes('async function normalizeKvFile(file)'), "uploaded KV edges must be normalized before rendering");
+assert(uiSource.includes('transparent-or-selection-edge'), "Figma selection/padding cleanup must be recorded in metadata");
+assert(uiSource.includes('kvBgVertical: kvEdges.vertical'), "five-stop KV edge colours must reach the renderer");
+assert(source.includes('Array.isArray(layout.bg_vertical_stops)'), "wide colour extension must support a multi-stop visual-edge gradient");
 
 console.log("visual system: ok");

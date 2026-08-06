@@ -70,16 +70,19 @@ const LOCAL_ADFORM_PSD_IDS = [
   "adform_970x250"
 ];
 
-function localKkVisaRule(format) {
-  if (!format || format.campaign !== "kkvisa") return null;
-  const id = format.id || "";
-  let profile = "publisher_branding";
-  if (id.indexOf("kkv_google_rsa_") === 0) profile = "clean_image";
-  else if (id.indexOf("kkv_google_logo_") === 0) profile = "logo_only";
-  else if (id.indexOf("kkv_meta_") === 0) profile = "meta_full";
-  else if (id.indexOf("kkv_demandgen_") === 0) profile = "full_creative";
-  else if (id.indexOf("kkv_pmax_") === 0) profile = "headline_only";
-  else if (id === "kkv_engerio_native") profile = "native_clean";
+// Rozhoduje, ktoré prvky (headline/subheadline/CTA/logo/AI tag) sa pre daný
+// formát vôbec majú kresliť. Pôvodne (localKkVisaRule) fungovalo len pre
+// campaign==="kkvisa" — pre hypo/bsu/tiger sa nikdy nič nenastavilo a
+// všetko sa kreslilo defaultne (P0-9).
+//
+// Zdroj pravdy, v tomto poradí:
+//   1. format.rules  — cieľový tvar z P1-9, zatiaľ vždy undefined.
+//   2. format.role   — kurátorské dáta vo formats.js (primárny zdroj, kým
+//      nie je P1-9 hotové).
+//   3. odvodenie z format.id / format.channel — len fallback pre formáty,
+//      ktoré role ešte nemajú.
+function resolveCreativeRule(format) {
+  if (!format) return null;
 
   const profiles = {
     clean_image: { layoutType: "clean_image", headline: false, subheadline: false, cta: false, logo: false, ai: false },
@@ -90,7 +93,47 @@ function localKkVisaRule(format) {
     native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
     publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true }
   };
-  return { id: profile, ...profiles[profile] };
+
+  let profile = null;
+
+  // 1. format.rules (P1-9 cieľový tvar).
+  if (format.rules) {
+    if (format.rules.logoOnly) profile = "logo_only";
+    else if (format.rules.noText) profile = "clean_image";
+    else if (format.rules.headlineOnly) profile = "headline_only";
+  }
+
+  // 2. format.role — priamo z formats.js.
+  if (!profile && format.role) {
+    const roleMap = {
+      clean_image: "clean_image",
+      logo_only: "logo_only",
+      headline_only: "headline_only",
+      meta_full: "meta_full",
+      full_creative: "full_creative",
+      native: "native_clean"
+      // branding_full / branding_side / interscroller / email: P0-9b
+    };
+    profile = roleMap[format.role] || null;
+  }
+
+  // 3. fallback — odvodenie z id/channel, funguje naprieč kampaňami
+  // (nielen kkv_ prefixom), pre formáty bez role.
+  if (!profile) {
+    const id = format.id || "";
+    const channel = format.channel || "";
+    if (id.indexOf("google_rsa") !== -1) profile = "clean_image";
+    else if (id.indexOf("google_logo") !== -1) profile = "logo_only";
+    else if (id.indexOf("pmax") !== -1 || channel === "Google PMax") profile = "headline_only";
+    else if (id.indexOf("meta_") !== -1 || channel === "Meta") profile = "meta_full";
+    else if (id.indexOf("demandgen") !== -1 || channel === "Google DemandGen") profile = "full_creative";
+    else if (id.indexOf("engerio") !== -1) profile = "native_clean";
+    else profile = "publisher_branding";
+  }
+
+  const def = profiles[profile];
+  if (!def) return { id: "publisher_branding", ...profiles.publisher_branding };
+  return { id: profile, ...def };
 }
 
 // ── ŠTÝLOVÉ TOKENY — odčítané zo Surďovej Figmy (InvestQ predloha) ──────
@@ -338,16 +381,16 @@ async function createAllFrames({
       // nie prepínateľná voľba — šablóna (adform_psd) má aj tak vždy prednosť
       // cez hasLocalAdformTemplate nižšie.
       const useMasterSafe = true;
-      const localRule = localKkVisaRule(format);
-      if (localRule) {
-        layout.show_headline = localRule.headline;
-        layout.show_subheadline = localRule.subheadline;
-        layout.show_cta = localRule.cta;
-        layout.show_logo = localRule.logo;
-        layout.show_ai_disclosure = localRule.ai;
-        layout.creative_profile = localRule.id;
+      const creativeRule = resolveCreativeRule(format);
+      if (creativeRule) {
+        layout.show_headline = creativeRule.headline;
+        layout.show_subheadline = creativeRule.subheadline;
+        layout.show_cta = creativeRule.cta;
+        layout.show_logo = creativeRule.logo;
+        layout.show_ai_disclosure = creativeRule.ai;
+        layout.creative_profile = creativeRule.id;
       }
-      const backendLayoutType = (localRule && localRule.layoutType) || layout.layout_type || "full_bleed";
+      const backendLayoutType = (creativeRule && creativeRule.layoutType) || layout.layout_type || "full_bleed";
       const masterExcludedLayouts = [
         "video_placeholder", "logo_only", "micro", "branding_skin", "side_safe",
         "interscroller_safe", "native_center", "email_layout", "pinterest_pin",
@@ -690,14 +733,20 @@ function shouldShowLogo(format, layout, figmaLogo) {
   return !!figmaLogo && !format.noLogo && layout.show_logo !== false;
 }
 
-// Subheadline dáme LEN tam, kde je naň priestor: veľké štvorcové/portrét formáty
-// (1:1, 4:5, 9:16, 2:3, veľké Google/interscroller). Na malých a širokých
-// bannerech (300×250, 728×90, 970×250, skyscrapery) headline stačí — subheadline
-// by sa tam netlačil. Engine navyše môže vynútiť show_subhead:false.
-function hasRoomForSubhead(format, layout) {
-  if (layout && layout.show_subhead === false) return false;
-  const minSide = Math.min(format.width, format.height);
-  return minSide >= 600 && format.height >= 600;
+// Jednotné rozhodnutie, či sa má kresliť subheadline — volá sa z
+// buildFullBleedLayout aj z oboch vetiev buildMasterSafeLayout, nech
+// logika nie je na dvoch miestach v dvoch tvaroch (P0-9).
+// availableHeight (voliteľné): koľko výšky reálne ostáva pre subheadline
+// po odpočítaní CTA, loga a AI tagu — keď sa nepošle, kontroluje sa len
+// minimálny rozmer formátu.
+function shouldShowSubheadline(format, layout, availableHeight) {
+  if (layout && layout.show_subheadline === false) return false;
+  if (Math.min(format.width, format.height) < 400) return false;
+  if (typeof availableHeight === "number" &&
+      availableHeight < TB.subheadline(format.width, format.height) * 1.6) {
+    return false;
+  }
+  return true;
 }
 
 function clamp(n, min, max) {
@@ -1350,7 +1399,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
     const wBtn = TB.button(format.width, format.height);
     const showCta = layout.show_cta !== false;
-    const showSub = layout.show_subheadline !== false && format.height >= 260;
     const wGap = Math.round(headlineSize * 0.30);
     const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
       ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
@@ -1358,6 +1406,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     let wCur = cb.y + cb.h - pad - aiRezerva;
     let btnY = 0, subY = 0;
     if (showCta) { btnY = wCur - wBtn.height; wCur = btnY - wGap; }
+    // Poistka na veľkosť (P0-9): subheadline sa nekreslí, ak po odpočítaní
+    // CTA a AI tagu ostane menej ako 1,6× jeho výšky, alebo je formát
+    // pod min(W,H) 400 px.
+    const showSub = shouldShowSubheadline(format, layout, wCur - (cb.y + pad));
     const subH = Math.round(TB.subheadline(format.width, format.height) * 1.6);
     if (showSub) { subY = wCur - subH; wCur = subY - Math.round(wGap * 0.6); }
     const hlDost = Math.max(20, wCur - pad);
@@ -1423,7 +1475,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       btnY = cursorY;
       cursorY -= gap;
     }
-    if (layout.show_subheadline !== false) {
+    // Poistka na veľkosť (P0-9): subheadline sa nekreslí, ak po odpočítaní
+    // CTA, loga a AI tagu ostane menej ako 1,6× jeho výšky, alebo je
+    // formát pod min(W,H) 400 px. Rovnaký boolean sa použije aj nižšie
+    // pri samotnom kreslení, nech sa rezerva miesta a kreslenie nerozídu.
+    const showSubheadline = shouldShowSubheadline(format, layout, cursorY - (cb.y + pad));
+    if (showSubheadline) {
       cursorY -= subheadlineBoxH;
       subheadlineY = cursorY;
       cursorY -= gap;
@@ -1464,7 +1521,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     if (headlineNode && family === "portrait") {
       headlineNode.textAlignVertical = "CENTER";
     }
-    if (layout.show_subheadline !== false) {
+    if (showSubheadline) {
       placeReserveText(
         "Subheadline", content.subheadline, cb.x + pad, subheadlineY, subheadlineBoxH,
         subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", textAlign
@@ -1675,7 +1732,7 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
 
   // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho.
   // Zobrazí sa LEN na formátoch, kde je naň priestor (per-formát rozhodnutie).
-  if (SUBHEAD && hasRoomForSubhead(format, layout)) {
+  if (SUBHEAD && shouldShowSubheadline(format, layout)) {
     const subSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct * 0.5));
     const sub = figma.createText();
     sub.fontName = FONT;

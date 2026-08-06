@@ -1542,13 +1542,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
   if (family === "wide") {
-    // Wide master používa plný obraz pod celým frame-om. Predošlý 75 % crop
-    // končil tvrdou hranou a spolu s panelom vytváral viditeľný zvislý tieň.
-    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
-    const panelX = Math.round(format.width * 0.40);
-    const brand = brandColor(layout);
-    const panelAlpha = scrimAlphaFor(layout);
-    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.57));
+    // Čistý split-layout podľa wide PSD referencie: obraz a samostatný tmavý
+    // brand panel. Žiadny polopriesvitný overlay cez postavu ani zvislý tieň.
+    const imageW = Math.round(format.width * 0.56);
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
+    const panelX = imageW;
+    const brand = { r: 0.105, g: 0.19, b: 0.30 };
+    const textX = Math.max(cb.x + pad, panelX + pad);
     const textRight = cb.x + cb.w - pad;
     const textW = Math.max(60, textRight - textX);
     const panel = figma.createRectangle();
@@ -1556,16 +1556,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     panel.resize(format.width - panelX, format.height);
     panel.x = panelX;
     panel.y = 0;
-    panel.fills = [{
-      type: "GRADIENT_LINEAR",
-      gradientTransform: [[1, 0, 0], [0, 1, 0]],
-      gradientStops: [
-        { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
-        { position: 0.35, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha * 0.30 } },
-        { position: 0.72, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha * 0.82 } },
-        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } }
-      ]
-    }];
+    panel.fills = [{ type: "SOLID", color: brand }];
     frame.appendChild(panel);
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);
@@ -1596,7 +1587,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
       ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
 
-    let wCur = cb.y + cb.h - pad - aiRezerva;
+    // Full creative s CTA končí nad AI disclosure; Meta bez CTA je opticky
+    // centrovaná v paneli a nespadne úplne k spodnému okraju.
+    let wCur = showCta
+      ? Math.min(cb.y + cb.h - pad - aiRezerva, cb.y + cb.h * 0.82)
+      : (cb.y + cb.h * 0.60);
     let btnY = 0, subY = 0;
     if (showCta) { btnY = wCur - wBtn.height; wCur = btnY - wGap; }
     // Poistka na veľkosť (P0-9): subheadline sa nekreslí, ak po odpočítaní
@@ -1668,6 +1663,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       cursorY -= Math.round(aiNoteFontSize(format) * 2.2);
     }
     if (logoOwnRow) cursorY -= (logo.height + logoClear);
+    // Meta nemá kreslené CTA. Text preto patrí nad logo, nie do rovnakého
+    // spodného riadku medzi logom a AI disclosure.
+    if (layout.show_cta === false && showsLogo && !logoOwnRow) {
+      cursorY = Math.min(cursorY, logoTop - Math.max(12, Math.round(headlineSize * 0.35)));
+    }
     let btnY = 0, subheadlineY = 0;
     if (layout.show_cta !== false) {
       cursorY -= btn.height;

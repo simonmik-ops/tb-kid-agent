@@ -1,4 +1,4 @@
-# Visual system QA — v1.5.3
+# Visual system QA — v1.5.4
 
 Sources checked:
 
@@ -29,7 +29,8 @@ Sources checked:
 - CTA height is capped at 64 px in master-safe output.
 - Exact Adform sizes use the format-specific PSD coordinate tables, not the universal scale.
 - Adform switches to a compact grid for headlines up to 22 characters when badge and legal copy are absent.
-- Wide master formats use a full-frame image with a gradual overlay; there is no hard vertical panel edge.
+- Wide master formats use a 56/44 split with a solid dark brand panel; there is no overlay or shadow across the subject.
+- Meta formats without a rendered CTA anchor the copy above the logo row.
 
 ## Known source constraint
 

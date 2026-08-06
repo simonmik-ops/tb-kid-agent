@@ -13,16 +13,17 @@ const TB = context.__TB;
 
 assert.deepStrictEqual(
   [TB.headline(1200, 628), TB.headline(1200, 1200), TB.headline(1080, 1920)],
-  [51, 67, 65],
+  [48, 60, 59],
   "wide, square and portrait headline sizes must keep the approved optical scale"
 );
 assert.deepStrictEqual(
   [TB.subheadline(1200, 628), TB.subheadline(1200, 1200), TB.subheadline(1080, 1920)],
-  [27, 35, 34],
-  "subheadline must remain approximately 52% of headline"
+  [23, 29, 28],
+  "subheadline must remain approximately 48% of headline"
 );
-assert.strictEqual(TB.logoBox(1080, 1920).height, 151, "story logo must not grow to the old 216 px size");
-assert.strictEqual(TB.button(1200, 1200).height, 64, "CTA height must stay subordinate to the headline");
+assert.strictEqual(TB.logoBox(1080, 1920).height, 135, "story logo must not grow to the old 216 px size");
+assert.strictEqual(TB.button(1200, 1200).height, 56, "CTA height must stay subordinate to the headline");
+assert(source.includes('[0, 0, format.width, format.height]'), "wide master image must continue under the full frame");
 
 assert(source.includes('t.opacity = 0.80'), "AI disclosure must match the PSD 80% opacity");
 assert(!source.includes('backing.name = "AI generované — podložka"'), "AI disclosure must not use the old black pill");

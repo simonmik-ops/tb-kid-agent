@@ -10,18 +10,18 @@ var TB = {
     // portraity (1080×1920 = 82 px) a pritom nedržala rovnakú hierarchiu vo
     // wide formátoch. Limity vychádzajú z InvestQ Figmy a Adform PSD.
     var r = W / H;
-    if (r > 1.45) return Math.round(clamp(H * 0.082, 18, 52));
-    if (r < 0.75) return Math.round(clamp(W * 0.060, 22, 68));
-    return Math.round(clamp(Math.min(W, H) * 0.056, 22, 68));
+    if (r > 1.45) return Math.round(clamp(H * 0.076, 18, 48));
+    if (r < 0.75) return Math.round(clamp(W * 0.055, 22, 60));
+    return Math.round(clamp(Math.min(W, H) * 0.050, 22, 60));
   },
-  subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.52)); },
+  subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.48)); },
   legal: function (W, H) { return Math.max(12, Math.min(24, Math.round(TB.headline(W, H) * 0.30))); },
-  padding: function (W, H) { return Math.max(12, Math.round(0.055 * Math.sqrt(W * H))); },
+  padding: function (W, H) { return Math.max(12, Math.round(0.060 * Math.sqrt(W * H))); },
   logoBox: function (W, H) {
     var r = W / H;
     var h = r > 1.45
-      ? Math.min(H * 0.21, W * 0.14)
-      : (r < 0.75 ? Math.min(W * 0.14, H * 0.10) : Math.min(W * 0.14, H * 0.14));
+      ? Math.min(H * 0.19, W * 0.125)
+      : (r < 0.75 ? Math.min(W * 0.125, H * 0.09) : Math.min(W * 0.12, H * 0.12));
     h = Math.max(50, Math.round(h));
     var w = Math.round(h * (255/243));
     var maxW = Math.round(W * 0.32);
@@ -36,7 +36,7 @@ var TB = {
   button: function (W, H) {
     // CTA nesmie dominovať nad headline/KV. Predošlých 10 % geometrického
     // priemeru vytváralo na 1200×1200 až 120 px vysoké tlačidlo.
-    var h = Math.max(36, Math.min(64, Math.round(0.055 * Math.sqrt(W * H))));
+    var h = Math.max(36, Math.min(56, Math.round(0.047 * Math.sqrt(W * H))));
     return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.36)),
              radius: Math.max(4, Math.round(h * 0.08)) };
   }
@@ -226,7 +226,7 @@ function brandColor(layout) {
 
 // Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
 function aiNoteFontSize(format) {
-  return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 12, 18));
+  return Math.round(clamp(Math.min(format.width, format.height) * 0.015, 12, 16));
 }
 
 // AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
@@ -1542,13 +1542,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
   if (family === "wide") {
-    const imageW = Math.round(format.width * 0.75);
-    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
-    const wideShift = Math.round(format.width * 0.30);
-    const panelX = imageW - wideShift;
+    // Wide master používa plný obraz pod celým frame-om. Predošlý 75 % crop
+    // končil tvrdou hranou a spolu s panelom vytváral viditeľný zvislý tieň.
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+    const panelX = Math.round(format.width * 0.40);
     const brand = brandColor(layout);
     const panelAlpha = scrimAlphaFor(layout);
-    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
+    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.57));
     const textRight = cb.x + cb.w - pad;
     const textW = Math.max(60, textRight - textX);
     const panel = figma.createRectangle();
@@ -1561,10 +1561,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
       gradientStops: [
         { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
-        // Plne krycí presne tam, kde začína text (textX), nie o kus ďalej —
-        // inak časť headline boxu leží nad ešte priesvitným panelom (P0-8).
-        { position: Math.min(0.98, (textX - panelX) / (format.width - panelX)),
-          color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } },
+        { position: 0.35, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha * 0.30 } },
+        { position: 0.72, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha * 0.82 } },
         { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } }
       ]
     }];

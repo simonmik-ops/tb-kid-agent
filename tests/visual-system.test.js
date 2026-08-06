@@ -25,6 +25,7 @@ assert.strictEqual(TB.logoBox(1080, 1920).height, 135, "story logo must not grow
 assert.strictEqual(TB.button(1200, 1200).height, 56, "CTA height must stay subordinate to the headline");
 assert(source.includes('const imageW = Math.round(format.width * 0.56)'), "wide master must reserve a dedicated content panel");
 assert(source.includes('panel.fills = [{ type: "SOLID", color: brand }]'), "wide panel must be solid without a shadow edge");
+assert(source.includes('rect.y = Math.min(rect.y, -edgeTrim)'), "master crop must hide technical top-edge pixels");
 assert(source.includes('cursorY = Math.min(cursorY, logoTop'), "Meta text must be anchored above the logo row");
 
 assert(source.includes('t.opacity = 0.80'), "AI disclosure must match the PSD 80% opacity");

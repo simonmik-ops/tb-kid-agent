@@ -1441,6 +1441,14 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
   rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
   rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
+  // Exportované KV môže mať 1–3 px technický okraj. Keď focal-point
+  // výpočet skončí presne na y=0, horný okraj ostane viditeľný aj napriek
+  // overscanu. Využi dostupný presah a vždy ho bezpečne schovaj za masku.
+  const verticalOverflow = Math.max(0, renderedH - zone[3]);
+  if (verticalOverflow > 0) {
+    const edgeTrim = Math.min(verticalOverflow, Math.max(2, Math.round(zone[3] * 0.012)));
+    rect.y = Math.min(rect.y, -edgeTrim);
+  }
   holder.appendChild(rect);
 
   if (showGuide) {

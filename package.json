@@ -1,6 +1,6 @@
 {
   "name": "tb-kid-agent",
-  "version": "1.5.5",
+  "version": "1.5.6",
   "scripts": {
     "start": "node server.js",
     "test": "node tests/campaign-rules.test.js && node tests/p0-9.test.js && node tests/universal-templates.test.js && node tests/format-normalization.test.js && node tests/excel-parser.test.js && node tests/publisher-geometry.test.js && node tests/visual-system.test.js"

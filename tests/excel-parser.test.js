@@ -8,7 +8,7 @@ assert.ok(start >= 0 && end > start, "Excel parser functions must exist in ui.ht
 const source = html.slice(start, end);
 
 const XLSX = { utils: { sheet_to_json: (sheet) => sheet.rows } };
-const api = new Function("XLSX", source + "; return { extractDims, deliverableDimensions, roleFromContext, materializeExcelFormat };")(XLSX);
+const api = new Function("XLSX", source + "; return { extractDims, deliverableDimensions, roleFromContext, materializeExcelFormat, inferredDimensions };")(XLSX);
 
 const workbook = {
   SheetNames: ["PPC", "TP"],
@@ -63,5 +63,34 @@ const adform = api.materializeExcelFormat({
   w: 300, h: 250, placement: "Adform", assetType: "IAB banner", roleHint: "full_creative", candidates: []
 }, 2);
 assert.strictEqual(adform.format.template, "adform_300x250");
+
+const directWorkbook = {
+  SheetNames: ["TP"],
+  Sheets: { TP: { rows: [
+    ["Supplier", "Placement", "Format", "Resolution (px)", "Data limits (html)", "Final output", "Technical specification"],
+    ["Slovenská produkčná", "joj.sk websites", "branding / interscroller", "Branding: 2000x1400\nInterscroller: mobile 300x600", "Branding: max 300kB\nInterscroller: 200 kB", "Branding: jpg\nInterscroller: jpg", "1000px v strede, 200px od vrchu"],
+    ["OUR MEDIA", "pravda.sk", "branding / interscroller", "1200x200+2x200x700\n300x600 - safe area 50px left + 50 px right", "Branding: 250kb\nInterscroller: 250kb", ".jpg/HTML5", "message,logo,text fit within 120px width and 600px height"],
+    ["Ringier", "aktuality.sk", "leaderboard / interscroller", "leaderboard: 1200x400px\ninterscroller: 720×1280", "leaderboard: max 150 kB\ninterscroller: max 250 kB", "jpg", ""],
+    ["MAFRA", "hnonline.sk", "mobile mega sticker", "300x250", "100kB", ".jpg", ""],
+    ["Ringier", "azet network", "direct mail", "max šírka: 640 px\nmin výška: 500 px", "max 100 kB", "html / jpg", ""],
+    ["Engerio", "Engerio network", "native image ad boost", "Headlines + pictures 4:3", "picture: max 200 kB", ".jpg", "Picture: format 3:2. Resolution: min. 375x250px"]
+  ] } }
+};
+const direct = api.extractDims(directWorkbook);
+const directKeys = direct.map(x => `${x.placement}|${x.w}x${x.h}|${x.roleHint}|${x.count || 1}`);
+for (const expected of [
+  "joj.sk websites|2000x1400|branding_full|1",
+  "joj.sk websites|300x600|interscroller|1",
+  "pravda.sk|1200x200|branding_full|1",
+  "pravda.sk|200x700|branding_side|2",
+  "pravda.sk|300x600|interscroller|1",
+  "aktuality.sk|1200x400|publisher_branding|1",
+  "aktuality.sk|720x1280|interscroller|1",
+  "hnonline.sk|300x250|publisher_branding|1",
+  "azet network|640x500|email|1",
+  "Engerio network|600x400|native|1"
+]) assert.ok(directKeys.includes(expected), "missing direct placement " + expected + " in " + directKeys.join(", "));
+assert.strictEqual(direct.find(x => x.placement === "joj.sk websites" && x.w === 300).limit, "Interscroller: 200 kB");
+assert.strictEqual(direct.find(x => x.placement === "aktuality.sk" && x.w === 1200).limit, "leaderboard: max 150 kB");
 
 console.log("Excel semantic parser: ok");

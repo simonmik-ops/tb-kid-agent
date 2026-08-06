@@ -5,7 +5,15 @@ const code = fs.readFileSync(require.resolve("../plugin/code.js"), "utf8");
 const start = code.indexOf("function clamp");
 const end = code.indexOf("function buildNativeCenterLayout", start);
 assert.ok(start >= 0 && end > start, "publisher geometry helpers must exist");
-const helpers = new Function(code.slice(start, end) + "; return { getInterscrollerComposition };")();
+const helpers = new Function(code.slice(start, end) + "; return { getInterscrollerComposition, expandPairedBrandingFormats };")();
+
+const paired = helpers.expandPairedBrandingFormats([{ format: {
+  id: "pravda_200x700", baseId: "pravda_200x700", role: "branding_side",
+  width: 200, height: 700, count: 2
+}, layout: null }]);
+assert.strictEqual(paired.length, 2);
+assert.deepStrictEqual(paired.map(x => x.format.variantSide), ["left", "right"]);
+assert.notStrictEqual(paired[0].format.variantSide, paired[1].format.variantSide);
 
 const wide = helpers.getInterscrollerComposition({ width: 2000, height: 1400, safeZones: { top: 0, bottom: 0 } });
 assert(wide.panelW <= 880, "wide panel must not cover the full 2000 px creative");

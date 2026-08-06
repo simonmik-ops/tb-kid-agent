@@ -333,6 +333,11 @@ async function createAllFrames({
   const guides = showGuides !== false;
   const aiNote = aiGenerated === true; // AI disclosure len keď je vizuál AI-generovaný
   AI_ON = aiNote;
+
+  // Brandingové zápisy typu 2×200×700 predstavujú ľavý a pravý diel.
+  // Excel posiela jeden formát s count=2; tu ho rozbalíme na oba framy.
+  formats = expandPairedBrandingFormats(formats);
+
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
@@ -789,6 +794,23 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+function expandPairedBrandingFormats(formats) {
+  return formats.flatMap(function (item) {
+    const f = item.format || {};
+    if (f.role !== "branding_side" || Number(f.count || 1) !== 2 || f.variantSide) return [item];
+    return ["left", "right"].map(function (side, index) {
+      return {
+        format: Object.assign({}, f, {
+          variantSide: side,
+          variantLabel: "v" + (index + 1) + "/2",
+          baseId: String(f.baseId || f.id) + "_branding_side"
+        }),
+        layout: item.layout
+      };
+    });
+  });
+}
+
 // Krytie scrimu/panelu odvodené z priemernej luminancie dolných 40 % KV
 // (layout.kv_luma_bottom, poslané z ui.html cez <canvas>+getImageData).
 // Svetlý KV → menej krytia (35–45 %), tmavý → viac (70–90 %). Bez dát
@@ -937,7 +959,7 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
     addMasterCta(frame, ctaText, format.width - sideW + pad, btnY, btnW, btnH);
   }
 
-  const isJoj = format.id === "joj_branding";
+  const isJoj = format.id === "joj_branding" || /joj\.sk/i.test(String(format.channel || ""));
   addSolidRect(
     frame,
     isJoj ? "JOJ white website content area" : "Website content area guide",
@@ -952,7 +974,19 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
 
 function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
-  addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
+  const sideTargetX = format.variantSide === "left" ? 0.72 : (format.variantSide === "right" ? 0.28 : 0.5);
+  if (figmaImage && CUR_IMG_W && CUR_IMG_H) {
+    addFocalImageFrame(
+      frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
+      "Background image — " + (format.variantSide || "center") + " crop",
+      [0, 0, format.width, format.height],
+      { x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
+        y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5 },
+      { x: sideTargetX, y: 0.5 }
+    );
+  } else {
+    addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
+  }
   addSolidRect(frame, "Brand overlay", 0, 0, format.width, format.height, BRAND_COLOR, 0.62);
 
   // Bug (P0-9): čítalo layout.safe_content, čo sa nikde nenastavuje —

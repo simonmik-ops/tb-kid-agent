@@ -398,6 +398,13 @@ async function createAllFrames({
     }
 
     let xOffset = 0;
+    // Každé nové generovanie dostane vlastný riadok pod existujúcimi
+    // framami. Starý kód začínal vždy na (0,0), takže nový run prekryl starý.
+    const runYOffset = page.children.length
+      ? Math.max.apply(null, page.children.map(function (n) {
+          return (typeof n.y === "number" && typeof n.height === "number") ? n.y + n.height : 0;
+        })) + 160
+      : 0;
 
     for (const item of items) {
       const format = item.format;
@@ -499,7 +506,8 @@ async function createAllFrames({
           tbChannel: String(format.channel || channel || ""),
           tbWidth: String(format.width || ""),
           tbHeight: String(format.height || ""),
-          tbStatus: productionStatus
+          tbStatus: productionStatus,
+          tbGeneratedBy: "tb-kid-agent@1.6"
         };
         for (var mk in meta) {
           frame.setPluginData(mk, meta[mk]);
@@ -508,7 +516,7 @@ async function createAllFrames({
       } catch (e) {}
       frame.resize(format.width, format.height);
       frame.x = xOffset;
-      frame.y = 0;
+      frame.y = runYOffset;
       frame.clipsContent = true;
 
       if (missingAssetKind) {

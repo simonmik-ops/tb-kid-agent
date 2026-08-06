@@ -32,6 +32,8 @@ assert(!source.includes('return imgPortrait || imgSquare || imgLandscape'), "por
 assert(source.includes('buildMissingAssetLayout(frame, format, missingAssetKind)'), "missing inputs must create an explicit non-production state");
 assert(source.includes('isVideoPlaceholder ? "PLACEHOLDER" : "PRODUCTION"'), "video frames must never be labelled production");
 assert(source.includes('Math.min(format.height, format.width) * 0.32'), "square logo-only assets must use an optical, visible scale");
+assert(source.includes('const runYOffset = page.children.length'), "new generations must be placed below existing frames instead of overlapping them");
+assert(source.includes('frame.y = runYOffset'), "every frame in a generation must use the safe run row");
 
 assert(source.includes('t.opacity = 0.80'), "AI disclosure must match the PSD 80% opacity");
 assert(!source.includes('backing.name = "AI generované — podložka"'), "AI disclosure must not use the old black pill");

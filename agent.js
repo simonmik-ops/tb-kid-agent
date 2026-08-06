@@ -502,7 +502,9 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       logo_position: "bottom-right",
       show_logo: base.show_logo,
       show_cta: base.show_cta,
-      risk_flags: ["master_core_50pct_check"]
+      // Master-safe je štandardný produkčný layout, nie chyba. Zachovávame
+      // iba skutočné neistoty z analýzy vstupu (napr. detegovaný baked-in text).
+      risk_flags: riskFlags
     };
   }
 
@@ -592,8 +594,6 @@ function buildValidationWarnings(format, layout, visualAnalysis, headline) {
   if (layout.image_fit === "contain" && !format.id.startsWith("google_logo_")) warnings.push("image_uses_fit_check_background_edges");
   if (ratio > 4.5 || format.height <= 100) warnings.push("small_or_wide_format_check_readability");
   if (hasMeaningfulSafeZone) warnings.push("safe_zone_overlay_present_check_final_export");
-  if (layout.master_safe_zone) warnings.push("master_core_50pct_check");
-
   return [...new Set(warnings)];
 }
 

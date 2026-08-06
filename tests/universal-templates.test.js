@@ -50,6 +50,7 @@ for (const item of inspect("full_creative")) {
   assert.strictEqual(item.layout.show_logo, true);
   assert.strictEqual(item.layout.show_legal, true);
   assert.strictEqual(item.layout.show_badge, true);
+  assert.deepStrictEqual(item.layout.risk_flags, [], "Master-safe production formats must not be flagged as broken");
 }
 
 for (const item of inspect("headline_only")) {

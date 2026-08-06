@@ -548,9 +548,13 @@ async function createAllFrames({
         addAiNote(frame, format);
       }
 
-      if (addRiskFlagBadge(frame, format, layout.risk_flags)) riskFlaggedCount++;
+      const hasRiskFlags = !!(layout.risk_flags && layout.risk_flags.length);
+      if (hasRiskFlags) riskFlaggedCount++;
 
       if (guides) {
+        // Kontrolné rámy a štítky patria iba do výslovne zapnutého QA režimu.
+        // Produkčné bannery musia zostať čisté a exportovateľné.
+        addRiskFlagBadge(frame, format, layout.risk_flags);
         addRecipeTag(frame, layout.visual_recipe || visualRecipe);
         addValidationBadge(frame, layout);
         addSafeZones(frame, format);

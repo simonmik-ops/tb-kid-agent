@@ -1,4 +1,4 @@
-# Visual system QA — v1.5.0
+# Visual system QA — v1.5.1
 
 Sources checked:
 
@@ -33,3 +33,35 @@ Sources checked:
 The PSD contains separate masked subject smart objects. A single flat KV can match crop,
 typography and composition, but cannot reproduce those non-rectangular subject masks pixel
 for pixel. Exact reproduction requires a transparent subject asset or segmentation.
+
+## Mandatory post-render QA
+
+Every newly generated Figma frame is checked after all production layers are
+created. The result is saved as `tbQaStatus` and `tbQaIssues` plugin metadata.
+The generation summary reports the number of PASS/FAIL frames; failed frames
+are also listed on the `Validation report` page.
+
+The runtime audit checks:
+
+- required headline, subheadline, CTA, and logo presence;
+- Tatra banka Sans availability (Inter fallback is a QA failure);
+- content overflow and collisions;
+- typography scale tolerance;
+- effects/shadows and frame clipping;
+- exact Adform headline, CTA, and logo geometry against the PSD tables.
+
+## Golden-image pixel comparison
+
+Canonical QA renders are compared with approved PNG baselines using
+`pixelmatch`. A changed frame fails when its dimensions differ or more than
+1.5% of pixels exceed the configured per-pixel threshold.
+
+1. Export the canonical test frames from Figma as PNG at 1× into
+   `tests/visual-actual/`.
+2. Run `npm run visual:compare`.
+3. Inspect failed overlays in `artifacts/visual-diff/`.
+
+The repository contains four native Adform baselines extracted directly from
+`Adform_dievca.psd`. Surď master baselines must be added only from approved
+reference frames; the comparator intentionally fails when a listed baseline or
+actual render is missing.

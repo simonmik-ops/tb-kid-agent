@@ -1,0 +1,11 @@
+{
+  "source": "Adform_dievca.psd",
+  "sourceSha256": "baa6e5648fdd572a6f622e76c8780790c283f7105f3c103f3154203973879c98",
+  "notes": "Schválené PSD artboardy. Golden comparison sa spúšťa na kanonickom QA vstupe, nie na ľubovoľnom novom KV.",
+  "entries": [
+    { "id": "adform_300x600", "baseline": "adform_300x600.png", "maxDiffRatio": 0.015, "pixelThreshold": 0.10 },
+    { "id": "adform_160x600", "baseline": "adform_160x600.png", "maxDiffRatio": 0.015, "pixelThreshold": 0.10 },
+    { "id": "adform_300x250", "baseline": "adform_300x250.png", "maxDiffRatio": 0.015, "pixelThreshold": 0.10 },
+    { "id": "adform_970x250", "baseline": "adform_970x250.png", "maxDiffRatio": 0.015, "pixelThreshold": 0.10 }
+  ]
+}

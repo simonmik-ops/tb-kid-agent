@@ -43,7 +43,7 @@
   </style>
 </head>
 <body>
-  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.5.0 · visual system QA</span></h1>
+  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.5.1 · visual regression QA</span></h1>
   <p class="sub">Nová zákazka → key visual → typy výstupov → editovateľné frames vo Figme</p>
 
   <label>Názov novej zákazky</label>
@@ -806,6 +806,11 @@
       document.getElementById("result").style.display = "block";
       document.getElementById("resultTitle").textContent = `${msg.formatCount} formátov vytvorených v ${msg.pageCount} pages`;
       let sub = "Frames sú organizované podľa kanálu (Social, Meta, Google...). Skontroluj pages v ľavom paneli.";
+      if (msg.qaFailedCount > 0) {
+        sub += ` ❌ ${msg.qaFailedCount} formátov neprešlo povinnou vizuálnou kontrolou (${msg.qaIssueCount} problémov). Detaily sú na page Validation report; tieto framy nepovažuj za produkčné.`;
+      } else {
+        sub += ` ✅ ${msg.qaPassedCount || msg.formatCount} formátov prešlo kontrolou geometrie, typografie, loga a referenčných súradníc.`;
+      }
       if (msg.riskFlaggedCount > 0) {
         sub += ` ⚠ Pri ${msg.riskFlaggedCount} formátoch si plugin nebol istý (napr. možný text/logo už v obrázku). Oranžové označenie sa zobrazí iba v režime safe zón.`;
       }

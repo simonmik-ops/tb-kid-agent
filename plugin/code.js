@@ -370,6 +370,10 @@ async function createAllFrames({
   const allFrames = [];
   const channels = Object.keys(byChannel);
   let riskFlaggedCount = 0;
+  let qaPassedCount = 0;
+  let qaFailedCount = 0;
+  let qaIssueCount = 0;
+  const qaRows = [];
 
   for (const channel of channels) {
     const items = byChannel[channel];
@@ -543,6 +547,34 @@ async function createAllFrames({
         addAiNote(frame, format);
       }
 
+      // Povinná post-render kontrola skutočných Figma uzlov. Na rozdiel od
+      // statických unit testov kontroluje každý práve vytvorený frame: font,
+      // rozmery, overflow, kolízie a pri Adform šablónach aj PSD súradnice.
+      const frameQa = validateGeneratedFrame(frame, format, layout, layoutType, {
+        headline: headline,
+        subheadline: subheadline,
+        ctaText: ctaText,
+        aiGenerated: aiNote,
+        hasLogo: !!figmaLogo
+      }, localAdformTemplate);
+      if (frameQa.issues.length) {
+        qaFailedCount++;
+        qaIssueCount += frameQa.issues.length;
+        qaRows.push({
+          name: format.name || (format.width + "×" + format.height),
+          channel: format.channel || channel,
+          warnings: frameQa.issues
+        });
+      } else {
+        qaPassedCount++;
+      }
+      try {
+        frame.setPluginData("tbQaStatus", frameQa.issues.length ? "FAIL" : "PASS");
+        frame.setPluginData("tbQaIssues", JSON.stringify(frameQa.issues));
+        frame.setSharedPluginData(TB_NS, "tbQaStatus", frameQa.issues.length ? "FAIL" : "PASS");
+        frame.setSharedPluginData(TB_NS, "tbQaIssues", JSON.stringify(frameQa.issues));
+      } catch (e) {}
+
       const hasRiskFlags = !!(layout.risk_flags && layout.risk_flags.length);
       if (hasRiskFlags) riskFlaggedCount++;
 
@@ -565,10 +597,13 @@ async function createAllFrames({
 
   const firstPage = Array.from(figma.root.children).find(p => p.name === channels[0]);
   if (firstPage) figma.currentPage = firstPage;
-  if (guides) createValidationReport(formats, headline, adType);
+  if (guides || qaFailedCount > 0) createValidationReport(formats, headline, adType, qaRows);
   if (allFrames.length > 0) figma.viewport.scrollAndZoomIntoView(allFrames.slice(0, 3));
 
-  figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length, riskFlaggedCount });
+  figma.ui.postMessage({
+    type: "done", formatCount: formats.length, pageCount: channels.length,
+    riskFlaggedCount, qaPassedCount, qaFailedCount, qaIssueCount
+  });
 }
 
 // Human-čitateľné popisky pre risk_flags z agent.js — musia sedieť s kódmi tam generovanými.
@@ -612,7 +647,7 @@ function addRiskFlagBadge(frame, format, flags) {
   return true;
 }
 
-function createValidationReport(formats, headline, adType) {
+function createValidationReport(formats, headline, adType, renderedQaRows) {
   const rows = [];
   for (const item of formats) {
     const warnings = (item.layout && item.layout.validation_warnings) || [];
@@ -624,6 +659,8 @@ function createValidationReport(formats, headline, adType) {
       warnings
     });
   }
+  const qaRows = renderedQaRows || [];
+  for (const qaRow of qaRows) rows.push(qaRow);
 
   let page = Array.from(figma.root.children).find(p => p.name === "Validation report");
   if (!page) {
@@ -643,7 +680,7 @@ function createValidationReport(formats, headline, adType) {
   addText(frame, headline || "Bez headline", 48, 92, 900, 36, 18, { r: 0.25, g: 0.28, b: 0.33 });
 
   if (!rows.length) {
-    addText(frame, "Bez automatických upozornení. Stále skontroluj crop, čitateľnosť a logo pred exportom.", 48, 170, 900, 80, 20, { r: 0.15, g: 0.44, b: 0.24 });
+    addText(frame, "PASS — geometria, typografia, logo, CTA a referenčné súradnice prešli automatickou kontrolou.", 48, 170, 900, 80, 20, { r: 0.15, g: 0.44, b: 0.24 });
     return;
   }
 
@@ -667,9 +704,134 @@ function humanizeWarnings(warnings) {
     image_uses_fit_check_background_edges: "Obrázok je vo FIT režime, skontroluj okraje/pozadie.",
     small_or_wide_format_check_readability: "Malý alebo veľmi široký formát, skontroluj čitateľnosť.",
     safe_zone_overlay_present_check_final_export: "Je pridaná safe-zone vrstva, pred exportom skontroluj pravidlá.",
-    master_core_50pct_check: "Master: dôležitá grafika musí zostať v stredovej polovici (2000×2000 z 4000×4000)."
+    master_core_50pct_check: "Master: dôležitá grafika musí zostať v stredovej polovici (2000×2000 z 4000×4000).",
+    qa_font_fallback_inter: "Použil sa Inter namiesto Tatra banka Sans.",
+    qa_missing_headline: "Chýba headline, hoci ho pravidlo vyžaduje.",
+    qa_missing_subheadline: "Chýba subheadline, hoci ho pravidlo vyžaduje.",
+    qa_missing_cta: "Chýba CTA, hoci ho pravidlo vyžaduje.",
+    qa_missing_logo: "Chýba logo, hoci ho pravidlo vyžaduje.",
+    qa_content_overflow: "Obsah presahuje mimo frame.",
+    qa_content_overlap: "Headline, subheadline, CTA alebo logo sa prekrývajú.",
+    qa_typography_scale: "Veľkosť typografie je mimo schválenej tolerancie.",
+    qa_psd_geometry: "Adform prvok nesedí na PSD súradnice.",
+    qa_unexpected_effect: "Frame obsahuje neželaný tieň alebo efekt.",
+    qa_unclipped_frame: "Frame nemá zapnuté orezanie obsahu."
   };
   return warnings.map(w => labels[w] || w).join(" ");
+}
+
+// -------------------------------------------------------------------------
+// Post-render visual QA
+// -------------------------------------------------------------------------
+
+function qaFind(frame, name) {
+  try { return frame.findOne(function (n) { return n.name === name; }); }
+  catch (e) { return null; }
+}
+
+function qaFindText(frame, value) {
+  if (!value) return null;
+  try {
+    return frame.findOne(function (n) {
+      return n.type === "TEXT" && String(n.characters || "").trim() === String(value).trim();
+    });
+  } catch (e) { return null; }
+}
+
+function qaBox(node, frame) {
+  if (!node || !node.absoluteBoundingBox || !frame.absoluteBoundingBox) return null;
+  return {
+    x: node.absoluteBoundingBox.x - frame.absoluteBoundingBox.x,
+    y: node.absoluteBoundingBox.y - frame.absoluteBoundingBox.y,
+    w: node.absoluteBoundingBox.width,
+    h: node.absoluteBoundingBox.height
+  };
+}
+
+function qaOutside(box, frame, tolerance) {
+  if (!box) return false;
+  const t = tolerance || 0;
+  return box.x < -t || box.y < -t ||
+    box.x + box.w > frame.width + t || box.y + box.h > frame.height + t;
+}
+
+function qaOverlap(a, b, tolerance) {
+  if (!a || !b) return false;
+  const t = tolerance || 0;
+  return a.x < b.x + b.w - t && a.x + a.w > b.x + t &&
+    a.y < b.y + b.h - t && a.y + a.h > b.y + t;
+}
+
+function qaNear(actual, expected, tolerance) {
+  return Math.abs(actual - expected) <= tolerance;
+}
+
+function validateGeneratedFrame(frame, format, layout, layoutType, content, templateId) {
+  const issues = [];
+  function add(code) { if (issues.indexOf(code) === -1) issues.push(code); }
+  const headline = qaFind(frame, "Headline") || qaFindText(frame, content.headline);
+  const subheadline = qaFind(frame, "Subheadline") || qaFindText(frame, content.subheadline);
+  const cta = qaFind(frame, "CTA button");
+  const logo = qaFind(frame, "Logo");
+  const noCopyLayouts = ["clean_image", "native_center", "logo_only", "video_placeholder"];
+  const supportsCopy = noCopyLayouts.indexOf(layoutType) === -1;
+  const supportsSubheadline = ["master_safe", "adform_psd", "full_bleed"].indexOf(layoutType) !== -1;
+  const supportsCta = ["master_safe", "adform_psd", "branding_skin", "side_safe",
+    "interscroller_safe", "email_layout"].indexOf(layoutType) !== -1;
+
+  if (!frame.clipsContent) add("qa_unclipped_frame");
+  if (FONT.family !== STYLE.fontFamily && (headline || subheadline || cta)) add("qa_font_fallback_inter");
+
+  if (supportsCopy && layout.show_headline !== false && content.headline && !headline) add("qa_missing_headline");
+  if (supportsSubheadline && layout.show_subheadline !== false && content.subheadline && !subheadline) add("qa_missing_subheadline");
+  if (supportsCta && layout.show_cta !== false && content.ctaText && !cta) add("qa_missing_cta");
+  if (layoutType !== "clean_image" && layoutType !== "native_center" &&
+      layout.show_logo !== false && content.hasLogo && !format.noLogo && !logo) add("qa_missing_logo");
+
+  const contentNodes = [headline, subheadline, cta, logo].filter(Boolean);
+  for (const node of contentNodes) {
+    if (qaOutside(qaBox(node, frame), frame, 2)) add("qa_content_overflow");
+  }
+  const collisionPairs = [[headline, subheadline], [headline, cta], [headline, logo],
+    [subheadline, cta], [subheadline, logo], [cta, logo]];
+  for (const pair of collisionPairs) {
+    if (qaOverlap(qaBox(pair[0], frame), qaBox(pair[1], frame), 2)) add("qa_content_overlap");
+  }
+
+  if (headline && headline.type === "TEXT") {
+    const expected = layoutType === "adform_psd" && ADFORM_PSD_RULES[templateId]
+      ? ADFORM_PSD_RULES[templateId].headlineSize
+      : TB.headline(format.width, format.height);
+    const size = typeof headline.fontSize === "number" ? headline.fontSize : expected;
+    if (size < expected * 0.82 || size > expected * 1.08) add("qa_typography_scale");
+  }
+
+  if (layoutType === "adform_psd" && ADFORM_PSD_RULES[templateId]) {
+    const rules = ADFORM_PSD_RULES[templateId];
+    const checks = [
+      [headline, rules.headline, false],
+      [cta, rules.cta, true],
+      [logo, rules.bankLogo, true]
+    ];
+    for (const check of checks) {
+      if (!check[0] || !check[1]) continue;
+      const box = qaBox(check[0], frame);
+      const ref = check[1];
+      if (!box || !qaNear(box.x, ref[0], 2) || !qaNear(box.y, ref[1], 2) ||
+          !qaNear(box.w, ref[2], 2) || (check[2] && !qaNear(box.h, ref[3], 2))) {
+        add("qa_psd_geometry");
+      }
+    }
+  }
+
+  try {
+    const effected = frame.findAll(function (n) {
+      return n.visible !== false && n.effects && n.effects.length > 0;
+    });
+    if (effected.length) add("qa_unexpected_effect");
+  } catch (e) {}
+
+  return { status: issues.length ? "FAIL" : "PASS", issues: issues };
 }
 
 function addValidationBadge(frame, layout) {

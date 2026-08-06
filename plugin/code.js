@@ -897,6 +897,20 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   const centerW = (format.safeZones && format.safeZones.centerWidth) || 1000;
   const sideW = Math.round((format.width - centerW) / 2);
   const pad = 44;
+
+  // Rozmer typu 1200×200 + 2×200×700 je brandingová ZOSTAVA. Samostatný
+  // 1200×200 frame je iba horný pás; nesmie dostať vertikálny side-skin
+  // layout, ktorý by umiestnil headline a CTA stovky pixelov pod frame.
+  if (format.height <= topOffset || sideW <= pad * 2) {
+    if (shouldShowLogo(format, layout, figmaLogo)) {
+      const stripLogoW = Math.round(clamp(format.width * 0.10, 72, 140));
+      const stripLogoH = Math.round(clamp(format.height * 0.32, 36, 64));
+      const stripY = Math.round((format.height - stripLogoH) / 2);
+      placeLogo(frame, figmaLogo, pad, stripY, stripLogoW, stripLogoH);
+      placeLogo(frame, figmaLogo, format.width - pad - stripLogoW, stripY, stripLogoW, stripLogoH);
+    }
+    return;
+  }
   const logoH = 58;
   const logoW = Math.min(Math.round(logoH * 3.5), sideW - pad * 2);
 
@@ -989,20 +1003,34 @@ function getInterscrollerSafeBox(format) {
   };
 }
 
+function getInterscrollerComposition(format) {
+  const safe = getInterscrollerSafeBox(format);
+  const pad = Math.round(clamp(Math.min(safe.w, safe.h) * 0.055, 16, 54));
+  const wide = safe.w / safe.h >= 1.35;
+  const panelW = wide
+    ? Math.round(clamp(safe.w * 0.44, 300, safe.w - pad * 2))
+    : Math.max(80, safe.w - pad * 2);
+  const panelH = Math.round(clamp(safe.h * (wide ? 0.36 : 0.24), 120, Math.min(330, safe.h - pad * 2)));
+  const panelX = safe.x + pad;
+  const panelY = safe.y + safe.h - panelH - pad;
+  const inner = Math.round(clamp(Math.min(panelW, panelH) * 0.10, 14, 36));
+  const btnH = Math.round(clamp(panelH * 0.20, 30, 52));
+  const btnW = Math.round(clamp(panelW * 0.42, 110, Math.min(280, panelW - inner * 2)));
+  return { safe, pad, wide, panelX, panelY, panelW, panelH, inner, btnW, btnH };
+}
+
 function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: { r: layout.bg_r || 0.05, g: layout.bg_g || 0.07, b: layout.bg_b || 0.16 } }];
   addImageRect(frame, figmaImage, "Image background", 0, 0, format.width, format.height, "FILL");
 
-  const safe = getInterscrollerSafeBox(format);
-  const pad = Math.round(clamp(Math.min(safe.w, safe.h) * 0.06, 20, 54));
-  const panelH = Math.round(clamp(safe.h * 0.24, 140, 330));
-  const panelY = safe.y + safe.h - panelH - pad;
-  addSolidRect(frame, "Readable message panel", safe.x + pad, panelY, safe.w - pad * 2, panelH, BRAND_COLOR, 0.90);
+  const comp = getInterscrollerComposition(format);
+  const safe = comp.safe;
+  addSolidRect(frame, "Readable message panel", comp.panelX, comp.panelY, comp.panelW, comp.panelH, BRAND_COLOR, 0.88);
 
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoH = Math.round(clamp(safe.h * 0.045, 34, 70));
-    const logoW = Math.min(Math.round(logoH * 3.5), safe.w - pad * 2);
-    placeLogo(frame, figmaLogo, safe.x + pad, safe.y + pad, logoW, logoH);
+    const logoW = Math.min(Math.round(logoH * 3.5), safe.w - comp.pad * 2);
+    placeLogo(frame, figmaLogo, safe.x + comp.pad, safe.y + comp.pad, logoW, logoH);
   }
 
   // CTA v spodnej časti panelu — rovnaký button ako master_safe/PSD
@@ -1011,17 +1039,20 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
   const showCta = layout.show_cta !== false && !!ctaText;
   let ctaBudget = 0;
   if (showCta) {
-    const btnH = Math.round(clamp(panelH * 0.22, 32, 56));
-    const btnW = Math.max(88, Math.round((safe.w - pad * 3.1) * 0.55));
-    const btnX = safe.x + pad * 1.55;
-    const btnY = panelY + panelH - pad - btnH;
-    addMasterCta(frame, ctaText, btnX, btnY, btnW, btnH);
-    ctaBudget = btnH + Math.round(pad * 0.6);
+    const btnX = comp.panelX + comp.inner;
+    const btnY = comp.panelY + comp.panelH - comp.inner - comp.btnH;
+    addMasterCta(frame, ctaText, btnX, btnY, comp.btnW, comp.btnH);
+    ctaBudget = comp.btnH + Math.round(comp.inner * 0.55);
   }
 
   if (shouldShowHeadline(layout, headline)) {
-    const fontSize = Math.round(clamp(panelH * 0.20, 24, 58));
-    addText(frame, headline, safe.x + pad * 1.55, panelY + pad, safe.w - pad * 3.1, panelH - pad * 2 - ctaBudget, fontSize, { r: 1, g: 1, b: 1 });
+    const fontSize = Math.round(clamp(comp.panelH * 0.16, 18, 46));
+    const headlineNode = addText(
+      frame, headline, comp.panelX + comp.inner, comp.panelY + comp.inner,
+      comp.panelW - comp.inner * 2, comp.panelH - comp.inner * 2 - ctaBudget,
+      fontSize, { r: 1, g: 1, b: 1 }
+    );
+    headlineNode.name = "Headline";
   }
 }
 

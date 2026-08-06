@@ -26,7 +26,7 @@ function resolveCreativeRule(format) {
 
   if (format.rules) {
     if (format.rules.logoOnly) profile = "logo_only";
-    else if (format.rules.noText) profile = "clean_image";
+    else if (format.rules.noText) profile = format.role === "native" ? "native_clean" : "clean_image";
     else if (format.rules.headlineOnly) profile = "headline_only";
   }
 

@@ -739,6 +739,97 @@ const FORMATS = [
   { id: "tig_heyfomo_portrait", name: "Hey FOMO 9:16", channel: "Hey FOMO", campaign: "tiger", width: 1080, height: 1920, ratio: "9:16", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 9:16 — px odvodené." }
 ];
 
+// Jednotný produkčný tvar formátu. Staršie záznamy vznikali z viacerých
+// mediálnych plánov a používajú niekoľko tvarov safeZones a implicitné
+// pravidlá v id/poznámkach. Normalizácia drží kompatibilitu so starými
+// dátami, ale zvyšok aplikácie už môže čítať jeden spoľahlivý kontrakt.
+function inferRole(format) {
+  if (format.role) return format.role;
+  const id = String(format.id || "").toLowerCase();
+  const channel = String(format.channel || "").toLowerCase();
+  if (id.indexOf("google_logo") !== -1 || id.indexOf("demandgen_logo") !== -1) return "logo_only";
+  if (id.indexOf("google_rsa") !== -1) return "clean_image";
+  if (id.indexOf("pmax") !== -1 || channel.indexOf("pmax") !== -1) return "headline_only";
+  if (id.indexOf("meta_img") !== -1 || channel === "meta") return "meta_full";
+  if (id.indexOf("demandgen") !== -1 || channel.indexOf("demandgen") !== -1) return "full_creative";
+  if (id.indexOf("engerio") !== -1) return "native";
+  if (channel.indexOf("e-mail") !== -1 || channel.indexOf("email") !== -1) return "email";
+  if (format.safeZones && format.safeZones.safeInner) {
+    return format.width <= 450 ? "branding_side" : "interscroller";
+  }
+  if (format.safeZones && format.safeZones.centerWidth) return "branding_full";
+  return "publisher_branding";
+}
+
+function normalizeSafeGeometry(format) {
+  const W = format.width;
+  const H = format.height;
+  const legacy = format.safeZones || {};
+  const safeBox = { top: 0, right: 0, bottom: 0, left: 0 };
+  const deadZones = [];
+
+  if (legacy.safeInner) {
+    safeBox.left = Math.max(0, Math.round((W - legacy.safeInner.width) / 2));
+    safeBox.right = safeBox.left;
+    safeBox.top = Math.max(0, Math.round((H - legacy.safeInner.height) / 2));
+    safeBox.bottom = safeBox.top;
+  } else {
+    safeBox.top = Math.max(0, Number(legacy.top) || 0);
+    safeBox.bottom = Math.max(0, Number(legacy.bottom) || 0);
+    safeBox.left = Math.max(0, (Number(legacy.left) || 0) + (Number(legacy.sides) || 0));
+    safeBox.right = Math.max(0, (Number(legacy.right) || 0) + (Number(legacy.sides) || 0));
+  }
+
+  // centerWidth/topOffset je plocha webu alebo prehrávača, do ktorej
+  // brandingový obsah nesmie zasiahnuť.
+  if (legacy.centerWidth) {
+    deadZones.push({
+      x: Math.max(0, Math.round((W - legacy.centerWidth) / 2)),
+      y: Math.max(0, Number(legacy.topOffset) || 0),
+      w: Math.min(W, Number(legacy.centerWidth) || 0),
+      h: Math.max(0, H - (Number(legacy.topOffset) || 0))
+    });
+  }
+  return { safeBox: safeBox, deadZones: deadZones };
+}
+
+function inferLimit(notes) {
+  const matches = String(notes || "").match(/(?:max\.?\s*)?(\d{2,4})\s*kB/i);
+  return matches ? Number(matches[1]) : null;
+}
+
+function normalizeFormat(format) {
+  const normalized = Object.assign({}, format);
+  // Mediálny plán uvádza pre statický Meta 4:5 rozmer 1200×1628.
+  // Video 4:5 zostáva 1200×1500.
+  if (/meta_img_4x5$/.test(normalized.id || "")) {
+    normalized.width = 1200;
+    normalized.height = 1628;
+    normalized.ratio = "4:5";
+  }
+  if (normalized.id === "topky_branding") {
+    normalized.name = "Topky branding 450×800";
+  }
+  normalized.role = inferRole(normalized);
+  const geometry = normalizeSafeGeometry(normalized);
+  normalized.safeBox = geometry.safeBox;
+  normalized.deadZones = geometry.deadZones;
+  normalized.rules = {
+    headlineOnly: normalized.role === "headline_only",
+    noText: normalized.role === "clean_image" || normalized.role === "native",
+    noLogo: normalized.noLogo === true || normalized.role === "clean_image" || normalized.role === "native" || normalized.role === "headline_only",
+    logoOnly: normalized.role === "logo_only",
+    logoTop: normalized.logoPosition === "top",
+    ctaBySystem: normalized.role === "meta_full" || normalized.role === "headline_only"
+  };
+  normalized.limit = normalized.limit || inferLimit(normalized.notes);
+  normalized.template = ["adform_300x250", "adform_300x600", "adform_160x600", "adform_970x250"].indexOf(normalized.id) !== -1
+    ? normalized.id : null;
+  return normalized;
+}
+
+const NORMALIZED_FORMATS = FORMATS.map(normalizeFormat);
+
 // Metadáta kampaní — tagging pre pomenovanie frameov + label do UI
 const CAMPAIGNS = {
   kid:    { tagging: "kid-062026",      label: "TB KID 2026" },
@@ -748,5 +839,6 @@ const CAMPAIGNS = {
   tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026" }
 };
 
-module.exports = FORMATS;
+module.exports = NORMALIZED_FORMATS;
 module.exports.campaigns = CAMPAIGNS;
+module.exports.normalizeFormat = normalizeFormat;

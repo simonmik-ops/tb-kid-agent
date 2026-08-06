@@ -106,7 +106,7 @@ function resolveCreativeRule(format) {
   // 1. format.rules (P1-9 cieľový tvar).
   if (format.rules) {
     if (format.rules.logoOnly) profile = "logo_only";
-    else if (format.rules.noText) profile = "clean_image";
+    else if (format.rules.noText) profile = format.role === "native" ? "native_clean" : "clean_image";
     else if (format.rules.headlineOnly) profile = "headline_only";
   }
 
@@ -441,7 +441,15 @@ async function createAllFrames({
       const frame = figma.createFrame();
       const variantName = format.variantLabel ? " \u2014 " + format.variantLabel : "";
       const sideName = format.variantSide ? " " + format.variantSide.toUpperCase() : "";
-      frame.name = format.name + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
+      var roleLabels = {
+        clean_image: "čistý vizuál", logo_only: "logo", meta_full: "Meta",
+        full_creative: "kompletná kreatíva", headline_only: "iba headline",
+        native: "native", branding_full: "branding", branding_side: "bočný branding",
+        interscroller: "interscroller", email: "e-mail", publisher_branding: "publisher"
+      };
+      var formatDescriptor = String(format.width) + "×" + String(format.height) + " · " +
+        String(format.channel || "Nezaradené") + (format.role && roleLabels[format.role] ? " / " + roleLabels[format.role] : "");
+      frame.name = formatDescriptor + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
       // Metadáta pre export: limit a ID formátu sa inak z názvu frameu nedajú zistiť.
       // Zapisujeme dvojmo — setPluginData je súkromné pre tento plugin,
       // setSharedPluginData vedia prečítať aj externé nástroje a kontroly.
@@ -1361,6 +1369,25 @@ function addMasterCta(frame, value, x, y, w, h) {
 // Obrázok (addMasterCoreImage) sa naň neviaže — kreslí sa vždy na celý frame.
 function resolveContentBox(format) {
   const W = format.width, H = format.height;
+  const normalized = format.safeBox;
+  if (normalized) {
+    const left = Math.max(0, Number(normalized.left) || 0);
+    const right = Math.max(0, Number(normalized.right) || 0);
+    const top = Math.max(0, Number(normalized.top) || 0);
+    const bottom = Math.max(0, Number(normalized.bottom) || 0);
+    // Pri brandingoch s centrálnou dead zónou je najväčší použiteľný
+    // obdĺžnik jeden z bočných pásov.
+    if (format.deadZones && format.deadZones.length) {
+      const dead = format.deadZones[0];
+      const leftW = Math.max(0, dead.x);
+      const rightX = Math.min(W, dead.x + dead.w);
+      const rightW = Math.max(0, W - rightX);
+      return rightW > leftW
+        ? { x: rightX, y: top, w: rightW, h: Math.max(0, H - top - bottom) }
+        : { x: 0, y: top, w: leftW, h: Math.max(0, H - top - bottom) };
+    }
+    return { x: left, y: top, w: Math.max(0, W - left - right), h: Math.max(0, H - top - bottom) };
+  }
   const sz = format.safeZones;
   if (!sz) return { x: 0, y: 0, w: W, h: H };
 

@@ -64,21 +64,31 @@ const CREATIVE_PROFILES = {
   }
 };
 
-function kkVisaProfile(format) {
-  const id = format.id || "";
-  if (id.indexOf("kkv_google_rsa_") === 0) return "clean_image";
-  if (id.indexOf("kkv_google_logo_") === 0) return "logo_only";
-  if (id.indexOf("kkv_meta_") === 0) return "meta_full";
-  if (id.indexOf("kkv_demandgen_") === 0) return "full_creative";
-  if (id.indexOf("kkv_pmax_") === 0) return "headline_only";
-  if (id === "kkv_engerio_native") return "native_clean";
+function inferProfile(format) {
+  const id = String(format.id || "").toLowerCase();
+  const role = String(format.role || "").toLowerCase();
+  const channel = String(format.channel || "").toLowerCase();
+  if (format.rules && format.rules.logoOnly) return "logo_only";
+  if (format.rules && format.rules.noText) return role === "native" ? "native_clean" : "clean_image";
+  if (format.rules && format.rules.headlineOnly) return "headline_only";
+  if (role === "clean_image") return "clean_image";
+  if (role === "logo_only") return "logo_only";
+  if (role === "meta_full") return "meta_full";
+  if (role === "full_creative") return "full_creative";
+  if (role === "headline_only") return "headline_only";
+  if (role === "native") return "native_clean";
+  if (id.indexOf("google_rsa") !== -1) return "clean_image";
+  if (id.indexOf("google_logo") !== -1 || id.indexOf("demandgen_logo") !== -1) return "logo_only";
+  if (id.indexOf("pmax") !== -1 || channel.indexOf("pmax") !== -1) return "headline_only";
+  if (id.indexOf("meta_img") !== -1 || channel === "meta") return "meta_full";
+  if (id.indexOf("demandgen") !== -1 || channel.indexOf("demandgen") !== -1) return "full_creative";
+  if (id.indexOf("engerio") !== -1) return "native_clean";
   return "publisher_branding";
 }
 
 function getCreativeRule(format) {
   if (!format) return null;
-  const profileId = format.creativeProfile ||
-    (format.campaign === "kkvisa" ? kkVisaProfile(format) : null);
+  const profileId = format.creativeProfile || inferProfile(format);
   if (!profileId || !CREATIVE_PROFILES[profileId]) return null;
   return {
     id: profileId,

@@ -43,7 +43,7 @@
   </style>
 </head>
 <body>
-  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.2.1 · clean production output</span></h1>
+  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.2.2 · all media placements</span></h1>
   <p class="sub">Nová zákazka → key visual → typy výstupov → editovateľné frames vo Figme</p>
 
   <label>Názov novej zákazky</label>
@@ -405,6 +405,42 @@
       return dim;
     });
   }
+  function materializeExcelFormat(d, index) {
+    var matched = (d.candidates || []).find(function (format) { return format.id === d.selectedId; });
+    var PSD = { "300x250": "adform_300x250", "300x600": "adform_300x600",
+                "160x600": "adform_160x600", "970x250": "adform_970x250" };
+    var key = d.w + "x" + d.h;
+    var placement = d.placement || (matched && matched.channel) || "Z tabuľky";
+    var role = d.roleHint || (matched && matched.role) || "publisher_branding";
+    var isAdform = /adform/i.test(placement);
+    var sourceId = matched ? matched.id : (isAdform && PSD[key] ? PSD[key] : ("xls_" + key + "_" + role));
+    // Každý riadok/placement mediálneho plánu musí ostať samostatný. Rovnaký
+    // rozmer u dvoch publisherov nie je duplicita a nesmie sa zlúčiť.
+    var uniqueId = "xls_" + index + "_" + normalizedCell(placement).replace(/[^a-z0-9]+/g, "_") + "_" + sourceId;
+    var rules = matched && matched.rules ? Object.assign({}, matched.rules) : {
+      headlineOnly: role === "headline_only",
+      noText: role === "clean_image" || role === "native",
+      noLogo: role === "clean_image" || role === "native" || role === "headline_only",
+      logoOnly: role === "logo_only",
+      logoTop: false,
+      ctaBySystem: role === "meta_full" || role === "headline_only"
+    };
+    var format = Object.assign({}, matched || {}, {
+      id: uniqueId,
+      baseId: uniqueId,
+      sourceFormatId: sourceId,
+      width: d.w,
+      height: d.h,
+      name: placement + " — " + (d.assetType || key),
+      channel: placement,
+      role: role,
+      count: 1,
+      rules: rules,
+      safeZones: d.safeZones || (matched && matched.safeZones) || { top: 0, bottom: 0 }
+    });
+    if (isAdform && PSD[key]) format.template = PSD[key];
+    return { format: format, layout: null };
+  }
   function renderExcelReview() {
     const box = document.getElementById("excelReview");
     box.innerHTML = "";
@@ -658,28 +694,7 @@
       if (excelDims && excelDims.length) {
         // ── Excel cesta ── formáty priamo z tabuľky od mediálky; layout vyrieši
         // code.js lokálne z rozmerov (bez servera).
-        formats = excelDims.map(function (d) {
-          var matched = (d.candidates || []).find(function (format) { return format.id === d.selectedId; });
-          if (matched) return { format: matched, layout: null };
-          var PSD = { "300x250": "adform_300x250", "300x600": "adform_300x600",
-                      "160x600": "adform_160x600", "970x250": "adform_970x250" };
-          var key = d.w + "x" + d.h;
-          var isAdform = /adform/i.test(d.placement || "");
-          var id = isAdform && PSD[key] ? PSD[key] : ("xls_" + key + "_" + (d.roleHint || "format"));
-          var role = d.roleHint || "publisher_branding";
-          var rules = {
-            headlineOnly: role === "headline_only",
-            noText: role === "clean_image" || role === "native",
-            noLogo: role === "clean_image" || role === "native" || role === "headline_only",
-            logoOnly: role === "logo_only",
-            logoTop: false,
-            ctaBySystem: role === "meta_full" || role === "headline_only"
-          };
-          return { format: { id: id, width: d.w, height: d.h, name: (d.w + "×" + d.h),
-                   channel: d.placement || (isAdform ? "Adform" : "Z tabuľky"), role: role,
-                   rules: rules, safeZones: d.safeZones || { top: 0, bottom: 0 },
-                   template: isAdform ? (PSD[key] || null) : null }, layout: null };
-        });
+        formats = excelDims.map(materializeExcelFormat);
         tagging = taggingField || "kampan";
         totalFormats = formats.length;
         setStatus("Generujem " + totalFormats + " formátov z tabuľky...", 45);

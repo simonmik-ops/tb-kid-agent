@@ -3,12 +3,12 @@ const fs = require("fs");
 
 const html = fs.readFileSync(require.resolve("../plugin/ui.html"), "utf8");
 const start = html.indexOf("function normalizedCell");
-const end = html.indexOf("function scoreCandidate", start);
+const end = html.indexOf("function renderExcelReview", start);
 assert.ok(start >= 0 && end > start, "Excel parser functions must exist in ui.html");
 const source = html.slice(start, end);
 
 const XLSX = { utils: { sheet_to_json: (sheet) => sheet.rows } };
-const api = new Function("XLSX", source + "; return { extractDims, deliverableDimensions, roleFromContext };")(XLSX);
+const api = new Function("XLSX", source + "; return { extractDims, deliverableDimensions, roleFromContext, materializeExcelFormat };")(XLSX);
 
 const workbook = {
   SheetNames: ["PPC", "TP"],
@@ -44,5 +44,24 @@ for (const expected of [
 for (const forbidden of ["600x314", "128x128", "512x128", "1920x1080", "1080x1080", "1080x1920", "750x982", "375x812", "375x491", "480x600"]) {
   assert.ok(!parsed.some((item) => item.w + "x" + item.h === forbidden), "must not import helper/video dimension " + forbidden);
 }
+
+const sameSizeA = api.materializeExcelFormat({
+  w: 1200, h: 628, placement: "Google Responsive Ads", assetType: "obrázok", roleHint: "clean_image",
+  candidates: [{ id: "tpl_clean_landscape", channel: "Clean assets", role: "clean_image", width: 1200, height: 628 }],
+  selectedId: "tpl_clean_landscape"
+}, 0);
+const sameSizeB = api.materializeExcelFormat({
+  w: 1200, h: 628, placement: "Google Demand Gen", assetType: "single image", roleHint: "full_creative",
+  candidates: [{ id: "tpl_full_landscape", channel: "Performance", role: "full_creative", width: 1200, height: 628 }],
+  selectedId: "tpl_full_landscape"
+}, 1);
+assert.strictEqual(sameSizeA.format.channel, "Google Responsive Ads");
+assert.strictEqual(sameSizeB.format.channel, "Google Demand Gen");
+assert.notStrictEqual(sameSizeA.format.baseId, sameSizeB.format.baseId, "same dimensions from different placements must not deduplicate");
+
+const adform = api.materializeExcelFormat({
+  w: 300, h: 250, placement: "Adform", assetType: "IAB banner", roleHint: "full_creative", candidates: []
+}, 2);
+assert.strictEqual(adform.format.template, "adform_300x250");
 
 console.log("Excel semantic parser: ok");

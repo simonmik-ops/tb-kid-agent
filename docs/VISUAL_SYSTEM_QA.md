@@ -1,4 +1,4 @@
-# Visual system QA — v1.5.4
+# Visual system QA — v1.5.0
 
 Sources checked:
 
@@ -11,10 +11,9 @@ Sources checked:
 - Family: Tatra banka Sans; Bold for headline/CTA, Regular for subheadline and disclosure.
 - Headline line height: 100%; tracking: -2.5% (PSD uses tracking -25).
 - Subheadline line height: 110%; tracking: -1.5%.
-- Optical headline scale: 48 px at 1200×628, 60 px at 1200×1200, 59 px at 1080×1920.
-- Subheadline scale: 48% of headline.
+- Optical headline scale: 51 px at 1200×628, 67 px at 1200×1200, 65 px at 1080×1920.
+- Subheadline scale: 52% of headline.
 - Text block spacing is derived from text size, not a percentage of the canvas height.
-- Text blocks are measured after real Figma wrapping and then stacked from their actual height.
 
 ## Colour and readability
 
@@ -28,9 +27,6 @@ Sources checked:
 - Logo is capped optically by format family. In 1080×1920 it is 151 px high (previously 216 px).
 - CTA height is capped at 64 px in master-safe output.
 - Exact Adform sizes use the format-specific PSD coordinate tables, not the universal scale.
-- Adform switches to a compact grid for headlines up to 22 characters when badge and legal copy are absent.
-- Wide master formats use a 56/44 split with a solid dark brand panel; there is no overlay or shadow across the subject.
-- Meta formats without a rendered CTA anchor the copy above the logo row.
 
 ## Known source constraint
 

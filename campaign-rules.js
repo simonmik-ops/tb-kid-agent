@@ -61,13 +61,6 @@ const CREATIVE_PROFILES = {
       headline: false, subheadline: false, cta: false,
       logo: false, legal: false, badge: false, aiDisclosure: false
     }
-  },
-  video_placeholder: {
-    layoutType: "video_placeholder",
-    elements: {
-      headline: false, subheadline: false, cta: false,
-      logo: false, legal: false, badge: false, aiDisclosure: false
-    }
   }
 };
 
@@ -84,7 +77,6 @@ function inferProfile(format) {
   if (role === "full_creative") return "full_creative";
   if (role === "headline_only") return "headline_only";
   if (role === "native") return "native_clean";
-  if (role === "video_placeholder") return "video_placeholder";
   if (id.indexOf("google_rsa") !== -1) return "clean_image";
   if (id.indexOf("google_logo") !== -1 || id.indexOf("demandgen_logo") !== -1) return "logo_only";
   if (id.indexOf("pmax") !== -1 || channel.indexOf("pmax") !== -1) return "headline_only";

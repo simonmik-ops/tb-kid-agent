@@ -10,18 +10,18 @@ var TB = {
     // portraity (1080×1920 = 82 px) a pritom nedržala rovnakú hierarchiu vo
     // wide formátoch. Limity vychádzajú z InvestQ Figmy a Adform PSD.
     var r = W / H;
-    if (r > 1.45) return Math.round(clamp(H * 0.076, 18, 48));
-    if (r < 0.75) return Math.round(clamp(W * 0.055, 22, 60));
-    return Math.round(clamp(Math.min(W, H) * 0.050, 22, 60));
+    if (r > 1.45) return Math.round(clamp(H * 0.082, 18, 52));
+    if (r < 0.75) return Math.round(clamp(W * 0.060, 22, 68));
+    return Math.round(clamp(Math.min(W, H) * 0.056, 22, 68));
   },
-  subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.48)); },
+  subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.52)); },
   legal: function (W, H) { return Math.max(12, Math.min(24, Math.round(TB.headline(W, H) * 0.30))); },
-  padding: function (W, H) { return Math.max(12, Math.round(0.060 * Math.sqrt(W * H))); },
+  padding: function (W, H) { return Math.max(12, Math.round(0.055 * Math.sqrt(W * H))); },
   logoBox: function (W, H) {
     var r = W / H;
     var h = r > 1.45
-      ? Math.min(H * 0.19, W * 0.125)
-      : (r < 0.75 ? Math.min(W * 0.125, H * 0.09) : Math.min(W * 0.12, H * 0.12));
+      ? Math.min(H * 0.21, W * 0.14)
+      : (r < 0.75 ? Math.min(W * 0.14, H * 0.10) : Math.min(W * 0.14, H * 0.14));
     h = Math.max(50, Math.round(h));
     var w = Math.round(h * (255/243));
     var maxW = Math.round(W * 0.32);
@@ -36,7 +36,7 @@ var TB = {
   button: function (W, H) {
     // CTA nesmie dominovať nad headline/KV. Predošlých 10 % geometrického
     // priemeru vytváralo na 1200×1200 až 120 px vysoké tlačidlo.
-    var h = Math.max(36, Math.min(56, Math.round(0.047 * Math.sqrt(W * H))));
+    var h = Math.max(36, Math.min(64, Math.round(0.055 * Math.sqrt(W * H))));
     return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.36)),
              radius: Math.max(4, Math.round(h * 0.08)) };
   }
@@ -106,7 +106,6 @@ function resolveCreativeRule(format) {
     full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
     headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
-    video_placeholder: { layoutType: "video_placeholder", headline: false, subheadline: false, cta: false, logo: false, ai: false },
     publisher_branding: { layoutType: null, headline: true, subheadline: true, cta: true, logo: true, ai: true },
     // P0-9b: JOJ/Markíza skin, bočné skyscrapery, interscroller a e-mail —
     // CTA aj AI disclosure zostávajú zapnuté (rovnako ako predtým cez
@@ -135,7 +134,6 @@ function resolveCreativeRule(format) {
       meta_full: "meta_full",
       full_creative: "full_creative",
       native: "native_clean",
-      video_placeholder: "video_placeholder",
       branding_full: "branding_full",
       branding_side: "branding_side",
       interscroller: "interscroller",
@@ -228,7 +226,7 @@ function brandColor(layout) {
 
 // Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
 function aiNoteFontSize(format) {
-  return Math.round(clamp(Math.min(format.width, format.height) * 0.015, 12, 16));
+  return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 12, 18));
 }
 
 // AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
@@ -343,30 +341,13 @@ async function createAllFrames({
   const imgPortrait = mkImage(kvPortraitBytes);
   const imgLandscape = mkImage(kvLandscapeBytes);
 
-  function assetKindForFormat(format) {
+  // Vyber KV podľa orientácie formátu — každý formát dostane vizuál pre svoj
+  // tvar, takže sa nič neoreže zle. Fallback na dostupné.
+  function pickKV(format) {
     const r = format.width / format.height;
-    if (r >= 1.25) return "landscape";
-    if (r <= 0.8) return "portrait";
-    return "square";
-  }
-
-  // Produkčný formát smie použiť iba KV rovnakej orientácie. Starý fallback
-  // square -> portrait/landscape vytváral síce vyplnený, ale vizuálne chybný
-  // frame a navyše ho označil ako PRODUCTION.
-  function pickExactKV(format) {
-    const kind = assetKindForFormat(format);
-    return kind === "landscape" ? imgLandscape : (kind === "portrait" ? imgPortrait : imgSquare);
-  }
-
-  function pickAdaptiveKV(format) {
-    return pickExactKV(format) || imgSquare || imgPortrait || imgLandscape;
-  }
-
-  // Video thumbnail je technický placeholder, nie produkčný export. Tu je
-  // bezpečné ukázať dostupný KV ako náhľad, lebo status zostáva PLACEHOLDER.
-  function pickVideoThumbnail(format) {
-    const exact = pickExactKV(format);
-    return exact || imgSquare || imgPortrait || imgLandscape;
+    if (r >= 1.25) return imgLandscape || imgSquare || imgPortrait;
+    if (r <= 0.8) return imgPortrait || imgSquare || imgLandscape;
+    return imgSquare || imgPortrait || imgLandscape;
   }
 
   // Šablóny z vetvy adform-psd počítajú s jedným vizuálom a jeho rozmermi.
@@ -389,8 +370,6 @@ async function createAllFrames({
   const allFrames = [];
   const channels = Object.keys(byChannel);
   let riskFlaggedCount = 0;
-  let missingAssetCount = 0;
-  let placeholderCount = 0;
 
   for (const channel of channels) {
     const items = byChannel[channel];
@@ -402,13 +381,6 @@ async function createAllFrames({
     }
 
     let xOffset = 0;
-    // Každé nové generovanie dostane vlastný riadok pod existujúcimi
-    // framami. Starý kód začínal vždy na (0,0), takže nový run prekryl starý.
-    const runYOffset = page.children.length
-      ? Math.max.apply(null, page.children.map(function (n) {
-          return (typeof n.y === "number" && typeof n.height === "number") ? n.y + n.height : 0;
-        })) + 160
-      : 0;
 
     for (const item of items) {
       const format = item.format;
@@ -462,16 +434,7 @@ async function createAllFrames({
       }
 
       // --- KV podľa orientácie formátu (vetva clean-frames) ---------------
-      const requiredAssetKind = assetKindForFormat(format);
-      const isVideoPlaceholder = layoutType === "video_placeholder";
-      const needsLogoOnly = layoutType === "logo_only";
-      const exactImage = pickExactKV(format);
-      const figmaImage = isVideoPlaceholder ? pickVideoThumbnail(format) : pickAdaptiveKV(format);
-      const adaptedFromSingleMaster = !isVideoPlaceholder && !exactImage && !!figmaImage;
-      layout.asset_fallback_kind = adaptedFromSingleMaster ? requiredAssetKind : null;
-      const missingAssetKind = needsLogoOnly
-        ? (!figmaLogo ? "logo" : null)
-        : (!isVideoPlaceholder && !figmaImage ? requiredAssetKind : null);
+      const figmaImage = pickKV(format);
 
       // Rozmery zvoleného KV (na výpočet viditeľnej plochy pri contain).
       CUR_IMG_W = 0; CUR_IMG_H = 0;
@@ -495,12 +458,7 @@ async function createAllFrames({
       };
       var formatDescriptor = String(format.width) + "×" + String(format.height) + " · " +
         String(format.channel || "Nezaradené") + (format.role && roleLabels[format.role] ? " / " + roleLabels[format.role] : "");
-      const productionStatus = missingAssetKind
-        ? ("MISSING " + missingAssetKind.toUpperCase() + " ASSET")
-        : (isVideoPlaceholder ? "PLACEHOLDER" : (adaptedFromSingleMaster ? "PRODUCTION ADAPTED" : "PRODUCTION"));
-      frame.name = formatDescriptor + variantName + sideName + " \u2014 " + productionStatus + " [" + campaignTag + "]";
-      if (missingAssetKind) missingAssetCount++;
-      if (isVideoPlaceholder) placeholderCount++;
+      frame.name = formatDescriptor + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
       // Metadáta pre export: limit a ID formátu sa inak z názvu frameu nedajú zistiť.
       // Zapisujeme dvojmo — setPluginData je súkromné pre tento plugin,
       // setSharedPluginData vedia prečítať aj externé nástroje a kontroly.
@@ -511,9 +469,7 @@ async function createAllFrames({
           tbTagging: String(campaignTag || ""),
           tbChannel: String(format.channel || channel || ""),
           tbWidth: String(format.width || ""),
-          tbHeight: String(format.height || ""),
-          tbStatus: productionStatus,
-          tbGeneratedBy: "tb-kid-agent@1.6"
+          tbHeight: String(format.height || "")
         };
         for (var mk in meta) {
           frame.setPluginData(mk, meta[mk]);
@@ -522,12 +478,10 @@ async function createAllFrames({
       } catch (e) {}
       frame.resize(format.width, format.height);
       frame.x = xOffset;
-      frame.y = runYOffset;
+      frame.y = 0;
       frame.clipsContent = true;
 
-      if (missingAssetKind) {
-        buildMissingAssetLayout(frame, format, missingAssetKind);
-      } else if (layoutType === "video_placeholder") {
+      if (layoutType === "video_placeholder") {
         buildVideoPlaceholderLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "clean_image") {
         buildCleanImageLayout(frame, format, layout, figmaImage);
@@ -614,10 +568,7 @@ async function createAllFrames({
   if (guides) createValidationReport(formats, headline, adType);
   if (allFrames.length > 0) figma.viewport.scrollAndZoomIntoView(allFrames.slice(0, 3));
 
-  figma.ui.postMessage({
-    type: "done", formatCount: formats.length, pageCount: channels.length,
-    riskFlaggedCount, missingAssetCount, placeholderCount
-  });
+  figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length, riskFlaggedCount });
 }
 
 // Human-čitateľné popisky pre risk_flags z agent.js — musia sedieť s kódmi tam generovanými.
@@ -896,32 +847,6 @@ function addSolidRect(frame, name, x, y, w, h, color, opacity) {
   return rect;
 }
 
-function buildMissingAssetLayout(frame, format, assetKind) {
-  const labels = {
-    square: "CHÝBA SQUARE KV",
-    portrait: "CHÝBA PORTRAIT KV",
-    landscape: "CHÝBA LANDSCAPE KV",
-    logo: "CHÝBA LOGO"
-  };
-  frame.fills = [{ type: "SOLID", color: { r: 0.075, g: 0.085, b: 0.105 } }];
-  const pad = Math.round(clamp(Math.min(format.width, format.height) * 0.08, 18, 72));
-  const stripe = Math.max(8, Math.round(Math.min(format.width, format.height) * 0.025));
-  addSolidRect(frame, "MISSING ASSET status", 0, 0, stripe, format.height, { r: 0.94, g: 0.33, b: 0.20 }, 1);
-  addTemplateText(
-    frame, "Missing asset title", labels[assetKind] || "CHÝBA PODKLAD",
-    [pad, Math.round(format.height * 0.34), format.width - pad * 2, Math.round(format.height * 0.18)],
-    Math.round(clamp(Math.min(format.width, format.height) * 0.075, 20, 58)),
-    { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
-  );
-  addTemplateText(
-    frame, "Missing asset instruction",
-    "Frame nie je produkčný. Nahraj podklad rovnakej orientácie a vygeneruj ho znova.",
-    [pad, Math.round(format.height * 0.54), format.width - pad * 2, Math.round(format.height * 0.24)],
-    Math.round(clamp(Math.min(format.width, format.height) * 0.035, 12, 28)),
-    { r: 0.80, g: 0.84, b: 0.90 }, "Regular", "LEFT"
-  );
-}
-
 function buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
   addImageRect(frame, figmaImage, "Thumbnail base - manual video needed", 0, 0, format.width, format.height, "FILL");
@@ -952,15 +877,7 @@ function getReadablePad(format) {
 
 // Google RSA / Demand Gen image assets: no text, no logo.
 function buildCleanImageLayout(frame, format, layout, figmaImage) {
-  frame.fills = [{ type: "SOLID", color: layout.asset_fallback_kind ? brandColor(layout) : { r: 0.96, g: 0.97, b: 0.98 } }];
-  if (layout.asset_fallback_kind === "portrait" && figmaImage && CUR_IMG_W && CUR_IMG_H) {
-    // Square master v portrait clean assete: zachovaj celý motív a rozšír
-    // plátno brandovou farbou, namiesto drastického cover cropu tváre.
-    const adaptedH = Math.min(format.height, Math.round(format.width * (CUR_IMG_H / CUR_IMG_W)));
-    const adaptedY = Math.round((format.height - adaptedH) / 2);
-    addImageRect(frame, figmaImage, "Adapted clean master — full composition", 0, adaptedY, format.width, adaptedH, "FILL");
-    return;
-  }
+  frame.fills = [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
   if (layout.image_fit === "contain" || !CUR_IMG_W || !CUR_IMG_H) {
     addImageRect(frame, figmaImage, "Image asset - no text / no logo", 0, 0, format.width, format.height, layout.image_fit === "contain" ? "FIT" : "FILL");
   } else {
@@ -1392,22 +1309,6 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align,
   return txt;
 }
 
-// Figma vypočíta skutočnú výšku až po zalomení textu. Kompozícia preto
-// najprv text odmeria a až potom skladá bloky; percentuálne placeholder boxy
-// vytvárali pri jednom riadku neprimerané prázdne medzery.
-function measureTemplateTextHeight(frame, value, width, fontSize, style) {
-  if (!value) return 0;
-  const probe = addTemplateText(
-    frame, "__typography_measure__", value,
-    [0, 0, Math.max(40, width), Math.max(frame.height, fontSize * 6)],
-    fontSize, { r: 1, g: 1, b: 1 }, style, "LEFT"
-  );
-  if (!probe) return 0;
-  const height = Math.ceil(probe.height);
-  probe.remove();
-  return height;
-}
-
 function addSloganLogo(frame, box) {
   if (!box) return;
   const slashW = Math.max(10, Math.round(box[2] * 0.20));
@@ -1522,14 +1423,6 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
   rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
   rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
-  // Exportované KV môže mať 1–3 px technický okraj. Keď focal-point
-  // výpočet skončí presne na y=0, horný okraj ostane viditeľný aj napriek
-  // overscanu. Využi dostupný presah a vždy ho bezpečne schovaj za masku.
-  const verticalOverflow = Math.max(0, renderedH - zone[3]);
-  if (verticalOverflow > 0) {
-    const edgeTrim = Math.min(verticalOverflow, Math.max(2, Math.round(zone[3] * 0.012)));
-    rect.y = Math.min(rect.y, -edgeTrim);
-  }
   holder.appendChild(rect);
 
   if (showGuide) {
@@ -1633,13 +1526,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
   if (family === "wide") {
-    // Čistý split-layout podľa wide PSD referencie: obraz a samostatný tmavý
-    // brand panel. Žiadny polopriesvitný overlay cez postavu ani zvislý tieň.
-    const imageW = Math.round(format.width * 0.56);
+    const imageW = Math.round(format.width * 0.75);
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
-    const panelX = imageW;
-    const brand = { r: 0.105, g: 0.19, b: 0.30 };
-    const textX = Math.max(cb.x + pad, panelX + pad);
+    const wideShift = Math.round(format.width * 0.30);
+    const panelX = imageW - wideShift;
+    const brand = brandColor(layout);
+    const panelAlpha = scrimAlphaFor(layout);
+    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
     const textRight = cb.x + cb.w - pad;
     const textW = Math.max(60, textRight - textX);
     const panel = figma.createRectangle();
@@ -1647,7 +1540,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     panel.resize(format.width - panelX, format.height);
     panel.x = panelX;
     panel.y = 0;
-    panel.fills = [{ type: "SOLID", color: brand }];
+    panel.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
+        // Plne krycí presne tam, kde začína text (textX), nie o kus ďalej —
+        // inak časť headline boxu leží nad ešte priesvitným panelom (P0-8).
+        { position: Math.min(0.98, (textX - panelX) / (format.width - panelX)),
+          color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } },
+        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } }
+      ]
+    }];
     frame.appendChild(panel);
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);
@@ -1673,39 +1577,27 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
     const wBtn = TB.button(format.width, format.height);
     const showCta = layout.show_cta !== false;
-    const wGap = Math.max(10, Math.round(headlineSize * 0.28));
-    const textGap = Math.max(8, Math.round(headlineSize * 0.18));
+    const wGap = Math.round(headlineSize * 0.30);
     const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
       ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
 
-    // Full creative s CTA končí nad AI disclosure; Meta bez CTA je opticky
-    // centrovaná v paneli a nespadne úplne k spodnému okraju.
-    let wCur = showCta
-      ? Math.min(cb.y + cb.h - pad - aiRezerva, cb.y + cb.h * 0.82)
-      : (cb.y + cb.h * 0.60);
+    let wCur = cb.y + cb.h - pad - aiRezerva;
     let btnY = 0, subY = 0;
     if (showCta) { btnY = wCur - wBtn.height; wCur = btnY - wGap; }
     // Poistka na veľkosť (P0-9): subheadline sa nekreslí, ak po odpočítaní
     // CTA a AI tagu ostane menej ako 1,6× jeho výšky, alebo je formát
     // pod min(W,H) 400 px.
     const showSub = shouldShowSubheadline(format, layout, wCur - (cb.y + pad));
-    const subWidth = wideWidth(wCur - TB.subheadline(format.width, format.height) * 1.2,
-      TB.subheadline(format.width, format.height) * 1.2);
-    const subH = showSub ? measureTemplateTextHeight(
-      frame, content.subheadline, subWidth, TB.subheadline(format.width, format.height), "Regular"
-    ) : 0;
-    if (showSub) { subY = wCur - subH; wCur = subY - textGap; }
-    const headlineWidth = wideWidth(wCur - headlineSize * 1.1, headlineSize * 1.1);
-    const hlH = measureTemplateTextHeight(frame, content.headline, headlineWidth, headlineSize, "Bold");
+    const subH = Math.round(TB.subheadline(format.width, format.height) * 1.6);
+    if (showSub) { subY = wCur - subH; wCur = subY - Math.round(wGap * 0.6); }
+    const hlDost = Math.max(20, wCur - pad);
+    const hlH = Math.min(Math.round(headlineSize * 1.15 * 2), hlDost);
     const hlY = wCur - hlH;
 
-    addTemplateText(frame, "Headline", content.headline,
-      [textX, hlY, headlineWidth, Math.max(hlH, headlineSize)], headlineSize,
-      { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
+    placeReserveWide("Headline", content.headline, hlY, hlH, headlineSize, { r: 1, g: 1, b: 1 }, "Bold");
 
     if (showSub) {
-      addTemplateText(frame, "Subheadline", content.subheadline,
-        [textX, subY, subWidth, Math.max(subH, TB.subheadline(format.width, format.height))],
+      placeReserveWide("Subheadline", content.subheadline, subY, subH,
         TB.subheadline(format.width, format.height), { r: 1, g: 1, b: 1 }, "Regular");
     }
     if (showCta) {
@@ -1718,16 +1610,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         wLogo.width, wLogo.height);
     }
   } else {
-    // Surď master: square a portrait ostávajú full-bleed. Farba sa tu
-    // nepridáva ako nový panel; čitateľnosť zabezpečuje iba gradient podľa KV.
-    // Samostatný farebný panel patrí len explicitným wide/PSD šablónam.
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
 
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
-    const gap = Math.max(10, Math.round(headlineSize * 0.28));
-    const textGap = Math.max(8, Math.round(headlineSize * 0.18));
+    const gap = Math.round(headlineSize * 0.35);
     const textW = cb.w - pad * 2;
+    // Textové boxy sledujú typografiu, nie percento výšky plátna. Percentá
+    // vytvárali pri jednom riadku 100+ px prázdne medzery medzi textami.
+    const headlineBoxH = Math.round(headlineSize * (family === "portrait" ? 2.25 : 1.25));
+    const subheadlineBoxH = Math.round(subheadlineSize * 1.25);
     const btn = TB.button(format.width, format.height);
     const logo = TB.logoBox(format.width, format.height);
     const logoClear = TB.logoClear(format.width, format.height);
@@ -1757,11 +1649,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       cursorY -= Math.round(aiNoteFontSize(format) * 2.2);
     }
     if (logoOwnRow) cursorY -= (logo.height + logoClear);
-    // Meta nemá kreslené CTA. Text preto patrí nad logo, nie do rovnakého
-    // spodného riadku medzi logom a AI disclosure.
-    if (layout.show_cta === false && showsLogo && !logoOwnRow) {
-      cursorY = Math.min(cursorY, logoTop - Math.max(12, Math.round(headlineSize * 0.35)));
-    }
     let btnY = 0, subheadlineY = 0;
     if (layout.show_cta !== false) {
       cursorY -= btn.height;
@@ -1773,21 +1660,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // formát pod min(W,H) 400 px. Rovnaký boolean sa použije aj nižšie
     // pri samotnom kreslení, nech sa rezerva miesta a kreslenie nerozídu.
     const showSubheadline = shouldShowSubheadline(format, layout, cursorY - (cb.y + pad));
-    const subWidth = (logoReserve && cursorY > logoTop) ? Math.max(60, textW - logoReserve) : textW;
-    const subheadlineBoxH = showSubheadline
-      ? measureTemplateTextHeight(frame, content.subheadline, subWidth, subheadlineSize, "Regular") : 0;
     if (showSubheadline) {
       cursorY -= subheadlineBoxH;
       subheadlineY = cursorY;
-      cursorY -= textGap;
+      cursorY -= gap;
     }
-    const headlineWidth = (logoReserve && cursorY > logoTop) ? Math.max(60, textW - logoReserve) : textW;
-    const headlineBoxH = measureTemplateTextHeight(frame, content.headline, headlineWidth, headlineSize, "Bold");
     cursorY -= headlineBoxH;
     const headlineY = cursorY;
 
     const scrimH = Math.min(format.height, Math.max(
-      Math.round(format.height * (family === "portrait" ? 0.46 : 0.50)),
+      Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
       format.height - headlineY
     ));
     const scrimAlpha = scrimAlphaFor(layout);
@@ -1810,16 +1692,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(scrim);
-    const textAlign = "LEFT";
-    addTemplateText(
-      frame, "Headline", content.headline,
-      [cb.x + pad, headlineY, headlineWidth, Math.max(headlineBoxH, headlineSize)],
+
+    const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
+    const headlineNode = placeReserveText(
+      "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
     );
+    if (headlineNode && family === "portrait") {
+      headlineNode.textAlignVertical = "CENTER";
+    }
     if (showSubheadline) {
-      addTemplateText(
-        frame, "Subheadline", content.subheadline,
-        [cb.x + pad, subheadlineY, subWidth, Math.max(subheadlineBoxH, subheadlineSize)],
+      placeReserveText(
+        "Subheadline", content.subheadline, cb.x + pad, subheadlineY, subheadlineBoxH,
         subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", textAlign
       );
     }
@@ -1858,15 +1742,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
 function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo, templateId) {
   const activeTemplate = templateId || adformTemplateId(format) || format.id;
-  const baseRules = ADFORM_PSD_RULES[activeTemplate];
-  if (!baseRules) {
+  const rules = ADFORM_PSD_RULES[activeTemplate];
+  if (!rules) {
     buildFullBleedLayout(frame, format, layout, content.headline, figmaImage, figmaLogo);
     return;
   }
-
-  // PSD súradnice sú záväzné aj pri kratšom copy. Predošlá "compactCopy"
-  // vetva posúvala headline, CTA aj logo a výsledok už nezodpovedal PSD.
-  const rules = Object.assign({}, baseRules);
 
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
   const focal = {
@@ -2265,14 +2145,10 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   frame.fills = [];
   const hasLogo = !!figmaLogo;
 
-  // Export používa štvorcový TB lockup (255:243), nie 3.5:1 wordmark.
-  // Starý absolútny strop 80 px robil logo na 1200×1200 takmer neviditeľné.
-  const wideCanvas = format.width / format.height >= 3;
-  const lH = wideCanvas
-    ? Math.round(format.height * 0.56)
-    : Math.round(Math.min(format.height, format.width) * 0.32);
-  const lW = Math.round(lH * (255 / 243));
-  const lPad = Math.round((format.height - lH) / 2);
+  // Logo vycentrované
+  const lH = Math.min(Math.round(format.height * 0.25), Math.round(format.width * 0.18), 80);
+  const lW = Math.round(lH * 3.5);
+  const lPad = Math.round(format.height * 0.15);
   placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), lPad, lW, lH);
   const fallbackHeadline = !hasLogo && !!headline;
 

@@ -10,12 +10,6 @@ const source = html.slice(start, end);
 const XLSX = { utils: { sheet_to_json: (sheet) => sheet.rows } };
 const api = new Function("XLSX", source + "; return { extractDims, deliverableDimensions, roleFromContext, materializeExcelFormat, inferredDimensions };")(XLSX);
 
-assert.strictEqual(
-  api.roleFromContext("YouTube - Video Reach Campaign: in-stream", "key visual"),
-  "video_placeholder",
-  "YouTube in-stream must not inherit the static publisher split layout"
-);
-
 const workbook = {
   SheetNames: ["PPC", "TP"],
   Sheets: {

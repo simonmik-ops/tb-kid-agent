@@ -276,11 +276,20 @@
   }
   async function resolveExcelDims(dims) {
     if (!formatCatalog) {
-      const serverUrl = document.getElementById("serverUrl").value.trim();
-      const response = await fetch(serverUrl + "/formats");
-      if (!response.ok) throw new Error("Server neposkytol aktuálny katalóg formátov.");
-      const data = await response.json();
-      formatCatalog = data.formats || [];
+      try {
+        const serverUrl = document.getElementById("serverUrl").value.trim();
+        const response = await fetch(serverUrl + "/formats");
+        if (response.ok) {
+          const data = await response.json();
+          formatCatalog = data.formats || [];
+        } else {
+          formatCatalog = [];
+        }
+      } catch (e) {
+        // Prezentačný fallback: starší Railway nemá /formats. Rozmery sa
+        // napriek tomu vygenerujú univerzálne a UI ich označí na kontrolu.
+        formatCatalog = [];
+      }
     }
     return dims.map(function (dim) {
       const candidates = formatCatalog.filter(function (format) {

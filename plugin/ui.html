@@ -191,7 +191,7 @@
         </select>
       </div>
     </div>
-    <div class="hint">Dôležitá grafika musí zostať v stredovej polovici mastera. Plugin z nej automaticky vytvorí štvorcovú, vysokú alebo širokú kompozíciu a drží hlavný prvok v bezpečnej zóne; pri úzkych banneroch radšej použije brand panel. Pri "Auto" si plugin sám odhadne, či je v obrázku už text/logo — takéto formáty označí oranžovým rámom na kontrolu.</div>
+    <div class="hint">Dôležitá grafika musí zostať v stredovej polovici mastera. Plugin z nej automaticky vytvorí štvorcovú, vysokú alebo širokú kompozíciu a drží hlavný prvok v bezpečnej zóne; pri úzkych banneroch radšej použije brand panel. Pri "Auto" si plugin sám odhadne, či je v obrázku už text/logo. Kontrolné označenia zobrazí iba pri zapnutých safe zónach.</div>
   </div>
 
   <label style="display:flex;align-items:center;gap:8px;margin-top:16px;cursor:pointer;font-weight:600;">
@@ -745,7 +745,7 @@
       document.getElementById("resultTitle").textContent = `${msg.formatCount} formátov vytvorených v ${msg.pageCount} pages`;
       let sub = "Frames sú organizované podľa kanálu (Social, Meta, Google...). Skontroluj pages v ľavom paneli.";
       if (msg.riskFlaggedCount > 0) {
-        sub += ` ⚠ ${msg.riskFlaggedCount} formátov má oranžový rám — plugin si nebol istý (napr. možný text/logo už v obrázku) a treba ich skontrolovať manuálne.`;
+        sub += ` ⚠ Pri ${msg.riskFlaggedCount} formátoch si plugin nebol istý (napr. možný text/logo už v obrázku). Oranžové označenie sa zobrazí iba v režime safe zón.`;
       }
       document.getElementById("resultSub").textContent = sub;
       document.getElementById("btn").disabled = false;

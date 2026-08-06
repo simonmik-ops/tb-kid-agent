@@ -1,4 +1,4 @@
-# Visual system QA — v1.5.1
+# Visual system QA — v1.5.2
 
 Sources checked:
 
@@ -28,6 +28,7 @@ Sources checked:
 - Logo is capped optically by format family. In 1080×1920 it is 151 px high (previously 216 px).
 - CTA height is capped at 64 px in master-safe output.
 - Exact Adform sizes use the format-specific PSD coordinate tables, not the universal scale.
+- Adform switches to a compact grid for headlines up to 22 characters when badge and legal copy are absent.
 
 ## Known source constraint
 

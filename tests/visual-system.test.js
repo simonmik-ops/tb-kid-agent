@@ -32,5 +32,7 @@ assert(source.includes('return clamp(0.46 + (1 - luma) * 0.18, 0.46, 0.64)'), "s
 assert(source.includes('function measureTemplateTextHeight'), "layout must measure real wrapped text height");
 assert(!source.includes('const headlineBoxH = Math.round(format.height * 0.13)'), "headline spacing must not use a canvas-height placeholder");
 assert(!source.includes('const subheadlineBoxH = Math.round(format.height * 0.09)'), "subheadline spacing must not use a canvas-height placeholder");
+assert(source.includes('const compactCopy = String(content.headline || "").trim().length <= 22'), "Adform must adapt short copy instead of forcing the long-copy PSD grid");
+assert(source.includes('headline: [12, 316, 136, 54]'), "compact 160x600 copy must move into the dark panel, away from embedded KV artwork");
 
 console.log("visual system: ok");

@@ -1767,10 +1767,39 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
 function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo, templateId) {
   const activeTemplate = templateId || adformTemplateId(format) || format.id;
-  const rules = ADFORM_PSD_RULES[activeTemplate];
-  if (!rules) {
+  const baseRules = ADFORM_PSD_RULES[activeTemplate];
+  if (!baseRules) {
     buildFullBleedLayout(frame, format, layout, content.headline, figmaImage, figmaLogo);
     return;
+  }
+
+  // PSD súradnice sú navrhnuté pre dlhý 3–5 riadkový headline, badge a legal.
+  // Krátke kampanové copy bez týchto prvkov potrebuje kompaktný variant;
+  // inak zostáva polovica frame-u prázdna a text koliduje s napáleným KV.
+  const compactCopy = String(content.headline || "").trim().length <= 22 &&
+    !content.badgeText && !content.legalText;
+  const rules = Object.assign({}, baseRules);
+  if (compactCopy) {
+    const compact = {
+      adform_300x250: {
+        headline: [20, 54, 150, 48], headlineSize: 20,
+        cta: [20, 164, 110, 38], bankLogo: [224, 174, 55, 54]
+      },
+      adform_300x600: {
+        headline: [20, 392, 230, 58], headlineSize: 25,
+        cta: [20, 482, 124, 42], bankLogo: [216, 504, 64, 62]
+      },
+      adform_160x600: {
+        headline: [12, 316, 136, 54], headlineSize: 22,
+        cta: [15, 382, 130, 42], bankLogo: [43, 450, 74, 73],
+        ai: [30, 548, 100, 19]
+      },
+      adform_970x250: {
+        headline: [460, 52, 330, 72], headlineSize: 36,
+        cta: [460, 148, 125, 42]
+      }
+    }[activeTemplate];
+    if (compact) Object.assign(rules, compact);
   }
 
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
@@ -1781,11 +1810,11 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 });
   } else if (activeTemplate === "adform_160x600") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.48 });
   } else if (activeTemplate === "adform_300x250") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 });
   } else {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: compactCopy ? 0.72 : 0.68, y: 0.40 });
   }
 
   addAdformBackgroundTreatment(frame, format, rules, activeTemplate);

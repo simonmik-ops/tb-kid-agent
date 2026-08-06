@@ -6,23 +6,23 @@ var TB_NS = "tbgen";
 
 var TB = {
   headline: function (W, H) {
-    return Math.max(12, Math.round(0.1399 * Math.pow(W, 0.518) * Math.pow(H, 0.364)));
+    // Optická škála podľa rodiny formátu. Jedna mocninová krivka zväčšovala
+    // portraity (1080×1920 = 82 px) a pritom nedržala rovnakú hierarchiu vo
+    // wide formátoch. Limity vychádzajú z InvestQ Figmy a Adform PSD.
+    var r = W / H;
+    if (r > 1.45) return Math.round(clamp(H * 0.082, 18, 52));
+    if (r < 0.75) return Math.round(clamp(W * 0.060, 22, 68));
+    return Math.round(clamp(Math.min(W, H) * 0.056, 22, 68));
   },
-  subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.60)); },
+  subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.52)); },
   legal: function (W, H) { return Math.max(12, Math.min(24, Math.round(TB.headline(W, H) * 0.30))); },
   padding: function (W, H) { return Math.max(12, Math.round(0.055 * Math.sqrt(W * H))); },
   logoBox: function (W, H) {
-    var ref = [[0.5,0.110],[0.737,0.101],[1.0,0.143],[1.911,0.210],[3.88,0.304]];
-    var r = W / H, pct;
-    if (r <= ref[0][0]) pct = ref[0][1];
-    else if (r >= ref[4][0]) pct = ref[4][1];
-    else for (var i = 0; i < 4; i++) {
-      if (r >= ref[i][0] && r <= ref[i+1][0]) {
-        var t = (Math.log(r)-Math.log(ref[i][0]))/(Math.log(ref[i+1][0])-Math.log(ref[i][0]));
-        pct = ref[i][1] + t * (ref[i+1][1] - ref[i][1]); break;
-      }
-    }
-    var h = Math.max(50, Math.min(Math.round(pct * H), Math.round(0.35 * H)));
+    var r = W / H;
+    var h = r > 1.45
+      ? Math.min(H * 0.21, W * 0.14)
+      : (r < 0.75 ? Math.min(W * 0.14, H * 0.10) : Math.min(W * 0.14, H * 0.14));
+    h = Math.max(50, Math.round(h));
     var w = Math.round(h * (255/243));
     var maxW = Math.round(W * 0.32);
     if (w > maxW) {
@@ -36,7 +36,7 @@ var TB = {
   button: function (W, H) {
     // CTA nesmie dominovať nad headline/KV. Predošlých 10 % geometrického
     // priemeru vytváralo na 1200×1200 až 120 px vysoké tlačidlo.
-    var h = Math.max(36, Math.min(72, Math.round(0.07 * Math.sqrt(W * H))));
+    var h = Math.max(36, Math.min(64, Math.round(0.055 * Math.sqrt(W * H))));
     return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.36)),
              radius: Math.max(4, Math.round(h * 0.08)) };
   }
@@ -236,12 +236,12 @@ function addAiNote(frame, format, contentBox) {
   const cb = contentBox || { x: 0, y: 0, w: format.width, h: format.height };
   const t = figma.createText();
   t.name = "AI generované";
-  t.fontName = FONT;
+  t.fontName = FONT_REGULAR;
   t.characters = "✧  " + STYLE.aiTagText;
   t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  t.opacity = 0.85;                       // dostatočný kontrast aj na svetlom KV
-  try { t.letterSpacing = { value: -3, unit: "PERCENT" }; } catch (e) {}
+  t.opacity = 0.80;                       // presne podľa PSD disclosure vrstvy
+  try { t.letterSpacing = { value: -1.5, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = TB.padding(format.width, format.height);
   frame.appendChild(t);
@@ -290,20 +290,6 @@ function addAiNote(frame, format, contentBox) {
   } catch (e) {}
   t.locked = true;
 
-  // Tmavá podložka za textom, nech kontrast obstojí aj na svetlom KV
-  // (bez nej sme namerali priemerne 2,90 : 1 naprieč formátmi).
-  try {
-    const bp = 4;
-    const backing = figma.createRectangle();
-    backing.name = "AI generované — podložka";
-    backing.resize(t.width + bp * 2, t.height + bp * 2);
-    backing.x = t.x - bp;
-    backing.y = t.y - bp;
-    backing.cornerRadius = 3;
-    backing.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.45 }];
-    backing.locked = true;
-    frame.insertChild(frame.children.indexOf(t), backing);
-  } catch (e) {}
 }
 
 async function createAllFrames({
@@ -812,12 +798,14 @@ function expandPairedBrandingFormats(formats) {
 
 // Krytie scrimu/panelu odvodené z priemernej luminancie dolných 40 % KV
 // (layout.kv_luma_bottom, poslané z ui.html cez <canvas>+getImageData).
-// Svetlý KV → menej krytia (35–45 %), tmavý → viac (70–90 %). Bez dát
-// (napr. Excel cesta bez obrázku) defaultuje na luma=0 → pôvodné 0,90,
-// nech sa vizuál pri chýbajúcom KV nezmení.
+// Svetlý KV → menej krytia, tmavý → viac, ale v jemnom rozsahu 46–64 %.
+// Bez dát používame referenčnú strednú hodnotu 58 %.
 function scrimAlphaFor(layout) {
-  const luma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 0;
-  return clamp(0.35 + (1 - luma) * 0.55, 0.35, 0.90);
+  if (!layout || typeof layout.kv_luma_bottom !== "number") return 0.58;
+  const luma = layout.kv_luma_bottom;
+  // Jemný brand scrim: fotografia zostáva viditeľná. Predošlý rozsah až
+  // 90 % robil z gradientu takmer čierny panel a odporoval 55 % referencii.
+  return clamp(0.46 + (1 - luma) * 0.18, 0.46, 0.64);
 }
 
 function addImageRect(frame, figmaImage, name, x, y, w, h, scaleMode) {
@@ -1259,10 +1247,8 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align,
   txt.fills = [{ type: "SOLID", color: color || { r: 1, g: 1, b: 1 } }];
   txt.textAlignHorizontal = align || "LEFT";
   try {
-    if (style !== "Regular" && style !== "Light") {
-      txt.lineHeight = { value: 100, unit: "PERCENT" };
-      txt.letterSpacing = { value: -2, unit: "PERCENT" };
-    }
+    txt.lineHeight = { value: style === "Regular" ? 110 : 100, unit: "PERCENT" };
+    txt.letterSpacing = { value: style === "Regular" ? -1.5 : -2.5, unit: "PERCENT" };
   } catch (e) {}
   try {
     const slova = String(value).split(/\s+/);
@@ -1630,8 +1616,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const subheadlineSize = TB.subheadline(format.width, format.height);
     const gap = Math.round(headlineSize * 0.35);
     const textW = cb.w - pad * 2;
-    const headlineBoxH = Math.round(format.height * 0.13);
-    const subheadlineBoxH = Math.round(format.height * 0.09);
+    // Textové boxy sledujú typografiu, nie percento výšky plátna. Percentá
+    // vytvárali pri jednom riadku 100+ px prázdne medzery medzi textami.
+    const headlineBoxH = Math.round(headlineSize * (family === "portrait" ? 2.25 : 1.25));
+    const subheadlineBoxH = Math.round(subheadlineSize * 1.25);
     const btn = TB.button(format.width, format.height);
     const logo = TB.logoBox(format.width, format.height);
     const logoClear = TB.logoClear(format.width, format.height);

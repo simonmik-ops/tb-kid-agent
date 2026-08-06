@@ -28,4 +28,12 @@ assert.strictEqual(getCreativeRule(FORMATS.find((f) => f.id === "hyp_google_rsa_
 assert.strictEqual(getCreativeRule(FORMATS.find((f) => f.id === "bsu_google_logo_square")).id, "logo_only");
 assert.strictEqual(getCreativeRule(FORMATS.find((f) => f.id === "tig_demandgen_landscape")).id, "full_creative");
 
+for (const id of ["engerio_native", "kkv_engerio_native", "bsu_engerio_native"]) {
+  const format = FORMATS.find((f) => f.id === id);
+  assert.ok(format, id + " must exist");
+  assert.deepStrictEqual([format.width, format.height, format.ratio], [600, 400, "3:2"], id + " must follow current Engerio rules");
+  assert.strictEqual(format.rules.noText, true, id + " must not bake text into the image");
+  assert.strictEqual(format.rules.noLogo, true, id + " must not bake a logo into the image");
+}
+
 console.log("format normalization: ok");

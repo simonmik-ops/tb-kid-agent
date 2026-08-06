@@ -506,12 +506,12 @@ const FORMATS = [
   // ─── ENGERIO NATIVE ──────────────────────────────────────────
   {
     id: "engerio_native",
-    name: "Engerio native 4:3",
+    name: "Engerio native 3:2",
     channel: "Native",
     role: "native",
-    width: 800,
-    height: 600,
-    ratio: "4:3",
+    width: 600,
+    height: 400,
+    ratio: "3:2",
     type: ["awareness", "hardsell"],
     count: 3,
     noLogo: true,
@@ -660,7 +660,7 @@ const FORMATS = [
   { id: "kkv_int_sme", name: "sme interscroller 320×600", channel: "sme", campaign: "kkvisa", role: "interscroller", width: 320, height: 600, ratio: "8:15", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 50 kB jpg." },
   { id: "kkv_int_pravda", name: "pravda interscroller 300×600", channel: "pravda", campaign: "kkvisa", role: "interscroller", width: 300, height: 600, ratio: "1:2", type: ["hardsell"], count: 1, safeZones: { sides: 50 }, notes: "Ochranná zóna 50px z bokov." },
   { id: "kkv_int_refresher", name: "Refresher double square 300×600", channel: "Refresher", campaign: "kkvisa", role: "interscroller", width: 300, height: 600, ratio: "1:2", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "3 vizuály — každá karta zvlášť." },
-  { id: "kkv_engerio_native", name: "Engerio native 4:3", channel: "Native", campaign: "kkvisa", role: "native", width: 1200, height: 900, ratio: "4:3", type: ["hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga, bez textu, centrovaný. Min 375×250." },
+  { id: "kkv_engerio_native", name: "Engerio native 3:2", channel: "Native", campaign: "kkvisa", role: "native", width: 600, height: 400, ratio: "3:2", type: ["hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga a textu. JPG, max 100 kB; odporúčané minimum 600×400." },
 
   // ═══════════════════════════════════════════════════════════════
   //  DIGITÁLNA HYPOTÉKA (hypo-052025)
@@ -711,7 +711,7 @@ const FORMATS = [
   { id: "bsu_ringier_interscroller", name: "Ringier interscroller 720×1280", channel: "Ringier", campaign: "bsu", role: "interscroller", width: 720, height: 1280, ratio: "9:16", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 250 kB." },
   { id: "bsu_hnonline_megasticker", name: "hnonline mobile mega sticker 300×250", channel: "hnonline", campaign: "bsu", width: 300, height: 250, ratio: "6:5", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB jpg." },
   { id: "bsu_azet_dm", name: "Azet DM 640×500", channel: "E-mail", campaign: "bsu", role: "email", width: 640, height: 500, ratio: "~4:3", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Predmet 80 zn., odosielateľ 25 zn. HTML bez externého CSS." },
-  { id: "bsu_engerio_native", name: "Engerio native 4:3", channel: "Native", campaign: "bsu", role: "native", width: 1200, height: 900, ratio: "4:3", type: ["awareness","hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga, bez textu, centrovaný. Viac variant pre A/B." },
+  { id: "bsu_engerio_native", name: "Engerio native 3:2", channel: "Native", campaign: "bsu", role: "native", width: 600, height: 400, ratio: "3:2", type: ["awareness","hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga a textu. JPG, max 100 kB; odporúčané minimum 600×400. Viac variantov pre A/B." },
 
   // ═══════════════════════════════════════════════════════════════
   //  TIGER — Aura 2026 (tiger-aura-2026), CZ + SK

@@ -47,7 +47,7 @@ const TEMPLATE_GROUPS = [
     label: "Native – čistý vizuál",
     description: "Centrovaný obrázok bez textu a loga.",
     formats: [
-      { id: "tpl_native_4x3", name: "Native image 4:3", channel: "Native", width: 1200, height: 900, ratio: "4:3", noLogo: true }
+      { id: "tpl_native_3x2", name: "Native image 3:2", channel: "Native", width: 600, height: 400, ratio: "3:2", noLogo: true }
     ]
   }
 ];

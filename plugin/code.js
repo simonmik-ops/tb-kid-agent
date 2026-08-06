@@ -1094,7 +1094,7 @@ function buildNativeCenterLayout(frame, format, layout, headline, figmaImage) {
   frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   const pad = Math.round(format.width * 0.06);
   const imageH = Math.round(format.height * 0.70);
-  addImageRect(frame, figmaImage, "Native image 4:3", pad, pad, format.width - pad * 2, imageH - pad, "FILL");
+  addImageRect(frame, figmaImage, "Native image 3:2", pad, pad, format.width - pad * 2, imageH - pad, "FILL");
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(format.width * 0.055, 24, 38));

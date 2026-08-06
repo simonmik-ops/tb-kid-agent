@@ -75,5 +75,7 @@ const meta45 = getRequestedFormats(["meta_full"]).find((f) => f.id === "tpl_meta
 assert.deepStrictEqual([meta45.width, meta45.height], [1200, 1628]);
 const rsaStory = getRequestedFormats(["clean_image"]).find((f) => f.id === "tpl_clean_portrait");
 assert.deepStrictEqual([rsaStory.width, rsaStory.height], [900, 1600]);
+const native = getRequestedFormats(["native_clean"])[0];
+assert.deepStrictEqual([native.width, native.height, native.ratio], [600, 400, "3:2"]);
 
 console.log("universal templates: ok");

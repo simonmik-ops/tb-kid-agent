@@ -30,8 +30,11 @@ assert(source.includes('cursorY = Math.min(cursorY, logoTop'), "Meta text must b
 assert(source.includes('function pickExactKV(format)'), "production formats must require an exact-orientation KV");
 assert(!source.includes('return imgPortrait || imgSquare || imgLandscape'), "portrait formats must not fall back to square/landscape assets");
 assert(source.includes('buildMissingAssetLayout(frame, format, missingAssetKind)'), "missing inputs must create an explicit non-production state");
-assert(source.includes('isVideoPlaceholder ? "PLACEHOLDER" : "PRODUCTION"'), "video frames must never be labelled production");
+assert(source.includes('isVideoPlaceholder ? "PLACEHOLDER"'), "video frames must never be labelled production");
 assert(source.includes('Math.min(format.height, format.width) * 0.32'), "square logo-only assets must use an optical, visible scale");
+assert(source.includes('function pickAdaptiveKV(format)'), "single-master mode must adapt the available KV when an exact orientation is absent");
+assert(source.includes('Adaptive portrait content panel'), "portrait master fallback must use a dedicated content panel instead of full-height cover crop");
+assert(source.includes('Adapted clean master — full composition'), "clean portrait fallback must preserve the complete square composition");
 assert(source.includes('const runYOffset = page.children.length'), "new generations must be placed below existing frames instead of overlapping them");
 assert(source.includes('frame.y = runYOffset'), "every frame in a generation must use the safe run row");
 

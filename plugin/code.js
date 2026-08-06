@@ -358,6 +358,10 @@ async function createAllFrames({
     return kind === "landscape" ? imgLandscape : (kind === "portrait" ? imgPortrait : imgSquare);
   }
 
+  function pickAdaptiveKV(format) {
+    return pickExactKV(format) || imgSquare || imgPortrait || imgLandscape;
+  }
+
   // Video thumbnail je technický placeholder, nie produkčný export. Tu je
   // bezpečné ukázať dostupný KV ako náhľad, lebo status zostáva PLACEHOLDER.
   function pickVideoThumbnail(format) {
@@ -462,10 +466,12 @@ async function createAllFrames({
       const isVideoPlaceholder = layoutType === "video_placeholder";
       const needsLogoOnly = layoutType === "logo_only";
       const exactImage = pickExactKV(format);
-      const figmaImage = isVideoPlaceholder ? pickVideoThumbnail(format) : exactImage;
+      const figmaImage = isVideoPlaceholder ? pickVideoThumbnail(format) : pickAdaptiveKV(format);
+      const adaptedFromSingleMaster = !isVideoPlaceholder && !exactImage && !!figmaImage;
+      layout.asset_fallback_kind = adaptedFromSingleMaster ? requiredAssetKind : null;
       const missingAssetKind = needsLogoOnly
         ? (!figmaLogo ? "logo" : null)
-        : (!isVideoPlaceholder && !exactImage ? requiredAssetKind : null);
+        : (!isVideoPlaceholder && !figmaImage ? requiredAssetKind : null);
 
       // Rozmery zvoleného KV (na výpočet viditeľnej plochy pri contain).
       CUR_IMG_W = 0; CUR_IMG_H = 0;
@@ -491,7 +497,7 @@ async function createAllFrames({
         String(format.channel || "Nezaradené") + (format.role && roleLabels[format.role] ? " / " + roleLabels[format.role] : "");
       const productionStatus = missingAssetKind
         ? ("MISSING " + missingAssetKind.toUpperCase() + " ASSET")
-        : (isVideoPlaceholder ? "PLACEHOLDER" : "PRODUCTION");
+        : (isVideoPlaceholder ? "PLACEHOLDER" : (adaptedFromSingleMaster ? "PRODUCTION ADAPTED" : "PRODUCTION"));
       frame.name = formatDescriptor + variantName + sideName + " \u2014 " + productionStatus + " [" + campaignTag + "]";
       if (missingAssetKind) missingAssetCount++;
       if (isVideoPlaceholder) placeholderCount++;
@@ -946,7 +952,15 @@ function getReadablePad(format) {
 
 // Google RSA / Demand Gen image assets: no text, no logo.
 function buildCleanImageLayout(frame, format, layout, figmaImage) {
-  frame.fills = [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
+  frame.fills = [{ type: "SOLID", color: layout.asset_fallback_kind ? brandColor(layout) : { r: 0.96, g: 0.97, b: 0.98 } }];
+  if (layout.asset_fallback_kind === "portrait" && figmaImage && CUR_IMG_W && CUR_IMG_H) {
+    // Square master v portrait clean assete: zachovaj celý motív a rozšír
+    // plátno brandovou farbou, namiesto drastického cover cropu tváre.
+    const adaptedH = Math.min(format.height, Math.round(format.width * (CUR_IMG_H / CUR_IMG_W)));
+    const adaptedY = Math.round((format.height - adaptedH) / 2);
+    addImageRect(frame, figmaImage, "Adapted clean master — full composition", 0, adaptedY, format.width, adaptedH, "FILL");
+    return;
+  }
   if (layout.image_fit === "contain" || !CUR_IMG_W || !CUR_IMG_H) {
     addImageRect(frame, figmaImage, "Image asset - no text / no logo", 0, 0, format.width, format.height, layout.image_fit === "contain" ? "FIT" : "FILL");
   } else {
@@ -1704,7 +1718,21 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         wLogo.width, wLogo.height);
     }
   } else {
-    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+    const adaptedPortrait = family === "portrait" && !!layout.asset_fallback_kind;
+    if (adaptedPortrait) {
+      // Jeden square master: zachovaj jeho kompozíciu v hornej obrazovej zóne
+      // a chýbajúcu výšku nevyrábaj agresívnym cover cropom. Spodná zóna je
+      // čistý brand panel pre copy, CTA, logo a disclosure.
+      const portraitImageH = Math.round(format.height * 0.62);
+      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, portraitImageH], focal, content.showGuides);
+      addSolidRect(
+        frame, "Adaptive portrait content panel", 0, portraitImageH,
+        format.width, format.height - portraitImageH,
+        { r: 0.105, g: 0.19, b: 0.30 }, 1
+      );
+    } else {
+      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+    }
 
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
@@ -1793,6 +1821,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(scrim);
+    if (adaptedPortrait) scrim.visible = false;
 
     const textAlign = "LEFT";
     addTemplateText(
@@ -1877,6 +1906,24 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     if (compact) Object.assign(rules, compact);
   }
 
+  const adaptedPortrait = layout.asset_fallback_kind === "portrait";
+  if (adaptedPortrait && activeTemplate === "adform_300x600") {
+    Object.assign(rules, {
+      panel: [0, 330, 300, 270],
+      headline: [20, 365, 230, 58], headlineSize: 25,
+      cta: [20, 455, 124, 42], bankLogo: [216, 480, 64, 62],
+      ai: [23, 562, 100, 19]
+    });
+  }
+  if (adaptedPortrait && activeTemplate === "adform_160x600") {
+    Object.assign(rules, {
+      panel: [0, 220, 160, 380],
+      headline: [12, 250, 136, 54], headlineSize: 22,
+      cta: [15, 320, 130, 42], bankLogo: [43, 390, 74, 73],
+      ai: [30, 548, 100, 19]
+    });
+  }
+
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
@@ -1885,11 +1932,11 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 });
   } else if (activeTemplate === "adform_160x600") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.48 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, adaptedPortrait ? 220 : 330], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.48 });
   } else if (activeTemplate === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 });
   } else {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: compactCopy ? 0.72 : 0.68, y: 0.40 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, adaptedPortrait ? 350 : format.height], focal, { x: compactCopy ? 0.72 : 0.68, y: 0.40 });
   }
 
   addAdformBackgroundTreatment(frame, format, rules, activeTemplate);

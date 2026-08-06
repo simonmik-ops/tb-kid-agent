@@ -1309,6 +1309,22 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align,
   return txt;
 }
 
+// Figma vypočíta skutočnú výšku až po zalomení textu. Kompozícia preto
+// najprv text odmeria a až potom skladá bloky; percentuálne placeholder boxy
+// vytvárali pri jednom riadku neprimerané prázdne medzery.
+function measureTemplateTextHeight(frame, value, width, fontSize, style) {
+  if (!value) return 0;
+  const probe = addTemplateText(
+    frame, "__typography_measure__", value,
+    [0, 0, Math.max(40, width), Math.max(frame.height, fontSize * 6)],
+    fontSize, { r: 1, g: 1, b: 1 }, style, "LEFT"
+  );
+  if (!probe) return 0;
+  const height = Math.ceil(probe.height);
+  probe.remove();
+  return height;
+}
+
 function addSloganLogo(frame, box) {
   if (!box) return;
   const slashW = Math.max(10, Math.round(box[2] * 0.20));
@@ -1577,7 +1593,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
     const wBtn = TB.button(format.width, format.height);
     const showCta = layout.show_cta !== false;
-    const wGap = Math.round(headlineSize * 0.30);
+    const wGap = Math.max(10, Math.round(headlineSize * 0.28));
+    const textGap = Math.max(8, Math.round(headlineSize * 0.18));
     const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
       ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
 
@@ -1588,16 +1605,23 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // CTA a AI tagu ostane menej ako 1,6× jeho výšky, alebo je formát
     // pod min(W,H) 400 px.
     const showSub = shouldShowSubheadline(format, layout, wCur - (cb.y + pad));
-    const subH = Math.round(TB.subheadline(format.width, format.height) * 1.6);
-    if (showSub) { subY = wCur - subH; wCur = subY - Math.round(wGap * 0.6); }
-    const hlDost = Math.max(20, wCur - pad);
-    const hlH = Math.min(Math.round(headlineSize * 1.15 * 2), hlDost);
+    const subWidth = wideWidth(wCur - TB.subheadline(format.width, format.height) * 1.2,
+      TB.subheadline(format.width, format.height) * 1.2);
+    const subH = showSub ? measureTemplateTextHeight(
+      frame, content.subheadline, subWidth, TB.subheadline(format.width, format.height), "Regular"
+    ) : 0;
+    if (showSub) { subY = wCur - subH; wCur = subY - textGap; }
+    const headlineWidth = wideWidth(wCur - headlineSize * 1.1, headlineSize * 1.1);
+    const hlH = measureTemplateTextHeight(frame, content.headline, headlineWidth, headlineSize, "Bold");
     const hlY = wCur - hlH;
 
-    placeReserveWide("Headline", content.headline, hlY, hlH, headlineSize, { r: 1, g: 1, b: 1 }, "Bold");
+    addTemplateText(frame, "Headline", content.headline,
+      [textX, hlY, headlineWidth, Math.max(hlH, headlineSize)], headlineSize,
+      { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
 
     if (showSub) {
-      placeReserveWide("Subheadline", content.subheadline, subY, subH,
+      addTemplateText(frame, "Subheadline", content.subheadline,
+        [textX, subY, subWidth, Math.max(subH, TB.subheadline(format.width, format.height))],
         TB.subheadline(format.width, format.height), { r: 1, g: 1, b: 1 }, "Regular");
     }
     if (showCta) {
@@ -1614,12 +1638,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
-    const gap = Math.round(headlineSize * 0.35);
+    const gap = Math.max(10, Math.round(headlineSize * 0.28));
+    const textGap = Math.max(8, Math.round(headlineSize * 0.18));
     const textW = cb.w - pad * 2;
-    // Textové boxy sledujú typografiu, nie percento výšky plátna. Percentá
-    // vytvárali pri jednom riadku 100+ px prázdne medzery medzi textami.
-    const headlineBoxH = Math.round(headlineSize * (family === "portrait" ? 2.25 : 1.25));
-    const subheadlineBoxH = Math.round(subheadlineSize * 1.25);
     const btn = TB.button(format.width, format.height);
     const logo = TB.logoBox(format.width, format.height);
     const logoClear = TB.logoClear(format.width, format.height);
@@ -1660,16 +1681,21 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // formát pod min(W,H) 400 px. Rovnaký boolean sa použije aj nižšie
     // pri samotnom kreslení, nech sa rezerva miesta a kreslenie nerozídu.
     const showSubheadline = shouldShowSubheadline(format, layout, cursorY - (cb.y + pad));
+    const subWidth = (logoReserve && cursorY > logoTop) ? Math.max(60, textW - logoReserve) : textW;
+    const subheadlineBoxH = showSubheadline
+      ? measureTemplateTextHeight(frame, content.subheadline, subWidth, subheadlineSize, "Regular") : 0;
     if (showSubheadline) {
       cursorY -= subheadlineBoxH;
       subheadlineY = cursorY;
-      cursorY -= gap;
+      cursorY -= textGap;
     }
+    const headlineWidth = (logoReserve && cursorY > logoTop) ? Math.max(60, textW - logoReserve) : textW;
+    const headlineBoxH = measureTemplateTextHeight(frame, content.headline, headlineWidth, headlineSize, "Bold");
     cursorY -= headlineBoxH;
     const headlineY = cursorY;
 
     const scrimH = Math.min(format.height, Math.max(
-      Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
+      Math.round(format.height * (family === "portrait" ? 0.46 : 0.50)),
       format.height - headlineY
     ));
     const scrimAlpha = scrimAlphaFor(layout);
@@ -1693,17 +1719,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }];
     frame.appendChild(scrim);
 
-    const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
-    const headlineNode = placeReserveText(
-      "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
+    const textAlign = "LEFT";
+    addTemplateText(
+      frame, "Headline", content.headline,
+      [cb.x + pad, headlineY, headlineWidth, Math.max(headlineBoxH, headlineSize)],
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
     );
-    if (headlineNode && family === "portrait") {
-      headlineNode.textAlignVertical = "CENTER";
-    }
     if (showSubheadline) {
-      placeReserveText(
-        "Subheadline", content.subheadline, cb.x + pad, subheadlineY, subheadlineBoxH,
+      addTemplateText(
+        frame, "Subheadline", content.subheadline,
+        [cb.x + pad, subheadlineY, subWidth, Math.max(subheadlineBoxH, subheadlineSize)],
         subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", textAlign
       );
     }

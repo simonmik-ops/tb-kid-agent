@@ -1,4 +1,4 @@
-# Visual system QA — v1.5.0
+# Visual system QA — v1.5.1
 
 Sources checked:
 
@@ -14,6 +14,7 @@ Sources checked:
 - Optical headline scale: 51 px at 1200×628, 67 px at 1200×1200, 65 px at 1080×1920.
 - Subheadline scale: 52% of headline.
 - Text block spacing is derived from text size, not a percentage of the canvas height.
+- Text blocks are measured after real Figma wrapping and then stacked from their actual height.
 
 ## Colour and readability
 

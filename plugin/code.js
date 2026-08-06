@@ -894,10 +894,15 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
     addImageRect(frame, figmaImage, "Image asset - no text / no logo", 0, 0, format.width, format.height, layout.image_fit === "contain" ? "FIT" : "FILL");
   } else {
     // Clean assets majú vyplniť plátno bez bielych technických pásov z KV.
+    const cleanRatio = format.width / format.height;
+    const cleanFocal = {
+      x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
+      y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
+    };
     addFocalImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Image asset - no text / no logo", [0, 0, format.width, format.height],
-      { x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 }, 1.025
+      cleanFocal, { x: 0.5, y: cleanRatio > 1.45 ? 0.62 : 0.5 }, 1.08
     );
   }
 }
@@ -1423,7 +1428,7 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   const scale = Math.max(
     zone[2] / imageSize.width,
     zone[3] / imageSize.height
-  ) * 1.025;
+  ) * 1.06;
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();

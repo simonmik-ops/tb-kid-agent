@@ -27,6 +27,11 @@ assert(source.includes('const imageW = Math.round(format.width * 0.56)'), "wide 
 assert(source.includes('panel.fills = [{ type: "SOLID", color: brand }]'), "wide panel must be solid without a shadow edge");
 assert(source.includes('rect.y = Math.min(rect.y, -edgeTrim)'), "master crop must hide technical top-edge pixels");
 assert(source.includes('cursorY = Math.min(cursorY, logoTop'), "Meta text must be anchored above the logo row");
+assert(source.includes('function pickExactKV(format)'), "production formats must require an exact-orientation KV");
+assert(!source.includes('return imgPortrait || imgSquare || imgLandscape'), "portrait formats must not fall back to square/landscape assets");
+assert(source.includes('buildMissingAssetLayout(frame, format, missingAssetKind)'), "missing inputs must create an explicit non-production state");
+assert(source.includes('isVideoPlaceholder ? "PLACEHOLDER" : "PRODUCTION"'), "video frames must never be labelled production");
+assert(source.includes('Math.min(format.height, format.width) * 0.32'), "square logo-only assets must use an optical, visible scale");
 
 assert(source.includes('t.opacity = 0.80'), "AI disclosure must match the PSD 80% opacity");
 assert(!source.includes('backing.name = "AI generované — podložka"'), "AI disclosure must not use the old black pill");

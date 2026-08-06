@@ -343,13 +343,26 @@ async function createAllFrames({
   const imgPortrait = mkImage(kvPortraitBytes);
   const imgLandscape = mkImage(kvLandscapeBytes);
 
-  // Vyber KV podľa orientácie formátu — každý formát dostane vizuál pre svoj
-  // tvar, takže sa nič neoreže zle. Fallback na dostupné.
-  function pickKV(format) {
+  function assetKindForFormat(format) {
     const r = format.width / format.height;
-    if (r >= 1.25) return imgLandscape || imgSquare || imgPortrait;
-    if (r <= 0.8) return imgPortrait || imgSquare || imgLandscape;
-    return imgSquare || imgPortrait || imgLandscape;
+    if (r >= 1.25) return "landscape";
+    if (r <= 0.8) return "portrait";
+    return "square";
+  }
+
+  // Produkčný formát smie použiť iba KV rovnakej orientácie. Starý fallback
+  // square -> portrait/landscape vytváral síce vyplnený, ale vizuálne chybný
+  // frame a navyše ho označil ako PRODUCTION.
+  function pickExactKV(format) {
+    const kind = assetKindForFormat(format);
+    return kind === "landscape" ? imgLandscape : (kind === "portrait" ? imgPortrait : imgSquare);
+  }
+
+  // Video thumbnail je technický placeholder, nie produkčný export. Tu je
+  // bezpečné ukázať dostupný KV ako náhľad, lebo status zostáva PLACEHOLDER.
+  function pickVideoThumbnail(format) {
+    const exact = pickExactKV(format);
+    return exact || imgSquare || imgPortrait || imgLandscape;
   }
 
   // Šablóny z vetvy adform-psd počítajú s jedným vizuálom a jeho rozmermi.
@@ -372,6 +385,8 @@ async function createAllFrames({
   const allFrames = [];
   const channels = Object.keys(byChannel);
   let riskFlaggedCount = 0;
+  let missingAssetCount = 0;
+  let placeholderCount = 0;
 
   for (const channel of channels) {
     const items = byChannel[channel];
@@ -436,7 +451,14 @@ async function createAllFrames({
       }
 
       // --- KV podľa orientácie formátu (vetva clean-frames) ---------------
-      const figmaImage = pickKV(format);
+      const requiredAssetKind = assetKindForFormat(format);
+      const isVideoPlaceholder = layoutType === "video_placeholder";
+      const needsLogoOnly = layoutType === "logo_only";
+      const exactImage = pickExactKV(format);
+      const figmaImage = isVideoPlaceholder ? pickVideoThumbnail(format) : exactImage;
+      const missingAssetKind = needsLogoOnly
+        ? (!figmaLogo ? "logo" : null)
+        : (!isVideoPlaceholder && !exactImage ? requiredAssetKind : null);
 
       // Rozmery zvoleného KV (na výpočet viditeľnej plochy pri contain).
       CUR_IMG_W = 0; CUR_IMG_H = 0;
@@ -460,7 +482,12 @@ async function createAllFrames({
       };
       var formatDescriptor = String(format.width) + "×" + String(format.height) + " · " +
         String(format.channel || "Nezaradené") + (format.role && roleLabels[format.role] ? " / " + roleLabels[format.role] : "");
-      frame.name = formatDescriptor + variantName + sideName + " \u2014 " + adType.toUpperCase() + " [" + campaignTag + "]";
+      const productionStatus = missingAssetKind
+        ? ("MISSING " + missingAssetKind.toUpperCase() + " ASSET")
+        : (isVideoPlaceholder ? "PLACEHOLDER" : "PRODUCTION");
+      frame.name = formatDescriptor + variantName + sideName + " \u2014 " + productionStatus + " [" + campaignTag + "]";
+      if (missingAssetKind) missingAssetCount++;
+      if (isVideoPlaceholder) placeholderCount++;
       // Metadáta pre export: limit a ID formátu sa inak z názvu frameu nedajú zistiť.
       // Zapisujeme dvojmo — setPluginData je súkromné pre tento plugin,
       // setSharedPluginData vedia prečítať aj externé nástroje a kontroly.
@@ -471,7 +498,8 @@ async function createAllFrames({
           tbTagging: String(campaignTag || ""),
           tbChannel: String(format.channel || channel || ""),
           tbWidth: String(format.width || ""),
-          tbHeight: String(format.height || "")
+          tbHeight: String(format.height || ""),
+          tbStatus: productionStatus
         };
         for (var mk in meta) {
           frame.setPluginData(mk, meta[mk]);
@@ -483,7 +511,9 @@ async function createAllFrames({
       frame.y = 0;
       frame.clipsContent = true;
 
-      if (layoutType === "video_placeholder") {
+      if (missingAssetKind) {
+        buildMissingAssetLayout(frame, format, missingAssetKind);
+      } else if (layoutType === "video_placeholder") {
         buildVideoPlaceholderLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "clean_image") {
         buildCleanImageLayout(frame, format, layout, figmaImage);
@@ -570,7 +600,10 @@ async function createAllFrames({
   if (guides) createValidationReport(formats, headline, adType);
   if (allFrames.length > 0) figma.viewport.scrollAndZoomIntoView(allFrames.slice(0, 3));
 
-  figma.ui.postMessage({ type: "done", formatCount: formats.length, pageCount: channels.length, riskFlaggedCount });
+  figma.ui.postMessage({
+    type: "done", formatCount: formats.length, pageCount: channels.length,
+    riskFlaggedCount, missingAssetCount, placeholderCount
+  });
 }
 
 // Human-čitateľné popisky pre risk_flags z agent.js — musia sedieť s kódmi tam generovanými.
@@ -847,6 +880,32 @@ function addSolidRect(frame, name, x, y, w, h, color, opacity) {
   rect.fills = [{ type: "SOLID", color, opacity: opacity === undefined ? 1 : opacity }];
   frame.appendChild(rect);
   return rect;
+}
+
+function buildMissingAssetLayout(frame, format, assetKind) {
+  const labels = {
+    square: "CHÝBA SQUARE KV",
+    portrait: "CHÝBA PORTRAIT KV",
+    landscape: "CHÝBA LANDSCAPE KV",
+    logo: "CHÝBA LOGO"
+  };
+  frame.fills = [{ type: "SOLID", color: { r: 0.075, g: 0.085, b: 0.105 } }];
+  const pad = Math.round(clamp(Math.min(format.width, format.height) * 0.08, 18, 72));
+  const stripe = Math.max(8, Math.round(Math.min(format.width, format.height) * 0.025));
+  addSolidRect(frame, "MISSING ASSET status", 0, 0, stripe, format.height, { r: 0.94, g: 0.33, b: 0.20 }, 1);
+  addTemplateText(
+    frame, "Missing asset title", labels[assetKind] || "CHÝBA PODKLAD",
+    [pad, Math.round(format.height * 0.34), format.width - pad * 2, Math.round(format.height * 0.18)],
+    Math.round(clamp(Math.min(format.width, format.height) * 0.075, 20, 58)),
+    { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+  );
+  addTemplateText(
+    frame, "Missing asset instruction",
+    "Frame nie je produkčný. Nahraj podklad rovnakej orientácie a vygeneruj ho znova.",
+    [pad, Math.round(format.height * 0.54), format.width - pad * 2, Math.round(format.height * 0.24)],
+    Math.round(clamp(Math.min(format.width, format.height) * 0.035, 12, 28)),
+    { r: 0.80, g: 0.84, b: 0.90 }, "Regular", "LEFT"
+  );
 }
 
 function buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
@@ -2207,10 +2266,14 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   frame.fills = [];
   const hasLogo = !!figmaLogo;
 
-  // Logo vycentrované
-  const lH = Math.min(Math.round(format.height * 0.25), Math.round(format.width * 0.18), 80);
-  const lW = Math.round(lH * 3.5);
-  const lPad = Math.round(format.height * 0.15);
+  // Export používa štvorcový TB lockup (255:243), nie 3.5:1 wordmark.
+  // Starý absolútny strop 80 px robil logo na 1200×1200 takmer neviditeľné.
+  const wideCanvas = format.width / format.height >= 3;
+  const lH = wideCanvas
+    ? Math.round(format.height * 0.56)
+    : Math.round(Math.min(format.height, format.width) * 0.32);
+  const lW = Math.round(lH * (255 / 243));
+  const lPad = Math.round((format.height - lH) / 2);
   placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), lPad, lW, lH);
   const fallbackHeadline = !hasLogo && !!headline;
 

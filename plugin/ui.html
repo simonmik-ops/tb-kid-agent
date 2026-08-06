@@ -43,7 +43,7 @@
   </style>
 </head>
 <body>
-  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.5.6 · Clean master crop</span></h1>
+  <h1>TB — Generátor online formátov <span style="font-size:11px;color:#18a0fb;">v1.6.0 · Production preflight</span></h1>
   <p class="sub">Nová zákazka → key visual → typy výstupov → editovateľné frames vo Figme</p>
 
   <label>Názov novej zákazky</label>
@@ -812,6 +812,12 @@
       document.getElementById("result").style.display = "block";
       document.getElementById("resultTitle").textContent = `${msg.formatCount} formátov vytvorených v ${msg.pageCount} pages`;
       let sub = "Frames sú organizované podľa kanálu (Social, Meta, Google...). Skontroluj pages v ľavom paneli.";
+      if (msg.missingAssetCount > 0) {
+        sub += ` ${msg.missingAssetCount} formátov nie je produkčných: chýba KV správnej orientácie alebo logo. Sú označené MISSING ASSET a plugin ich zámerne neorezal z nesprávneho podkladu.`;
+      }
+      if (msg.placeholderCount > 0) {
+        sub += ` ${msg.placeholderCount} video formátov je označených PLACEHOLDER a vyžaduje motion/video export.`;
+      }
       if (msg.riskFlaggedCount > 0) {
         sub += ` ⚠ Pri ${msg.riskFlaggedCount} formátoch si plugin nebol istý (napr. možný text/logo už v obrázku). Oranžové označenie sa zobrazí iba v režime safe zón.`;
       }

@@ -1718,21 +1718,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         wLogo.width, wLogo.height);
     }
   } else {
-    const adaptedPortrait = family === "portrait" && !!layout.asset_fallback_kind;
-    if (adaptedPortrait) {
-      // Jeden square master: zachovaj jeho kompozíciu v hornej obrazovej zóne
-      // a chýbajúcu výšku nevyrábaj agresívnym cover cropom. Spodná zóna je
-      // čistý brand panel pre copy, CTA, logo a disclosure.
-      const portraitImageH = Math.round(format.height * 0.62);
-      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, portraitImageH], focal, content.showGuides);
-      addSolidRect(
-        frame, "Adaptive portrait content panel", 0, portraitImageH,
-        format.width, format.height - portraitImageH,
-        { r: 0.105, g: 0.19, b: 0.30 }, 1
-      );
-    } else {
-      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
-    }
+    // Surď master: square a portrait ostávajú full-bleed. Farba sa tu
+    // nepridáva ako nový panel; čitateľnosť zabezpečuje iba gradient podľa KV.
+    // Samostatný farebný panel patrí len explicitným wide/PSD šablónam.
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
 
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
@@ -1821,8 +1810,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(scrim);
-    if (adaptedPortrait) scrim.visible = false;
-
     const textAlign = "LEFT";
     addTemplateText(
       frame, "Headline", content.headline,
@@ -1877,52 +1864,9 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     return;
   }
 
-  // PSD súradnice sú navrhnuté pre dlhý 3–5 riadkový headline, badge a legal.
-  // Krátke kampanové copy bez týchto prvkov potrebuje kompaktný variant;
-  // inak zostáva polovica frame-u prázdna a text koliduje s napáleným KV.
-  const compactCopy = String(content.headline || "").trim().length <= 22 &&
-    !content.badgeText && !content.legalText;
+  // PSD súradnice sú záväzné aj pri kratšom copy. Predošlá "compactCopy"
+  // vetva posúvala headline, CTA aj logo a výsledok už nezodpovedal PSD.
   const rules = Object.assign({}, baseRules);
-  if (compactCopy) {
-    const compact = {
-      adform_300x250: {
-        headline: [20, 54, 150, 48], headlineSize: 20,
-        cta: [20, 164, 110, 38], bankLogo: [224, 174, 55, 54]
-      },
-      adform_300x600: {
-        headline: [20, 392, 230, 58], headlineSize: 25,
-        cta: [20, 482, 124, 42], bankLogo: [216, 504, 64, 62]
-      },
-      adform_160x600: {
-        headline: [12, 316, 136, 54], headlineSize: 22,
-        cta: [15, 382, 130, 42], bankLogo: [43, 450, 74, 73],
-        ai: [30, 548, 100, 19]
-      },
-      adform_970x250: {
-        headline: [460, 52, 330, 72], headlineSize: 36,
-        cta: [460, 148, 125, 42]
-      }
-    }[activeTemplate];
-    if (compact) Object.assign(rules, compact);
-  }
-
-  const adaptedPortrait = layout.asset_fallback_kind === "portrait";
-  if (adaptedPortrait && activeTemplate === "adform_300x600") {
-    Object.assign(rules, {
-      panel: [0, 330, 300, 270],
-      headline: [20, 365, 230, 58], headlineSize: 25,
-      cta: [20, 455, 124, 42], bankLogo: [216, 480, 64, 62],
-      ai: [23, 562, 100, 19]
-    });
-  }
-  if (adaptedPortrait && activeTemplate === "adform_160x600") {
-    Object.assign(rules, {
-      panel: [0, 220, 160, 380],
-      headline: [12, 250, 136, 54], headlineSize: 22,
-      cta: [15, 320, 130, 42], bankLogo: [43, 390, 74, 73],
-      ai: [30, 548, 100, 19]
-    });
-  }
 
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
   const focal = {
@@ -1932,11 +1876,11 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 });
   } else if (activeTemplate === "adform_160x600") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, adaptedPortrait ? 220 : 330], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.48 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 });
   } else if (activeTemplate === "adform_300x250") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 });
   } else {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, adaptedPortrait ? 350 : format.height], focal, { x: compactCopy ? 0.72 : 0.68, y: 0.40 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 });
   }
 
   addAdformBackgroundTreatment(frame, format, rules, activeTemplate);

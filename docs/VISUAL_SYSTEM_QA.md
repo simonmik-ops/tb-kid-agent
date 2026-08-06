@@ -11,7 +11,7 @@ Sources checked:
 - Family: Tatra banka Sans; Bold for headline/CTA, Regular for subheadline and disclosure.
 - Headline line height: 100%; tracking: -2.5% (PSD uses tracking -25).
 - Subheadline line height: 110%; tracking: -1.5%.
-- Optical headline scale: 51 px at 1200×628, 67 px at 1200×1200, 65 px at 1080×1920.
+- Optical headline scale: 51 px at 1200×628, 67 px at 1200×1200, 65 px at 1080×1920, and 89 px at 1920×1080. Wide formats keep the same 8.2% height ratio instead of stopping at the old 52 px cap.
 - Subheadline scale: 52% of headline.
 - Text block spacing is derived from text size, not a percentage of the canvas height.
 
@@ -25,6 +25,8 @@ Sources checked:
 ## Brand geometry
 
 - Logo is capped optically by format family. In 1080×1920 it is 151 px high (previously 216 px).
+- In master-safe landscape formats, the sampled visual colour becomes fully opaque exactly at the image boundary, preventing a vertical seam between the KV and its colour extension.
+- A one-line headline is bottom-anchored to the subheadline; unused multi-line reserve no longer becomes a large visual gap.
 - CTA height is capped at 64 px in master-safe output.
 - Exact Adform sizes use the format-specific PSD coordinate tables, not the universal scale.
 

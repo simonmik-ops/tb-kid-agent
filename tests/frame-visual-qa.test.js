@@ -23,5 +23,9 @@ assert(source.includes('qaFailedCount'), "generation summary must expose QA fail
 assert(source.includes('qa_psd_geometry'), "Adform outputs must be checked against PSD geometry");
 assert(source.includes('FONT.family !== STYLE.fontFamily'), "font fallback must fail visual QA");
 assert(source.includes('qa_content_overlap'), "content collisions must fail visual QA");
+assert(source.includes('qa_logo_scale'), "logo dimensions must be validated against format tokens");
+assert(source.includes('qa_cta_style'), "CTA size and brand blue must be validated");
+assert(source.includes('qa_text_spacing'), "headline/subheadline optical spacing must be validated");
+assert(source.includes('qa_wide_color_extension'), "wide color continuation must be validated against seams");
 
 console.log("frame visual QA: ok");

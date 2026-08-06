@@ -16,6 +16,8 @@ assert.deepStrictEqual(
   [51, 67, 65],
   "wide, square and portrait headline sizes must keep the approved optical scale"
 );
+assert.strictEqual(TB.headline(1920, 1080), 89,
+  "Full-HD wide headline must keep the same 8.2% optical scale instead of the old 52 px cap");
 assert.deepStrictEqual(
   [TB.subheadline(1200, 628), TB.subheadline(1200, 1200), TB.subheadline(1080, 1920)],
   [27, 35, 34],
@@ -29,5 +31,8 @@ assert(!source.includes('backing.name = "AI generované — podložka"'), "AI di
 assert(source.includes('style === "Regular" ? 110 : 100'), "typographic line-height tokens must be explicit");
 assert(source.includes('style === "Regular" ? -1.5 : -2.5'), "tracking must follow the PSD-derived scale");
 assert(source.includes('return clamp(0.46 + (1 - luma) * 0.18, 0.46, 0.64)'), "scrim must stay in the gentle 46–64% range");
+assert(source.includes('imageBoundaryStop'), "wide color extension must become opaque at the image boundary");
+assert(source.includes('headlineBottom - headlineNode.height'), "single-line headline must be optically anchored to subheadline");
+assert(source.includes('{ x: 0.68, y: 0.40 }, 1.02'), "Adform crops must remove one-pixel technical KV borders");
 
 console.log("visual system: ok");

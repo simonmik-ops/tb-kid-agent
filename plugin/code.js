@@ -10,7 +10,11 @@ var TB = {
     // portraity (1080×1920 = 82 px) a pritom nedržala rovnakú hierarchiu vo
     // wide formátoch. Limity vychádzajú z InvestQ Figmy a Adform PSD.
     var r = W / H;
-    if (r > 1.45) return Math.round(clamp(H * 0.082, 18, 52));
+    // Wide kreatívy škálujú podľa výšky aj nad 1200×628. Starý strop 52 px
+    // nechal 1920×1080 s rovnakým headlineom ako 1200×628, takže publisher
+    // a YouTube formáty pôsobili opticky zmenšené. 1200×628 ostáva 51 px,
+    // 1920×1080 je 89 px — rovnaký 8,2 % pomer k výške.
+    if (r > 1.45) return Math.round(clamp(H * 0.082, 18, 96));
     if (r < 0.75) return Math.round(clamp(W * 0.060, 22, 68));
     return Math.round(clamp(Math.min(W, H) * 0.056, 22, 68));
   },
@@ -713,6 +717,10 @@ function humanizeWarnings(warnings) {
     qa_content_overflow: "Obsah presahuje mimo frame.",
     qa_content_overlap: "Headline, subheadline, CTA alebo logo sa prekrývajú.",
     qa_typography_scale: "Veľkosť typografie je mimo schválenej tolerancie.",
+    qa_logo_scale: "Veľkosť alebo pomer loga nesedí s pravidlom formátu.",
+    qa_cta_style: "CTA nemá schválenú výšku alebo modrú farbu.",
+    qa_text_spacing: "Headline a subheadline sú od seba opticky príliš ďaleko.",
+    qa_wide_color_extension: "Landscape farebná plocha sa nenapája plynulo na vizuál.",
     qa_psd_geometry: "Adform prvok nesedí na PSD súradnice.",
     qa_unexpected_effect: "Frame obsahuje neželaný tieň alebo efekt.",
     qa_unclipped_frame: "Frame nemá zapnuté orezanie obsahu."
@@ -804,6 +812,48 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
       : TB.headline(format.width, format.height);
     const size = typeof headline.fontSize === "number" ? headline.fontSize : expected;
     if (size < expected * 0.82 || size > expected * 1.08) add("qa_typography_scale");
+  }
+
+  if (layoutType === "master_safe") {
+    if (subheadline && subheadline.type === "TEXT") {
+      const expectedSub = TB.subheadline(format.width, format.height);
+      const subSize = typeof subheadline.fontSize === "number" ? subheadline.fontSize : expectedSub;
+      if (subSize < expectedSub * 0.90 || subSize > expectedSub * 1.08) add("qa_typography_scale");
+    }
+    if (logo) {
+      const expectedLogo = TB.logoBox(format.width, format.height);
+      const logoBox = qaBox(logo, frame);
+      if (!logoBox || !qaNear(logoBox.w, expectedLogo.width, 2) ||
+          !qaNear(logoBox.h, expectedLogo.height, 2)) add("qa_logo_scale");
+    }
+    if (cta) {
+      const expectedButton = TB.button(format.width, format.height);
+      const ctaBox = qaBox(cta, frame);
+      let blueOk = false;
+      try {
+        const fill = cta.fills && cta.fills[0];
+        blueOk = !!fill && fill.type === "SOLID" &&
+          qaNear(fill.color.r, 0, 0.01) && qaNear(fill.color.g, 0.278, 0.01) &&
+          qaNear(fill.color.b, 0.973, 0.01);
+      } catch (e) {}
+      if (!ctaBox || !qaNear(ctaBox.h, expectedButton.height, 2) || !blueOk) add("qa_cta_style");
+    }
+    if (headline && subheadline) {
+      const hb = qaBox(headline, frame), sb = qaBox(subheadline, frame);
+      const maxGap = Math.max(16, TB.headline(format.width, format.height) * 0.55);
+      if (hb && sb && sb.y - (hb.y + hb.h) > maxGap) add("qa_text_spacing");
+    }
+    if (format.width / format.height > 1.45) {
+      const panel = qaFind(frame, "Wide content panel");
+      let seamless = false;
+      try {
+        const fill = panel && panel.fills && panel.fills[0];
+        const stops = fill && fill.type === "GRADIENT_LINEAR" ? fill.gradientStops : [];
+        seamless = stops.length >= 4 && stops[stops.length - 1].color.a >= 0.98 &&
+          stops[stops.length - 2].color.a >= 0.98;
+      } catch (e) {}
+      if (!seamless) add("qa_wide_color_extension");
+    }
   }
 
   if (layoutType === "adform_psd" && ADFORM_PSD_RULES[templateId]) {
@@ -1702,6 +1752,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     panel.resize(format.width - panelX, format.height);
     panel.x = panelX;
     panel.y = 0;
+    const imageBoundaryStop = Math.min(0.99, Math.max(0.01,
+      (imageW - panelX) / (format.width - panelX)));
+    const textStartStop = Math.min(imageBoundaryStop - 0.01, Math.max(0.01,
+      (textX - panelX) / (format.width - panelX)));
     panel.fills = [{
       type: "GRADIENT_LINEAR",
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
@@ -1709,9 +1763,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
         // Plne krycí presne tam, kde začína text (textX), nie o kus ďalej —
         // inak časť headline boxu leží nad ešte priesvitným panelom (P0-8).
-        { position: Math.min(0.98, (textX - panelX) / (format.width - panelX)),
+        { position: textStartStop,
           color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } },
-        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } }
+        // Na konci obrazovej zóny už musí byť plocha úplne krycia. Inak sa
+        // presne na imageW objaví viditeľný vertikálny šev medzi obrázkom a
+        // doplnenou farbou. Farba ostáva vzorkovaná z konkrétneho KV.
+        { position: imageBoundaryStop, color: { r: brand.r, g: brand.g, b: brand.b, a: 1 } },
+        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: 1 } }
       ]
     }];
     frame.appendChild(panel);
@@ -1756,7 +1814,26 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const hlH = Math.min(Math.round(headlineSize * 1.15 * 2), hlDost);
     const hlY = wCur - hlH;
 
-    placeReserveWide("Headline", content.headline, hlY, hlH, headlineSize, { r: 1, g: 1, b: 1 }, "Bold");
+    let wideHeadline = placeReserveWide("Headline", content.headline, hlY, hlH,
+      headlineSize, { r: 1, g: 1, b: 1 }, "Bold");
+    // Jednoriadkový headline nesmie dediť prázdny priestor rezervovaný pre
+    // dva riadky. Jeho spodnú hranu ukotvíme k subheadline; pri dlhom texte,
+    // ktorý využije celý box, ostáva pôvodná PSD/master-safe geometria.
+    if (wideHeadline && showSub) {
+      const headlineBottom = subY - Math.round(wGap * 0.6);
+      wideHeadline.y = Math.max(cb.y + pad, headlineBottom - wideHeadline.height);
+      if (reserve && headlineBottom > logoTop &&
+          wideHeadline.width > Math.max(60, textW - reserve) + 1) {
+        wideHeadline.remove();
+        wideHeadline = addTemplateText(
+          frame, "Headline", content.headline,
+          [textX, hlY, Math.max(60, textW - reserve), hlH],
+          headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+        );
+        if (wideHeadline) wideHeadline.y = Math.max(cb.y + pad,
+          headlineBottom - wideHeadline.height);
+      }
+    }
 
     if (showSub) {
       placeReserveWide("Subheadline", content.subheadline, subY, subH,
@@ -1856,10 +1933,27 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     frame.appendChild(scrim);
 
     const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
-    const headlineNode = placeReserveText(
+    let headlineNode = placeReserveText(
       "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
       headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
     );
+    if (headlineNode && showSubheadline) {
+      const headlineBottom = subheadlineY - gap;
+      headlineNode.y = Math.max(cb.y + pad, headlineBottom - headlineNode.height);
+      // Po posunutí bližšie k subheadline môže text vojsť do vertikálnej
+      // zóny loga. Vtedy ho prekreslíme do užšieho stĺpca a znovu ukotvíme
+      // jeho spodnú hranu — bez kolízie a bez falošnej prázdnej medzery.
+      if (logoReserve && headlineBottom > logoTop &&
+          headlineNode.width > Math.max(60, textW - logoReserve) + 1) {
+        headlineNode.remove();
+        headlineNode = addTemplateText(
+          frame, "Headline", content.headline,
+          [cb.x + pad, headlineY, Math.max(60, textW - logoReserve), headlineBoxH],
+          headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
+        );
+        if (headlineNode) headlineNode.y = Math.max(cb.y + pad, headlineBottom - headlineNode.height);
+      }
+    }
     if (headlineNode && family === "portrait") {
       headlineNode.textAlignVertical = "CENTER";
     }
@@ -1916,13 +2010,13 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
   };
   if (activeTemplate === "adform_970x250") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 }, 1.02);
   } else if (activeTemplate === "adform_160x600") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 }, 1.02);
   } else if (activeTemplate === "adform_300x250") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 }, 1.02);
   } else {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 });
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 }, 1.02);
   }
 
   addAdformBackgroundTreatment(frame, format, rules, activeTemplate);

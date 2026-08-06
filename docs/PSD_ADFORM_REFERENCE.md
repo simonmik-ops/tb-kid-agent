@@ -83,6 +83,10 @@ specific panels. Exact subject cut-outs will require either:
 Anthropic image analysis can identify a focal point but does not return a
 pixel-level subject mask.
 
+All Adform image zones use a 2% protected overscan. This removes one-pixel
+technical/brand borders present on some exported master KVs without changing
+the PSD-owned coordinates of copy, CTA, slogan, disclosure or bank logo.
+
 ## Automation rule
 
 Users provide master content once. Each format template decides which elements

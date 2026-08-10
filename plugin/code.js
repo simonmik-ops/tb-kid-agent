@@ -2211,6 +2211,20 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     // object bez obtiahnutia — pridaný rám vyzeral ako sivá žiara.
     const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], TB.color.badge, 1);
     badge.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.18);
+    // P2-3: PSD má prelepku natočenú ≈ −8° s mäkkým tieňom (doteraz chýbalo,
+    // farba TB.color.badge = #DB7B67 už sedí). Figma rotation je v stupňoch,
+    // kladná hodnota = proti smeru hodinových ručičiek, otáča okolo stredu
+    // node-u — smer/posun oproti PSD zatiaľ neoverený na živom výstupe.
+    try { badge.rotation = -8; } catch (e) {}
+    badge.effects = [{
+      type: "DROP_SHADOW",
+      color: { r: 0, g: 0, b: 0, a: 0.25 },
+      offset: { x: 0, y: 2 },
+      radius: 4,
+      spread: 0,
+      visible: true,
+      blendMode: "NORMAL"
+    }];
     const badgePad = Math.max(5, Math.round(Math.min(b[2], b[3]) * 0.12));
     addTemplateText(
       frame,

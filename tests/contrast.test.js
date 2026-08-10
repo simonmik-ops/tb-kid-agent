@@ -156,4 +156,40 @@ assert.strictEqual(scrimStops[3].color.a, 0.8);
   }
 });
 
+// ── Regresia po 47f4523: Bottom readability gradient scrim ─────────────────
+// scrim NIE JE easedAlphaStops — má vlastný tvar, kde rampEnd znamená "tu je
+// ~70 % cieľovej alfy", nie "tu JE cieľová alfa". Testy vyššie na
+// easedAlphaStops toto nechytili, lebo scrim už tú funkciu nevolá vôbec —
+// testovali správanie zdieľanej funkcie (korektné pre panel/edge-prechod),
+// nie skutočný scrim kód. Mirror priamo z buildMasterSafeLayout.
+function scrimGradientStops(scrimAlpha, rampEnd) {
+  const _a = (podiel) => Math.round(scrimAlpha * podiel * 1000) / 1000;
+  return [
+    { position: 0.00, color: { r: 0.10, g: 0.10, b: 0.10, a: 0.00 } },
+    { position: rampEnd * 0.5, color: { r: 0.08, g: 0.08, b: 0.08, a: _a(0.34) } },
+    { position: rampEnd, color: { r: 0.05, g: 0.05, b: 0.05, a: _a(0.70) } },
+    { position: rampEnd + (1 - rampEnd) * 0.35, color: { r: 0.03, g: 0.03, b: 0.03, a: _a(0.88) } },
+    { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: scrimAlpha } }
+  ];
+}
+
+const scrimAlphaTarget = 0.612;
+const rampEndTest = 0.14; // zodpovedá ~2000×1400 prípadu z regresie
+const realScrim = scrimGradientStops(scrimAlphaTarget, rampEndTest);
+const atRampEnd = realScrim.find(s => Math.abs(s.position - rampEndTest) < 1e-9);
+assert.ok(atRampEnd, "must have a stop exactly at rampEnd");
+assert.ok(atRampEnd.color.a < scrimAlphaTarget * 0.9,
+  "alpha at rampEnd must be well below target (~70%), not equal to it — regresia po 47f4523 dávala 100% už tu, získala " + atRampEnd.color.a);
+assert.ok(Math.abs(atRampEnd.color.a - scrimAlphaTarget * 0.70) < 1e-3,
+  "alpha at rampEnd must be ~70% of target");
+const lastScrimStop = realScrim[realScrim.length - 1];
+assert.strictEqual(lastScrimStop.position, 1.00, "must keep climbing to position 1.0, not hold flat from rampEnd");
+assert.strictEqual(lastScrimStop.color.a, scrimAlphaTarget, "must reach full target alpha only at the bottom corner");
+// Musí naďalej rásť MEDZI rampEnd a 1.0 (nie plochý chvost — presne regresia).
+const afterRampEnd = realScrim.filter(s => s.position > rampEndTest);
+for (let k = 1; k < afterRampEnd.length; k++) {
+  assert.ok(afterRampEnd[k].color.a > afterRampEnd[k - 1].color.a,
+    "alpha must strictly keep increasing past rampEnd, not plateau (flat dark plate regression)");
+}
+
 console.log("contrast: ok");

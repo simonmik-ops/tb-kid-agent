@@ -109,7 +109,7 @@
   <input type="text" id="ctaText" value="Zistiť viac">
 
   <label>Právny text (voliteľné)</label>
-  <input type="text" id="legalText" placeholder="napr. Marketingové oznámenie. S investovaním sú spojené riziká.">
+  <input type="text" id="legalText" placeholder="napr. Marketingové oznámenie. S investovaním sú spojené riziká." oninput="legalTextEdited = (this.value.trim().length > 0)">
 
   <label>Badge / prelepka (voliteľné)</label>
   <input type="text" id="badgeText" placeholder="napr. Bez vstupných poplatkov">
@@ -240,6 +240,32 @@
     if (!tf || !src) return;
     tf.value = src.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  // P0-11: znenie právneho textu per kampaň. Kópia formats.js CAMPAIGNS.*.legalText
+  // (ui.html nemá k formats.js prístup — žiadny build krok, plugin je plochý
+  // súbor). PRI ZMENE formats.js CAMPAIGNS treba znova prepísať ručne.
+  const CAMPAIGN_LEGAL_TEXT = {
+    kid: "Marketingové oznámenie. S investovaním sú spojené riziká.",
+    kkvisa: "", hypo: "", bsu: "", tiger: "", mass: ""
+  };
+  // legalText si používateľ tiež môže prepísať — rovnaký "edited" vzor ako tagging.
+  let legalTextEdited = false;
+  // Zavolané po namapovaní Excel formátov na katalóg (matchCatalogFormat).
+  // Predvyplní legalText LEN keď sa všetky spárované formáty zhodujú na
+  // jednej kampani (viac kampaní naraz v jednej tabuľke = nejednoznačné,
+  // nehádaj) a keď ju používateľ ešte neprepísal ručne.
+  function prefillLegalTextFromMatches(matchedFormats) {
+    if (legalTextEdited) return;
+    const campaigns = [...new Set(matchedFormats.map(f => f.campaign).filter(Boolean))];
+    if (campaigns.length !== 1) {
+      if (campaigns.length > 1) console.warn("Viac kampaní v jednej tabuľke naraz, legalText sa nepredvypĺňa:", campaigns);
+      return;
+    }
+    const text = CAMPAIGN_LEGAL_TEXT[campaigns[0]];
+    if (!text) { console.warn("Kampaň '" + campaigns[0] + "' nemá predvyplnené legalText — doplň v CAMPAIGNS (formats.js) aj CAMPAIGN_LEGAL_TEXT (ui.html)."); return; }
+    const el = document.getElementById("legalText");
+    if (el && !el.value.trim()) el.value = text;
   }
 
   // ── Katalóg formátov (snímka z formats.js) ──────────────────────────────────
@@ -443,6 +469,13 @@
       const showGuides = document.getElementById("showGuides").checked;
       const aiGenerated = document.getElementById("aiGenerated").checked;
       const ctaText = (document.getElementById("ctaText").value || "").trim();
+      // P0-11: kým sa legalText prečíta (a kým narazí na "je prázdny, chceš
+      // pokračovať?" poistku nižšie), skús ho predvyplniť podľa kampane —
+      // nezávisle od `formats` (ten sa stavia až neskôr), priamo z excelDims.
+      if (excelDims && excelDims.length) {
+        const _matches = excelDims.map(d => matchCatalogFormat(d.w, d.h)).filter(Boolean);
+        prefillLegalTextFromMatches(_matches);
+      }
       const legalText = (document.getElementById("legalText").value || "").trim();
       const badgeText = (document.getElementById("badgeText").value || "").trim();
       const projectName = (document.getElementById("projectName").value || "").trim();

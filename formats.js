@@ -757,14 +757,20 @@ const FORMATS = [
   { id: "mass_cp_square_300x250", name: "cp.sk square 300×250", channel: "cp.sk", campaign: "mass", width: 300, height: 250, ratio: "6:5", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza 300×300 aj 300×250." }
 ];
 
-// Metadáta kampaní — tagging pre pomenovanie frameov + label do UI
+// Metadáta kampaní — tagging pre pomenovanie frameov + label do UI.
+// legalText: P0-11 — predvyplnené znenie právneho textu pre plugin/ui.html
+// (legalText input mal doteraz len placeholder, takže bez ručného prepisu
+// bol vstup prázdny). Znenie potvrdzuje Simona/legal; kde nie je, nechaj "" —
+// ui.html vypíše do konzoly zoznam kampaní bez znenia. RPSN pre úverové
+// kampane (kkvisa) je otvorený bloker, zámerne prázdne, nevymýšľaj placeholder.
 const CAMPAIGNS = {
-  kid:    { tagging: "kid-062026",      label: "TB KID 2026" },
-  kkvisa: { tagging: "kk-visa-072026",  label: "KK Visa — kreditné karty" },
-  hypo:   { tagging: "hypo-052025",     label: "Digitálna hypotéka" },
-  bsu:    { tagging: "bsu-082025",      label: "BSU — Bezúčelový úver" },
-  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026" },
-  mass:   { tagging: "mass-jar-2026",   label: "MASS — Účet #premodruplanetu JAR 2026" }
+  kid:    { tagging: "kid-062026",      label: "TB KID 2026",
+            legalText: "Marketingové oznámenie. S investovaním sú spojené riziká." },
+  kkvisa: { tagging: "kk-visa-072026",  label: "KK Visa — kreditné karty", legalText: "" },
+  hypo:   { tagging: "hypo-052025",     label: "Digitálna hypotéka", legalText: "" },
+  bsu:    { tagging: "bsu-082025",      label: "BSU — Bezúčelový úver", legalText: "" },
+  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026", legalText: "" },
+  mass:   { tagging: "mass-jar-2026",   label: "MASS — Účet #premodruplanetu JAR 2026", legalText: "" }
 };
 
 module.exports = FORMATS;

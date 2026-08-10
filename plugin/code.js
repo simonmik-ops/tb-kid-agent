@@ -323,6 +323,36 @@ function noteContrastIfLow(layout, surface, textColor, minRatio, where) {
   return false;
 }
 
+// Mäkký prechod z alfy 0 po targetAlpha — pomalý štart, rýchly stred,
+// doceľuje na cieľ (S-krivka namiesto lineárneho nábehu, ktorý sa vizuálne
+// javí ako pás/hrana). rampEndFrac = kde v rozsahu [0,1] sa dosiahne
+// targetAlpha; keď < 1, zvyšný úsek (po rampEndFrac) drží targetAlpha
+// nezmenenú až do konca — napr. spodný scrim, ktorý má dobehnúť skôr než
+// dosiahne roh frameu. Keď rampEndFrac == 1 (celý pás JE ten prechod, napr.
+// hrana KV vo wide vetve), posledný "drž" stop sa vynechá.
+// Spoločná pre addMasterCoreImage (prechod pri hrane fotky) aj
+// buildMasterSafeLayout (spodný readability scrim) — predtým mali každý
+// svoj vlastný, nezhodný tvar (2 stopy lineárne vs. 5 stopov s krivkou).
+function easedAlphaStops(color, targetAlpha, rampEndFrac) {
+  const rf = clamp(rampEndFrac, 0.02, 1);
+  const stopAt = function (fracOfRamp, alphaRatio) {
+    return {
+      position: Math.min(0.999, rf * fracOfRamp),
+      color: { r: color.r, g: color.g, b: color.b, a: Math.round(targetAlpha * alphaRatio * 1000) / 1000 }
+    };
+  };
+  const stops = [
+    { position: 0, color: { r: color.r, g: color.g, b: color.b, a: 0 } },
+    stopAt(0.35, 0.30),
+    stopAt(0.70, 0.75),
+    stopAt(1.00, 1.00)
+  ];
+  if (rf < 0.999) {
+    stops.push({ position: 1, color: { r: color.r, g: color.g, b: color.b, a: targetAlpha } });
+  }
+  return stops;
+}
+
 // Farba brand plochy = z analýzy vizuálu (nie natvrdo modrá); fallback brand blue
 function brandColor(layout) {
   if (layout && typeof layout.bg_r === "number") {
@@ -1737,8 +1767,10 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   if (!takmerRovnake && brand) {
     holder.fills = [{ type: "SOLID", color: brand }];
 
-    // Krátky prechod pri hrane fotky, nech medzi ňou a plochou nie je
-    // ostrá linka. Ide z brand farby (priehľadnej pri fotke) do plnej.
+    // Mäkký prechod pri hrane fotky, nech medzi ňou a plochou nie je ostrá
+    // linka. Ide z brand farby (priehľadnej pri fotke) do plnej — S-krivka
+    // (easedAlphaStops), nie lineárny nábeh, ktorý sa vizuálne javí ako pás
+    // (namerané na 2000×1400: 90 px strop = len 4,5 % šírky, hrana viditeľná).
     const prechod = function (name, ex, ey, ew, eh, smerVon) {
       if (ew <= 1 || eh <= 1) return;
       const r = figma.createRectangle();
@@ -1748,10 +1780,7 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
       r.fills = [{
         type: "GRADIENT_LINEAR",
         gradientTransform: smerVon,
-        gradientStops: [
-          { position: 0.00, color: { r: brand.r, g: brand.g, b: brand.b, a: 0.00 } },
-          { position: 1.00, color: { r: brand.r, g: brand.g, b: brand.b, a: 1.00 } }
-        ]
+        gradientStops: easedAlphaStops(brand, 1, 1)
       }];
       holder.insertChild(holder.children.indexOf(rect), r);
     };
@@ -1760,8 +1789,15 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
     const horeNad = rect.y;
     const vlavo = rect.x;
     const vpravo = zone[2] - (rect.x + renderedW);
-    const pasH = Math.round(Math.min(zone[3] * 0.10, 90));
-    const pasW = Math.round(Math.min(zone[2] * 0.10, 90));
+    // Predtým: Math.min(..., 90) — horný STROP zrezával prechod na 2000×1400
+    // z 200 px (10 %) na 90 px (4,5 %), hrana bola vidieť. Teraz: dolná
+    // HRANICA 24 px (nikdy kratšie), hore rastie s formátom (10 %), a na
+    // extrémnych pomeroch stoja obmedzené podielom KRATŠEJ strany (18 %),
+    // nie fixnou konštantou v px — široký pás na nízkom banneri by vyzeral
+    // rovnako zle ako príliš krátky.
+    const kratsiaStrana = Math.min(zone[2], zone[3]);
+    const pasH = Math.max(24, Math.min(Math.round(zone[3] * 0.10), Math.round(kratsiaStrana * 0.18)));
+    const pasW = Math.max(24, Math.min(Math.round(zone[2] * 0.10), Math.round(kratsiaStrana * 0.18)));
 
     if (dolePod > 1) prechod("Prechod pri hrane — dole",
       0, rect.y + renderedH - 1, zone[2], Math.min(dolePod + 1, pasH), [[0, 1, 0], [1, 0, 0]]);
@@ -1893,7 +1929,14 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const imageW = Math.round(format.width * 0.75);
     addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides, brandColor(layout));
     const wideShift = Math.round(format.width * 0.30);
-    const panelX = imageW - wideShift;
+    let panelX = imageW - wideShift;
+    const textX = _wideTextX;
+    // Nábeh musí mať aspoň 12 % šírky formátu, inak vyzerá ako ostrá hrana
+    // (namerané na 375×250: pôvodný nábeh len 35 px = 9 %). Predlžujeme
+    // PRIESTOR — posúvame panelX doľava — nie skracujeme nábeh do textX,
+    // ktorý ostáva tam, kde je (P0-8: pri textX musí byť panel plne krycí).
+    const minRampW = Math.round(format.width * 0.12);
+    if (textX - panelX < minRampW) panelX = textX - minRampW;
     // P0-16b: panel dobieha na brandColor(layout) — pri svetlom pastelovom
     // KV to bola béžová/pastelová plocha pod bielym headlinom (namerané
     // 1,6 : 1). Panel nesie text vždy bielou (FARBA_TEXTU sa vo wide vetve
@@ -1902,7 +1945,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const brand = ensureReadableSurface(brandColor(layout), { r: 1, g: 1, b: 1 }, 4.5);
     noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 4.5, "wide_panel");
     const panelAlpha = scrimAlphaFor(layout);
-    const textX = _wideTextX;
     const textRight = cb.x + cb.w - pad;
     const textW = _wideTextW;
     const panel = figma.createRectangle();
@@ -1910,17 +1952,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     panel.resize(format.width - panelX, format.height);
     panel.x = panelX;
     panel.y = 0;
+    // Plne krycí presne tam, kde začína text (textX), nie o kus ďalej — inak
+    // časť headline boxu leží nad ešte priesvitným panelom (P0-8). Cesta
+    // k tomu je teraz eased S-krivka (easedAlphaStops), nie 2-segmentový
+    // lineárny nábeh — ten pri krátkom rampFrac vyzeral ako ostrá hrana.
     panel.fills = [{
       type: "GRADIENT_LINEAR",
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
-      gradientStops: [
-        { position: 0, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
-        // Plne krycí presne tam, kde začína text (textX), nie o kus ďalej —
-        // inak časť headline boxu leží nad ešte priesvitným panelom (P0-8).
-        { position: Math.min(0.98, (textX - panelX) / (format.width - panelX)),
-          color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } },
-        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: panelAlpha } }
-      ]
+      gradientStops: easedAlphaStops(
+        brand, panelAlpha, Math.min(0.98, (textX - panelX) / (format.width - panelX))
+      )
     }];
     frame.appendChild(panel);
     const headlineSize = TB.headline(format.width, format.height);
@@ -2068,17 +2109,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     scrim.resize(format.width, scrimH);
     scrim.x = 0;
     scrim.y = scrimTop;
-    const _a = function (podiel) { return Math.round(scrimAlpha * podiel * 100) / 100; };
+    // Rovnaká S-krivka ako edge-prechod vo addMasterCoreImage (easedAlphaStops) —
+    // predtým mal tento scrim vlastný ručne composed 5-stop tvar, teraz zdieľané.
+    // Cieľová alfa (scrimAlpha) sa nemení, len cesta k nej.
     scrim.fills = [{
       type: "GRADIENT_LINEAR",
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
-      gradientStops: [
-        { position: 0.00, color: { r: 0.10, g: 0.10, b: 0.10, a: 0.00 } },
-        { position: rampEnd * 0.5, color: { r: 0.08, g: 0.08, b: 0.08, a: _a(0.34) } },
-        { position: rampEnd, color: { r: 0.05, g: 0.05, b: 0.05, a: _a(0.70) } },
-        { position: rampEnd + (1 - rampEnd) * 0.35, color: { r: 0.03, g: 0.03, b: 0.03, a: _a(0.88) } },
-        { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: scrimAlpha } }
-      ]
+      gradientStops: easedAlphaStops({ r: 0, g: 0, b: 0 }, scrimAlpha, rampEnd)
     }];
     // POZOR: vytvorený node bez rodiča Figma položí na aktuálnu STRÁNKU.
     // Preto sa nepoužitý scrim musí explicitne odstrániť, inak zostanú

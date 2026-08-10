@@ -109,4 +109,51 @@ const extreme = ensureReadableSurface(impossible, WHITE, 21);
 assert.ok(extreme.r < impossible.r, "must have darkened toward black, not jumped to an unrelated color");
 assert.ok(extreme.r >= 0 && extreme.g >= 0 && extreme.b >= 0, "must stay within valid color range");
 
+// ── easedAlphaStops (prechody / gradienty zadanie) ──────────────────────────
+function easedAlphaStops(color, targetAlpha, rampEndFrac) {
+  const rf = Math.max(0.02, Math.min(1, rampEndFrac));
+  const stopAt = (fracOfRamp, alphaRatio) => ({
+    position: Math.min(0.999, rf * fracOfRamp),
+    color: { r: color.r, g: color.g, b: color.b, a: Math.round(targetAlpha * alphaRatio * 1000) / 1000 }
+  });
+  const stops = [
+    { position: 0, color: { r: color.r, g: color.g, b: color.b, a: 0 } },
+    stopAt(0.35, 0.30),
+    stopAt(0.70, 0.75),
+    stopAt(1.00, 1.00)
+  ];
+  if (rf < 0.999) stops.push({ position: 1, color: { r: color.r, g: color.g, b: color.b, a: targetAlpha } });
+  return stops;
+}
+
+const BLACK = { r: 0, g: 0, b: 0 };
+
+// rampEndFrac = 1 (edge-prechod prípad): žiadny extra "drž" stop, presne 4.
+const edgeStops = easedAlphaStops(BLACK, 1, 1);
+assert.strictEqual(edgeStops.length, 4, "rampEndFrac=1 must not add a redundant trailing hold stop");
+assert.strictEqual(edgeStops[0].color.a, 0, "must start fully transparent");
+assert.strictEqual(edgeStops[edgeStops.length - 1].color.a, 1, "must end at targetAlpha");
+// Pozícia je zámerne stropovaná na 0.999 (nie presne 1) — Math.min(0.999, ...)
+// v easedAlphaStops, nech posledný segment nemá nulovú šírku pri rampEndFrac=1.
+assert.ok(edgeStops[edgeStops.length - 1].position >= 0.999, "last stop must reach ~1 (capped at 0.999 by design)");
+
+// rampEndFrac < 1 (scrim/panel prípad): pridá sa "drž" stop na pozícii 1.
+const scrimStops = easedAlphaStops(BLACK, 0.8, 0.3);
+assert.strictEqual(scrimStops.length, 5, "rampEndFrac<1 must add the trailing hold stop");
+assert.strictEqual(scrimStops[scrimStops.length - 1].position, 1);
+assert.strictEqual(scrimStops[scrimStops.length - 1].color.a, 0.8, "hold stop must equal targetAlpha, not drift");
+// stop pred "drž" musí byť presne na rampEndFrac s plnou targetAlpha.
+assert.ok(Math.abs(scrimStops[3].position - 0.3) < 1e-6, "ramp must complete exactly at rampEndFrac");
+assert.strictEqual(scrimStops[3].color.a, 0.8);
+
+// Alfa musí byť monotónne rastúca (žiadny "skok späť", ktorý by vyzeral ako pás).
+[edgeStops, scrimStops].forEach((stops, i) => {
+  for (let k = 1; k < stops.length; k++) {
+    assert.ok(stops[k].color.a >= stops[k - 1].color.a - 1e-9,
+      "stop " + k + " must not be darker than the previous one (set " + i + ")");
+    assert.ok(stops[k].position >= stops[k - 1].position - 1e-9,
+      "stop " + k + " position must not go backwards (set " + i + ")");
+  }
+});
+
 console.log("contrast: ok");

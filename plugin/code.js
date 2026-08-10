@@ -37,6 +37,14 @@ var TB = {
     var h = Math.max(40, Math.round(0.10 * Math.sqrt(W * H)));
     return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.38)),
              radius: Math.max(4, Math.round(h * 0.08)) };
+  },
+  // Brand farby odčítané z Adform_dievca.psd — jediný zdroj pravdy, nech sa
+  // nerozchádzajú hodnoty na viacerých miestach v kóde (P2, BRIEF_OPRAVY_5_8.md).
+  color: {
+    cta: { r: 0, g: 0.278, b: 0.973 },            // #0047F8 — PSD CTA modrá, sedí
+    badge: { r: 0.86, g: 0.48, b: 0.40 },         // #DB7B67 — PSD prelepka (bolo #DB5C4A)
+    panel970x250: { r: 0.19, g: 0.26, b: 0.36 },  // #30435C — PSD panel 970×250 (bolo #30455E)
+    panel160x600: { r: 0.18, g: 0.16, b: 0.16 }   // #2E2828 — PSD spodný panel 160×600, solid (bolo 94% alfa)
   }
 };
 
@@ -70,6 +78,15 @@ const LOCAL_ADFORM_PSD_IDS = [
   "adform_970x250"
 ];
 
+// Vinted (potvrdené): 970×250 a 300×600 sú presne tie isté pixelové rozmery
+// ako overený Adform_dievca.psd banking layout. Nič v TP/materiáloch
+// nehovorí, že Vinted má vlastnú predlohu — toto je vedomá výnimka
+// (potvrdená v konverzácii), nie tichý predpoklad podľa zhody rozmerov.
+const ADFORM_PSD_ALIASES = {
+  vinted_970x250: "adform_970x250",
+  vinted_300x600: "adform_300x600"
+};
+
 // Rozhoduje, ktoré prvky (headline/subheadline/CTA/logo/AI tag) sa pre daný
 // formát vôbec majú kresliť. Pôvodne (localKkVisaRule) fungovalo len pre
 // campaign==="kkvisa" — pre hypo/bsu/tiger sa nikdy nič nenastavilo a
@@ -91,10 +108,26 @@ function resolveCreativeRule(format) {
     full_creative: { layoutType: "master_safe", headline: true, subheadline: true, cta: true, logo: true, ai: true },
     headline_only: { layoutType: "master_safe", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     native_clean: { layoutType: "native_center", headline: false, subheadline: false, cta: false, logo: false, ai: false },
-    publisher_branding: { layoutType: null, headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    // subheadline:true — nie je viazané na žiadny konkrétny kanál (Markíza/
+    // JOJ/Ringier/Ženské weby/Topky/e-mail/Vinted a pod. nemajú v Surďovej
+    // referenčnej Figme vlastnú sekciu vôbec), ale dotazník definuje "perex"
+    // (podnadpis) ako štandardný typografický prvok s vlastným rezom
+    // (Regular/Light) bez kanálovej výnimky — pozri Surdo_odpovede_do_pluginu.md.
+    // Skutočné rozhodnutie, či sa zmestí, rieši shouldShowSubheadline()
+    // (priestor per formát), nie tento hardcoded flag.
+    publisher_branding: { layoutType: null, headline: true, subheadline: true, cta: true, logo: true, ai: true },
     // P0-9b: JOJ/Markíza skin, bočné skyscrapery, interscroller a e-mail —
     // CTA aj AI disclosure zostávajú zapnuté (rovnako ako predtým cez
     // master_safe / publisher_branding fallback — nedropovať, čo tam bolo).
+    //
+    // NEVYRIEŠENÝ KONFLIKT (subheadline:false u všetkých štyroch nižšie):
+    // Surďova referenčná Figma (d51uxTh8YqPdHujzi1Plt6) neobsahuje ŽIADNU
+    // sekciu pre tieto kanály — má len META, Google RSA, Google PMax,
+    // Google DemandGen a Adform. claude/Plugin_podla_Surdu.md to potvrdzuje:
+    // "bežia, ale ešte nemajú Surďov dizajn (jeho Figma ich neobsahovala) →
+    // do demo ich zatiaľ nedávať." Takže na rozdiel od publisher_branding
+    // (kde dotazník aspoň všeobecne definuje podnadpis ako štandardný
+    // prvok) tu nemám ani nepriamy zdroj — nemením, kým nepríde predloha.
     branding_full: { layoutType: "branding_skin", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     branding_side: { layoutType: "side_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     interscroller: { layoutType: "interscroller_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
@@ -132,6 +165,12 @@ function resolveCreativeRule(format) {
   if (!profile) {
     const id = format.id || "";
     const channel = format.channel || "";
+    // Konflikt medzi Surďovou referenčnou Figmou (headline prítomný) a TP
+    // (klientom schválené technické parametre): "obrázky bez textu". TP
+    // vyhráva — skutočná dodacia požiadavka pre reálnu kampaň má prednosť
+    // pred dizajnovým mockupom. Katalógové formáty majú role priamo vo
+    // formats.js — tento fallback sa uplatní len na budúci google_rsa*
+    // formát bez explicitného role.
     if (id.indexOf("google_rsa") !== -1) profile = "clean_image";
     else if (id.indexOf("google_logo") !== -1) profile = "logo_only";
     else if (id.indexOf("pmax") !== -1 || channel === "Google PMax") profile = "headline_only";
@@ -183,6 +222,14 @@ let AI_ON = false;
 let CUR_IMG_W = 0;
 let CUR_IMG_H = 0;
 
+// Jas nahraného loga (0 = čierne, 1 = biele). Podľa Surďa sa má verzia
+// loga voliť podľa pozadia; keď je nahraná len jedna, aspoň vieme
+// rozhodnúť, či pod ňu treba podklad a akej farby.
+let LOGO_LUMA = null;
+
+// Jas dolnej časti KV — na rozhodnutie o podklade pod logom.
+let KV_LUMA_BOTTOM = null;
+
 async function resolveBrandFont() {
   try {
     await Promise.all([
@@ -201,6 +248,81 @@ async function resolveBrandFont() {
   }
 }
 
+// ── Kontrastný modul (WCAG 2.1) ─────────────────────────────────────────────
+// Samostatný súbor (plugin/contrast.js) by bol čistejší, ale tento plugin
+// nemá build krok — manifest.json ukazuje na jediný "main": "code.js" a
+// Figma ho spúšťa ako plochý skript bez require/import. Preto blok tu,
+// pred prvým použitím (brandColor nižšie).
+
+// sRGB kanál 0..1 → lineárna hodnota.
+function srgbToLinear(c) {
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+// {r,g,b} v rozsahu 0..1 (Figma formát) → relatívny jas.
+function relativeLuminance(color) {
+  return 0.2126 * srgbToLinear(color.r)
+       + 0.7152 * srgbToLinear(color.g)
+       + 0.0722 * srgbToLinear(color.b);
+}
+
+function contrastRatio(a, b) {
+  const la = relativeLuminance(a), lb = relativeLuminance(b);
+  const hi = Math.max(la, lb), lo = Math.min(la, lb);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+// Upraví farbu plochy tak, aby voči textColor dosiahla minRatio — postupne
+// stmavuje (biely text) alebo zosvetľuje (tmavý text) v krokoch po 4 %,
+// max. 40 iterácií. Násobí všetky tri kanály rovnakým faktorom (zachová hue —
+// Surďova požiadavka, panel má sledovať farbu vizuálu). Ak sa pomer nedosiahne
+// ani pri takmer čiernej/bielej, vráti najlepšiu dosiahnutú hodnotu namiesto
+// pádu na natvrdo modrú.
+function ensureReadableSurface(surface, textColor, minRatio) {
+  const textIsLight = relativeLuminance(textColor) > 0.5;
+  let color = { r: surface.r, g: surface.g, b: surface.b };
+  let best = color, bestRatio = contrastRatio(color, textColor);
+  for (let i = 0; i < 40 && bestRatio < minRatio; i++) {
+    if (textIsLight) {
+      color = { r: color.r * 0.96, g: color.g * 0.96, b: color.b * 0.96 };
+    } else {
+      color = {
+        r: color.r + (1 - color.r) * 0.04,
+        g: color.g + (1 - color.g) * 0.04,
+        b: color.b + (1 - color.b) * 0.04
+      };
+    }
+    const ratio = contrastRatio(color, textColor);
+    if (ratio > bestRatio) { bestRatio = ratio; best = color; }
+  }
+  return best;
+}
+
+// Vráti bielu alebo tmavú textovú farbu podľa toho, ktorá dá voči ploche
+// vyšší kontrast — pre miesta, kde plochu meniť nemôžeme (napr. reálna fotka).
+function pickTextColor(surface) {
+  const white = { r: 1, g: 1, b: 1 }, black = { r: 0, g: 0, b: 0 };
+  return contrastRatio(surface, white) >= contrastRatio(surface, black) ? white : black;
+}
+
+// P0-16e: QA hlásenie, keď aj po ensureReadableSurface/scrimAlphaFor ostane
+// pomer pod minRatio (extrémne sýta farba, ktorá sa nedá stmaviť dosť).
+// Plugin nevidí skutočné pixely — kontroluje farby, ktoré sám práve
+// vypočítal a nakreslil, nie vyrenderovaný obrázok (TB_QA_SCOPE-štýl medza,
+// zapísaná priamo tu, keďže žiadny taký konštant v repe zatiaľ nie je).
+// Zapisuje do layout.validation_warnings — rovnaký kanál, aký číta
+// addValidationBadge()/createValidationReport() (predtým ho plnil len
+// server cez agent.js, takže na Excel ceste bol vždy prázdny).
+function noteContrastIfLow(layout, surface, textColor, minRatio, where) {
+  const ratio = contrastRatio(surface, textColor);
+  if (ratio >= minRatio) return true;
+  if (!layout.validation_warnings) layout.validation_warnings = [];
+  layout.validation_warnings.push(
+    "low_contrast_" + where + "_" + ratio.toFixed(1).replace(".", "_") + "_to_1"
+  );
+  return false;
+}
+
 // Farba brand plochy = z analýzy vizuálu (nie natvrdo modrá); fallback brand blue
 function brandColor(layout) {
   if (layout && typeof layout.bg_r === "number") {
@@ -217,15 +339,18 @@ function aiNoteFontSize(format) {
 // AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
 // Ladený tak, aby pôsobil ako súčasť kompozície: nižšia sýtosť, jemný
 // letter-spacing, zarovnaný na rovnaký ľavý okraj ako headline.
-function addAiNote(frame, format, contentBox) {
+function addAiNote(frame, format, contentBox, anchorY, anchorX, farba) {
   const cb = contentBox || { x: 0, y: 0, w: format.width, h: format.height };
   const t = figma.createText();
   t.name = "AI generované";
   t.fontName = FONT;
   t.characters = "✧  " + STYLE.aiTagText;
   t.fontSize = aiNoteFontSize(format);
-  t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  t.opacity = 0.85;                       // dostatočný kontrast aj na svetlom KV
+  // Surď (sekcia 2): farba textu podľa pozadia — platí aj pre AI tag.
+  const aiFarba = farba || { r: 1, g: 1, b: 1 };
+  const aiJeBiely = (aiFarba.r + aiFarba.g + aiFarba.b) > 2.4;
+  t.fills = [{ type: "SOLID", color: aiFarba }];
+  t.opacity = 0.80;                       // PSD: vrstva "AI GENEROVANE" má krytie 204/255 = 80 %
   try { t.letterSpacing = { value: -3, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = TB.padding(format.width, format.height);
@@ -255,6 +380,28 @@ function addAiNote(frame, format, contentBox) {
   } catch (e) {}
   t.x = textCol !== null ? textCol : Math.max(cb.x + pad, Math.round(imgLeft) + pad);
   t.y = Math.min(cb.y + cb.h - t.height - pad, Math.round(imgBottom) - t.height - pad);
+  // Keď layout pozíciu vypočítal (planBottomStack), je záväzná — heuristika
+  // hľadania voľného miesta nižšie sa preskočí, inak by tag odskočil hore
+  // a prekryl CTA (namerané na 13 formátoch).
+  if (typeof anchorY === "number") {
+    t.y = anchorY;
+    if (typeof anchorX === "number") t.x = anchorX;
+    t.locked = true;
+    try {
+      if (!aiJeBiely) return;   // tmavý text na svetlom podklade podložku nepotrebuje
+      const bp0 = 4;
+      const backing0 = figma.createRectangle();
+      backing0.name = "AI generované — podložka";
+      backing0.resize(t.width + bp0 * 2, t.height + bp0 * 2);
+      backing0.x = t.x - bp0;
+      backing0.y = t.y - bp0;
+      backing0.cornerRadius = 3;
+      backing0.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.45 }];
+      backing0.locked = true;
+      frame.insertChild(frame.children.indexOf(t), backing0);
+    } catch (e) {}
+    return;
+  }
   try {
     var kolizie = ["Logo", "CTA button", "Subheadline", "Headline", "Legal text"]
       .map(function (nm) { return frame.findOne(function (q) { return q.name === nm; }); })
@@ -278,6 +425,7 @@ function addAiNote(frame, format, contentBox) {
   // Tmavá podložka za textom, nech kontrast obstojí aj na svetlom KV
   // (bez nej sme namerali priemerne 2,90 : 1 naprieč formátmi).
   try {
+    if (!aiJeBiely) return;
     const bp = 4;
     const backing = figma.createRectangle();
     backing.name = "AI generované — podložka";
@@ -294,7 +442,7 @@ function addAiNote(frame, format, contentBox) {
 async function createAllFrames({
   formats, headline, subheadline, ctaText, legalText, badgeText, adType,
   imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
-  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvLumaBottom
+  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvLumaBottom, kvEdges, logoLuma
 }) {
   SUBHEAD = (subheadline || "").trim();
 
@@ -314,6 +462,23 @@ async function createAllFrames({
       seenSingleMasters[key] = true;
       return true;
     });
+  }
+
+  // Surď (dotazník, sekcia 1): „Video formáty (TikTok, Reels, Meta video)
+  // → úplne vynechať z generovania." Statický placeholder namiesto videa
+  // nikto nepoužije a v sade pôsobí ako chyba.
+  {
+    const predTym = formats.length;
+    formats = formats.filter(item => {
+      const f = item.format || {};
+      const id = String(f.id || "");
+      const lt = (item.layout && item.layout.layout_type) || "";
+      return !(/tiktok|reels|_video/.test(id) || lt === "video_placeholder");
+    });
+    const vynechane = predTym - formats.length;
+    if (vynechane > 0) {
+      try { figma.ui.postMessage({ type: "info", message: "Vynechané video formáty: " + vynechane }); } catch (e) {}
+    }
   }
 
   const campaignTag = tagging || "kid-062026";
@@ -351,6 +516,8 @@ async function createAllFrames({
   }
 
   var figmaLogo = mkImage(logoBytes);
+  LOGO_LUMA = (typeof logoLuma === "number") ? logoLuma : null;
+  KV_LUMA_BOTTOM = (typeof kvLumaBottom === "number") ? kvLumaBottom : null;
 
   const byChannel = {};
   for (const item of formats) {
@@ -386,7 +553,8 @@ async function createAllFrames({
       // --- pravidlá univerzálnych šablón (vetva adform-psd) ---------------
       // Lokálny plugin môže testovať PSD šablóny ešte pred nasadením nového
       // backendu na Railway. Starší backend template nepozná, ale stabilné ID áno.
-      const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1;
+      const hasLocalAdformTemplate = LOCAL_ADFORM_PSD_IDS.indexOf(format.id) !== -1 ||
+        ADFORM_PSD_ALIASES.hasOwnProperty(format.id);
       // Univerzálny master_safe layout je fallback pre formáty bez šablóny,
       // nie prepínateľná voľba — šablóna (adform_psd) má aj tak vždy prednosť
       // cez hasLocalAdformTemplate nižšie.
@@ -423,6 +591,7 @@ async function createAllFrames({
       if (typeof kvLumaBottom === "number" && typeof layout.kv_luma_bottom !== "number") {
         layout.kv_luma_bottom = kvLumaBottom;
       }
+      if (kvEdges && !layout.kv_edges) layout.kv_edges = kvEdges;
 
       // --- KV podľa orientácie formátu (vetva clean-frames) ---------------
       const figmaImage = pickKV(format);
@@ -489,7 +658,10 @@ async function createAllFrames({
       } else if (layoutType === "stacked") {
         buildStackedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "blurred_bg") {
-        buildBlurredBgLayout(frame, format, layout, hl, figmaImage, figmaLogo);
+        // Surď (dotazník, sekcia 1): „Blurred background NIKDY."
+        // Necháme padnúť na full_bleed; buildBlurredBgLayout zostáva v kóde
+        // len ako mŕtvy kód pre prípad, že by sa pravidlo zmenilo.
+        buildFullBleedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "logo_only") {
         buildLogoOnlyLayout(frame, format, layout, hl, figmaLogo);
       } else if (layoutType === "micro") {
@@ -558,47 +730,22 @@ const RISK_FLAG_LABELS = {
   ai_detected_baked_in_logo: "AI odhadla, že vizuál už má logo"
 };
 
-// Vizuálne upozornenie na frame, keď plugin nie je istý (odhad, nie pravidlo).
-// Vracia true, ak bol frame oznacený, aby vedela zratať count na summary hlásenie.
+// Frame samotný zostáva čistý (bez orámovania/bannera) — je to produkčný
+// výstup, nie interný QA nástroj. Odhad neistoty ide už len do
+// "Validation report" stránky (createValidationReport), spolu s
+// validation_warnings. Vracia true, ak bol frame označený, aby vedela
+// zratať count na summary hlásenie.
 function addRiskFlagBadge(frame, format, flags) {
-  if (!flags || flags.length === 0) return false;
-
-  const WARN_COLOR = { r: 0.93, g: 0.52, b: 0.05 };
-  const labels = flags.map(f => RISK_FLAG_LABELS[f] || f);
-
-  frame.strokes = [{ type: "SOLID", color: WARN_COLOR }];
-  frame.strokeWeight = Math.max(2, Math.round(Math.min(format.width, format.height) * 0.012));
-  frame.strokeAlign = "INSIDE";
-
-  const badge = figma.createText();
-  badge.name = "Risk flag text";
-  badge.fontName = { family: "Inter", style: "Bold" };
-  badge.characters = "⚠ SKONTROLUJ: " + labels.join(", ");
-  badge.fontSize = Math.max(9, Math.min(14, Math.round(Math.min(format.width, format.height) * 0.03)));
-  badge.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  badge.textAutoResize = "WIDTH_AND_HEIGHT";
-  badge.locked = true;
-
-  const badgeBg = figma.createRectangle();
-  badgeBg.name = "Risk flag bg";
-  badgeBg.resize(badge.width + 16, badge.height + 10);
-  badgeBg.x = 4;
-  badgeBg.y = 4;
-  badgeBg.fills = [{ type: "SOLID", color: WARN_COLOR }];
-  badgeBg.locked = true;
-
-  badge.x = badgeBg.x + 8;
-  badge.y = badgeBg.y + 5;
-
-  frame.appendChild(badgeBg);
-  frame.appendChild(badge);
-  return true;
+  return !!(flags && flags.length);
 }
 
 function createValidationReport(formats, headline, adType) {
   const rows = [];
   for (const item of formats) {
-    const warnings = (item.layout && item.layout.validation_warnings) || [];
+    const warnings = [
+      ...((item.layout && item.layout.validation_warnings) || []),
+      ...((item.layout && item.layout.risk_flags) || [])
+    ];
     if (!warnings.length) continue;
     const format = item.format;
     rows.push({
@@ -652,7 +799,12 @@ function humanizeWarnings(warnings) {
     safe_zone_overlay_present_check_final_export: "Je pridaná safe-zone vrstva, pred exportom skontroluj pravidlá.",
     master_core_50pct_check: "Master: dôležitá grafika musí zostať v stredovej polovici (2000×2000 z 4000×4000)."
   };
-  return warnings.map(w => labels[w] || w).join(" ");
+  return warnings.map(w => {
+    // low_contrast_<miesto>_<pomer>_to_1 — dynamický kód z noteContrastIfLow().
+    const m = /^low_contrast_(.+)_(\d)_(\d)_to_1$/.exec(w);
+    if (m) return "Kontrast pod 4,5 : 1 (" + m[1].replace(/_/g, " ") + ", namerané " + m[2] + "." + m[3] + " : 1).";
+    return labels[w] || RISK_FLAG_LABELS[w] || w;
+  }).join(" ");
 }
 
 function addValidationBadge(frame, layout) {
@@ -697,10 +849,37 @@ function addRecipeTag(frame, recipe) {
 
 // Pomocná funkcia: vloží logo do ľavého horného rohu (alebo inej pozície)
 // logoH = výška logo rectu, pad = vnútorný padding
-function placeLogo(frame, figmaLogo, x, y, w, h) {
+// naRusivom = logo leží na fotke (default). false = leží na plnej brand
+// ploche, kde podklad netreba.
+function placeLogo(frame, figmaLogo, x, y, w, h, naRusivom) {
   if (!figmaLogo) return;
   // min. veľkosť loga 50 px (dotazník) — proporčne dorovnaj
-  if (w < STYLE.minLogoPx) { const k = STYLE.minLogoPx / w; w = Math.round(w * k); h = Math.round(h * k); }
+  // Minimum 50 px platí pre MENŠÍ rozmer, nie len pre šírku. Bočné pásy
+  // a interscrollery posielajú boxy typu 119×34 — tam bola kontrola na
+  // šírku splnená, ale reálne viditeľné logo malo 34 px (pri scaleMode
+  // FIT určuje veľkosť značky práve menší rozmer).
+  const _mensi = Math.min(w, h);
+  if (_mensi < STYLE.minLogoPx) {
+    const k = STYLE.minLogoPx / _mensi;
+    w = Math.round(w * k); h = Math.round(h * k);
+    // Nesmie pretiecť frame — keď sa nezmestí, dorovnaj späť.
+    if (frame && frame.width && frame.height) {
+      const kMax = Math.min(1, (frame.width - x) / w, (frame.height - y) / h);
+      if (kMax < 1) { w = Math.round(w * kMax); h = Math.round(h * kMax); }
+    }
+  }
+
+  // Podklad pod logom sa NEKRESLÍ.
+  //
+  // Surď má v dotazníku „pod logom na rušivom pozadí jemný gradient
+  // podklad", ale radiálny gradient vyzeral ako reflektor/žiara okolo
+  // značky — v sade to pôsobilo ako chyba. Dodávaný lockup má navyše
+  // vlastný biely rám, takže podklad nepotrebuje.
+  //
+  // Čitateľnosť loga sa rieši správnou VERZIOU loga (biela na tmavom,
+  // tmavá na svetlom) — to je Surďovo primárne pravidlo. Keď je nahraná
+  // verzia, ktorá sa na podklad nehodí, upozorníme na to v UI namiesto
+  // kreslenia žiary.
   const logoRect = figma.createRectangle();
   logoRect.name = "Logo";
   logoRect.resize(w, h);
@@ -735,6 +914,13 @@ function resolveLayoutLocal(format) {
   return Object.assign({}, base, { layout_type: "full_bleed" }); // portrét, štvorec, landscape
 }
 
+// Porovnanie textov bez ohľadu na diakritiku okolo medzier a veľkosť písmen.
+function jeRovnakyText(a, b) {
+  if (!a || !b) return false;
+  const n = function (x) { return String(x).replace(/\s+/g, " ").trim().toLowerCase(); };
+  return n(a) === n(b);
+}
+
 function shouldShowHeadline(layout, headline) {
   return layout.show_headline !== false && !!headline;
 }
@@ -749,12 +935,19 @@ function shouldShowLogo(format, layout, figmaLogo) {
 // availableHeight (voliteľné): koľko výšky reálne ostáva pre subheadline
 // po odpočítaní CTA, loga a AI tagu — keď sa nepošle, kontroluje sa len
 // minimálny rozmer formátu.
-function shouldShowSubheadline(format, layout, availableHeight) {
+function shouldShowSubheadline(format, layout, availableHeight, headline, subheadline) {
   if (layout && layout.show_subheadline === false) return false;
-  if (Math.min(format.width, format.height) < 400) return false;
-  if (typeof availableHeight === "number" &&
-      availableHeight < TB.subheadline(format.width, format.height) * 1.6) {
-    return false;
+  // Keď je podnadpis rovnaký ako headline, nekreslí sa — dva rovnaké
+  // riadky nad sebou vyzerajú ako chyba sadzby.
+  if (jeRovnakyText(headline, subheadline)) return false;
+  // Predtým tu bol pevný prah: min(šírka, výška) < 400 px → žiadny
+  // podnadpis. Ten vypínal podnadpis na VÄČŠINE bannerových formátov
+  // (300×250, 300×600, 160×600, 320×600…), takže používateľ ho zadal a
+  // vo výstupe nebol. Rozhoduje teraz len to, či naň reálne ostane
+  // miesto — a či sa zmestí aspoň na minimálnej veľkosti písma.
+  if (typeof availableHeight === "number") {
+    const potrebne = Math.max(STYLE.minTextPx, TB.subheadline(format.width, format.height)) * 1.5;
+    if (availableHeight < potrebne) return false;
   }
   return true;
 }
@@ -765,12 +958,41 @@ function clamp(n, min, max) {
 
 // Krytie scrimu/panelu odvodené z priemernej luminancie dolných 40 % KV
 // (layout.kv_luma_bottom, poslané z ui.html cez <canvas>+getImageData).
-// Svetlý KV → menej krytia (35–45 %), tmavý → viac (70–90 %). Bez dát
-// (napr. Excel cesta bez obrázku) defaultuje na luma=0 → pôvodné 0,90,
-// nech sa vizuál pri chýbajúcom KV nezmení.
+//
+// POZOR na SMER (oprava regresie z P0-7): text je BIELY, takže SVETLÝ KV
+// potrebuje VIAC krytia, nie menej. P0-7 mal vzťah obrátený
+// (0,35 + (1−luma)·0,55) a na svetlom KV klesol na 35 % — headline potom
+// vychádzal na kontraste 1,8–2,9 : 1, teda prakticky nečitateľný.
+//
+// Biely text na podklade s luminanciou L pod čiernym scrimom s krytím a:
+//   kontrast = 1,05 / (L·(1−a) + 0,05)
+// Pre AA (4,5 : 1) musí platiť L·(1−a) ≤ 0,183 — na svetlom KV (L≈0,75)
+// to znamená a ≥ 0,76.
+//
+// Pôvodný dôvod P0-7 (svetlý koralový KV sa v dolnej tretine prepaľoval
+// do hneda) sa nerieši znížením krytia, ale KRATŠÍM scrimom — pozri
+// scrimTop/scrimH v buildMasterSafeLayout: gradient kryje len pás okolo
+// textu, nie plošne dolných 62 % vizuálu.
+// Surď (dotazník, sekcia 2): „Farba textu PODĽA POZADIA (nie vždy biela)."
+// Keď text leží na plnej brand ploche (contain doplnil farbu a scrim sa
+// nekreslí), biely text na svetlom koralovom podklade nie je čitateľný.
+// Vráti bielu na tmavom podklade a tmavú brand modrú na svetlom.
+function textNaPodklade(farba) {
+  const kanal = function (c) {
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const L = 0.2126 * kanal(farba.r) + 0.7152 * kanal(farba.g) + 0.0722 * kanal(farba.b);
+  // kontrast bielej voči podkladu vs. kontrast tmavej brand modrej
+  const kBiela = 1.05 / (L + 0.05);
+  const tmava = { r: 0.04, g: 0.10, b: 0.24 };
+  const Lt = 0.2126 * kanal(tmava.r) + 0.7152 * kanal(tmava.g) + 0.0722 * kanal(tmava.b);
+  const kTmava = (L + 0.05) / (Lt + 0.05);
+  return kTmava > kBiela ? tmava : { r: 1, g: 1, b: 1 };
+}
+
 function scrimAlphaFor(layout) {
-  const luma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 0;
-  return clamp(0.35 + (1 - luma) * 0.55, 0.35, 0.90);
+  const luma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 1;
+  return clamp(0.50 + luma * 0.40, 0.50, 0.90);
 }
 
 function addImageRect(frame, figmaImage, name, x, y, w, h, scaleMode) {
@@ -882,8 +1104,20 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   const headlineY = topOffset + 80;
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = 42;
-    addText(frame, headline, pad, headlineY, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
-    addText(frame, headline, format.width - sideW + pad, headlineY, sideW - pad * 2, 260, fontSize, { r: 1, g: 1, b: 1 });
+    const blokH = 260 + (layout.show_cta !== false && ctaText ? 54 + 24 : 0);
+    // Čitateľnostná podložka za textovým blokom v oboch bočných stĺpcoch.
+    // Celoplošné "Dim brand background" na 0,34 nestačí — biely headline
+    // na svetlom KV vychádzal na 2,9 : 1.
+    [pad, format.width - sideW + pad].forEach(function (stlpecX) {
+      addSolidRect(
+        frame, "Readability panel", stlpecX - Math.round(pad * 0.5), headlineY - Math.round(pad * 0.7),
+        sideW - pad, blokH + pad, BRAND_COLOR, 0.82
+      );
+    });
+    addTemplateText(frame, "Headline", headline,
+      [pad, headlineY, sideW - pad * 2, 260], fontSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
+    addTemplateText(frame, "Headline", headline,
+      [format.width - sideW + pad, headlineY, sideW - pad * 2, 260], fontSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
   }
 
   // CTA v oboch stĺpcoch, zrkadlené rovnako ako logo/headline vyššie —
@@ -995,7 +1229,14 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(panelH * 0.20, 24, 58));
-    addText(frame, headline, safe.x + pad * 1.55, panelY + pad, safe.w - pad * 3.1, panelH - pad * 2 - ctaBudget, fontSize, { r: 1, g: 1, b: 1 });
+    // addTemplateText (nie addText) — vie font automaticky zmenšiť, aby sa
+    // headline zmestil do panelu. S addText dlhý headline pretiekol panel
+    // a prekryl CTA (namerané na interscrolleroch pravda/nmh/hnonline).
+    addTemplateText(
+      frame, "Headline", headline,
+      [safe.x + pad * 1.55, panelY + pad, safe.w - pad * 3.1, panelH - pad * 2 - ctaBudget],
+      fontSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+    );
   }
 }
 
@@ -1018,30 +1259,53 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
   addSolidRect(frame, "Content area", 0, heroH, format.width, format.height - heroH, { r: 1, g: 1, b: 1 }, 1);
 
   const pad = Math.round(clamp(format.width * 0.07, 28, 56));
-  if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(format.width * 0.08, 38, 62));
-    placeLogo(frame, figmaLogo, pad, heroH + pad, Math.round(logoH * 3.5), logoH);
-  }
-
-  // CTA v spodnej časti content area — rovnaký button ako master_safe/PSD.
-  // Rezervované PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
   const showCta = layout.show_cta !== false && !!ctaText;
-  let contentBottom = format.height - pad;
-  if (showCta) {
-    const btnH = Math.round(clamp(format.width * 0.09, 36, 56));
-    const btnW = Math.max(120, Math.round(format.width * 0.30));
-    const btnY = format.height - pad - btnH;
-    addMasterCta(frame, ctaText, pad, btnY, btnW, btnH);
-    contentBottom = btnY - Math.round(pad * 0.5);
+  const showsLogo = shouldShowLogo(format, layout, figmaLogo);
+
+  const logoH = Math.round(clamp(format.width * 0.08, 38, 62));
+  const logoW = Math.round(logoH * 3.5);
+  const btnH = showCta ? Math.round(clamp(format.width * 0.09, 36, 56)) : 0;
+  const btnW = showCta ? Math.max(120, Math.round(format.width * 0.30)) : 0;
+
+  // Content area sa skladá ZDOLA: CTA na spodku, headline nad ním,
+  // logo nad headlineom — ale len ak naň ostane miesto. Predtým sa logo
+  // kreslilo vždy hore a headline sa pri nedostatku miesta prepadol
+  // pod tlačidlo (namerané na azet_dm 640×500).
+  const hornaHrana = heroH + pad;
+  const btnY = format.height - pad - btnH;
+  const podHeadlinom = showCta ? (btnY - Math.round(pad * 0.5)) : (format.height - pad);
+  const fontSize = Math.round(clamp(format.width * 0.055, 28, 44));
+  const minHeadline = Math.round(fontSize * 1.25);
+
+  // Zmestí sa logo nad headline?
+  const logoVlastnyRiadok = showsLogo &&
+    (podHeadlinom - hornaHrana - logoH - Math.round(pad * 0.6)) >= minHeadline;
+
+  let textY = hornaHrana;
+  if (logoVlastnyRiadok) {
+    placeLogo(frame, figmaLogo, pad, hornaHrana, logoW, logoH, false);
+    textY = hornaHrana + logoH + Math.round(pad * 0.6);
   }
 
   if (shouldShowHeadline(layout, headline)) {
-    const fontSize = Math.round(clamp(format.width * 0.055, 28, 44));
-    // Pôvodná medzera (13 % šírky) rátala s celou content area voľnou pre
-    // headline. Keď CTA zabral spodok, rovnaká medzera by headline
-    // stlačila na pár px — s CTA použi menšiu, pevnú medzeru.
-    const textY = heroH + pad + Math.round(showCta ? pad * 0.4 : format.width * 0.13);
-    addText(frame, headline, pad, textY, format.width - pad * 2, Math.max(20, contentBottom - textY), fontSize, BRAND_COLOR);
+    const vyska = Math.max(minHeadline, podHeadlinom - textY);
+    // Keď je logo vedľa CTA, headline si nechá miesto vpravo pre logo.
+    const sirka = format.width - pad * 2;
+    addTemplateText(frame, "Headline", headline,
+      [pad, textY, sirka, vyska], fontSize, BRAND_COLOR, "Bold", "LEFT");
+  }
+
+  if (showCta) addMasterCta(frame, ctaText, pad, btnY, btnW, btnH);
+
+  // Logo, ktoré sa nezmestilo nad headline, ide vpravo dole vedľa CTA —
+  // to je aj Surďova default pozícia („logo vpravo dole").
+  if (showsLogo && !logoVlastnyRiadok) {
+    const lw = Math.min(logoW, format.width - pad * 2 - btnW - Math.round(pad * 0.6));
+    const lh = Math.round(lw / 3.5);
+    if (lw >= 50) {
+      placeLogo(frame, figmaLogo, format.width - pad - lw,
+        (showCta ? btnY + Math.round((btnH - lh) / 2) : format.height - pad - lh), lw, lh, false);
+    }
   }
 }
 
@@ -1097,6 +1361,13 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
 
 // Presné kompozície z referenčného PSD Adform_dievca.psd.
 // Súradnice sú lokálne voči jednotlivým artboardom v PSD.
+// Súradnice aj veľkosti písma sú odčítané priamo z Adform_dievca.psd.
+// PSD je pre tieto štyri formáty ZDROJ PRAVDY a má prednosť pred
+// všeobecným minimom 12 px zo štýlového dotazníka (STYLE.minTextPx).
+// Legal 7 px, badge 8 px a AI tag 9 px nie sú chyba — tak sú v PSD
+// a do 300×250 sa 12 px legal ani zmestiť nemôže.
+// Minimum 12 px platí pre GENEROVANÉ layouty (master_safe a spol.),
+// kde rozmery určuje plugin, nie predloha.
 const ADFORM_PSD_RULES = {
   "adform_300x600": {
     slogan: [20, 22, 75, 20],
@@ -1219,50 +1490,118 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align,
   return txt;
 }
 
-function addSloganLogo(frame, box) {
+// Skutočná výška textu po zalomení do danej šírky. Potrebné preto, aby si
+// layout vedel dopredu vyhradiť miesto na legal a AI disclosure — inak
+// sa kreslili do 1-riadkového boxu naslepo a pri zalomení pretiekli
+// mimo frame (legal chýbal na 16 formátoch).
+function measureWrappedHeight(frame, value, boxW, fontSize, style) {
+  if (!value || !boxW || boxW <= 0) return 0;
+  try {
+    const m = figma.createText();
+    m.fontName = style === "Regular" ? FONT_REGULAR : (style === "Light" ? FONT_LIGHT : FONT);
+    m.characters = String(value);
+    m.fontSize = fontSize;
+    m.resize(boxW, 10);
+    m.textAutoResize = "HEIGHT";
+    frame.appendChild(m);
+    const h = Math.ceil(m.height);
+    m.remove();
+    return h || Math.round(fontSize * 1.6);
+  } catch (e) {
+    return Math.round(fontSize * 1.6);
+  }
+}
+
+// Spodný pás master_safe layoutu: legal (úplne dole) + AI disclosure nad
+// ním. Obe sú povinné prvky, takže sa merajú DOPREDU a ich celková výška
+// sa odpočíta z priestoru pre headline/subheadline/CTA.
+// stlpec = { x, w } textového stĺpca. Pri wide layoute je text v pravom
+// paneli, takže legal aj AI musia ísť tam — nie na ľavý okraj cez fotku.
+function planBottomStack(frame, format, layout, content, cb, pad, stlpec) {
+  const out = { legalH: 0, legalSize: 0, legalY: 0, aiH: 0, aiY: 0, total: 0, medzera: 0 };
+  const spodnyOkraj = Math.max(4, Math.round(pad * 0.25));
+  const chceLegal = layout.show_legal !== false && !!content.legalText;
+  const chceAi = content.aiGenerated === true && layout.show_ai_disclosure !== false;
+
+  out.x = stlpec ? stlpec.x : (cb.x + pad);
+  out.w = stlpec ? stlpec.w : (cb.w - pad * 2);
+  if (chceLegal) {
+    out.legalSize = TB.legal(format.width, format.height);
+    out.legalH = measureWrappedHeight(frame, content.legalText, out.w, out.legalSize, "Regular");
+  }
+  if (chceAi) out.aiH = Math.round(aiNoteFontSize(format) * 1.35);
+  out.medzera = (out.legalH && out.aiH) ? Math.round(aiNoteFontSize(format) * 0.55) : 0;
+
+  out.legalY = cb.y + cb.h - spodnyOkraj - out.legalH;
+  out.aiY = out.legalY - out.medzera - out.aiH;
+  out.total = (out.legalH ? out.legalH + spodnyOkraj : 0) +
+              (out.aiH ? out.aiH + out.medzera : 0);
+  return out;
+}
+
+// naPaneli = slogan leží na plnej farebnej ploche (brand panel), nie na
+// fotke — vtedy podložku NEkresli, bola by z nej len čierna škvrna.
+function addSloganLogo(frame, box, naPaneli, farba) {
   if (!box) return;
+  // Bez podložky. V PSD (Adform_dievca.psd) leží slogan „Myslite na seba"
+  // priamo na vizuáli, žiadny obdĺžnik za ním nie je — pridala som ho
+  // kvôli kontrastu a v sade vyzeral ako nalepený tmavý box.
+  // Farba podľa podkladu (Surď, sekcia 2), nie natvrdo biela — slogan
+  // leží na fotke a na svetlom KV vychádzal na 1,4 : 1.
+  const fs = farba || { r: 1, g: 1, b: 1 };
   const slashW = Math.max(10, Math.round(box[2] * 0.20));
   addTemplateText(
     frame, "Myslite na seba symbol", "/", [box[0], box[1], slashW, box[3]],
-    Math.round(box[3] * 1.05), { r: 1, g: 1, b: 1 }, "Bold", "CENTER"
+    Math.round(box[3] * 1.05), fs, "Bold", "CENTER"
   );
   addTemplateText(
     frame, "Myslite na seba", "Myslite\nna seba",
     [box[0] + slashW - 1, box[1], box[2] - slashW + 1, box[3]],
     Math.max(5, Math.round(box[3] * 0.37)),
-    { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
+    fs, "Bold", "LEFT"
   );
 }
 
-function addAdformBackgroundTreatment(frame, format, rules) {
-  if (format.id === "adform_970x250") {
+function addAdformBackgroundTreatment(frame, format, rules, psdId) {
+  const id = psdId || format.id;
+  if (id === "adform_970x250") {
     // PSD: KV na ľavej strane, pevný modrosivý brand panel vpravo.
-    addSolidRect(frame, "Brand panel", 425, 0, 545, 250, { r: 0.19, g: 0.27, b: 0.37 }, 1);
+    addSolidRect(frame, "Brand panel", 425, 0, 545, 250, TB.color.panel970x250, 1);
     return;
   }
   if (rules.panel) {
     addSolidRect(
       frame, "Dark lower panel",
       rules.panel[0], rules.panel[1], rules.panel[2], rules.panel[3],
-      { r: 0.12, g: 0.10, b: 0.10 }, 0.94
+      TB.color.panel160x600, 1
     );
     return;
   }
 
   const gradient = figma.createRectangle();
-  gradient.name = format.id === "adform_300x600" ? "Bottom readability gradient" : "Left readability gradient";
+  gradient.name = id === "adform_300x600" ? "Bottom readability gradient" : "Left readability gradient";
   gradient.resize(format.width, format.height);
   gradient.x = 0;
   gradient.y = 0;
+  // POZOR na smer. 300×600 = tmavne smerom DOLE (text je dole).
+  // Ostatné = "dark left-side readability treatment" podľa PSD, čiže
+  // tmavne smerom DOĽAVA — text (headline, legal, CTA) je vľavo.
+  // Predtým tu bola identita [[1,0,0],[0,1,0]], ktorá tmavne doprava,
+  // takže celá kopija ležala na svetlej strane vizuálu.
+  const jeZhora = id === "adform_300x600";
   gradient.fills = [{
     type: "GRADIENT_LINEAR",
-    gradientTransform: format.id === "adform_300x600"
-      ? [[0, 1, 0], [1, 0, 0]]
-      : [[1, 0, 0], [0, 1, 0]],
-    gradientStops: [
-      { position: 0, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.06 } },
-      { position: 1, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.78 } }
-    ]
+    gradientTransform: jeZhora ? [[0, 1, 0], [1, 0, 0]] : [[1, 0, 0], [0, 1, 0]],
+    gradientStops: jeZhora
+      ? [
+          { position: 0, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.06 } },
+          { position: 1, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.84 } }
+        ]
+      : [
+          { position: 0, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.84 } },
+          { position: 0.62, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.30 } },
+          { position: 1, color: { r: 0.04, g: 0.04, b: 0.05, a: 0.06 } }
+        ]
   }];
   frame.appendChild(gradient);
 }
@@ -1303,7 +1642,7 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
 // TP master: 4000×4000 s dôležitým obsahom v stredových 2000×2000.
 // Do obrazovej zóny vkladáme celý master. Centrálne jadro je ochrana proti
 // orezu vonkajších okrajov, nie pokyn zväčšiť jadro na celý cieľový formát.
-function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide) {
+function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide, brand) {
   const holder = figma.createFrame();
   holder.name = "TP master — centrálne jadro 50 %";
   holder.resize(zone[2], zone[3]);
@@ -1314,23 +1653,98 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   parent.appendChild(holder);
 
   if (!figmaImage || !imageSize || !imageSize.width || !imageSize.height) {
-    holder.fills = [{ type: "SOLID", color: { r: 0.84, g: 0.86, b: 0.9 } }];
-    return holder;
+    holder.fills = [{ type: "SOLID", color: brand || BRAND_COLOR }];
+    return { holder: holder, obrazokDole: zone[1] + zone[3] };
   }
 
-  const scale = Math.max(
-    zone[2] / imageSize.width,
-    zone[3] / imageSize.height
-  );
+  // Surďovo pravidlo (commit 9f619e9, 21. 7.): „keď sa subjekt nezmestí →
+  // Contain — celý vizuál viditeľný, okraje = brand farba".
+  // TP to hovorí rovnako: „The complete master is scaled into the image
+  // area (…) never enlarged to fill the complete output."
+  //
+  // KV od dizajnéra je HOTOVÁ kompozícia (subjekt + kľúčová grafika +
+  // brand pozadie). Cover cez ňu reže — na 1080×1920 sa zo štvorcového
+  // masteru orezávalo ~43 % šírky a preseklo to grafiku „5 €".
+  //
+  // Prah 1,35 je Surďovo pôvodné pravidlo z commitu 9f619e9
+  // („keď sa subjekt nezmestí → Contain"). Pri prepise na master_safe sa
+  // stratilo — ostala len nepoužívaná premenná KV_RATIO. Toto ho obnovuje.
+  const zoneRatio = zone[2] / zone[3];
+  const kvRatio = imageSize.width / imageSize.height;
+  const mismatch = Math.max(kvRatio / zoneRatio, zoneRatio / kvRatio);
+  const takmerRovnake = mismatch <= 1.35;
+  const coverScale = Math.max(zone[2] / imageSize.width, zone[3] / imageSize.height);
+  const containScale = Math.min(zone[2] / imageSize.width, zone[3] / imageSize.height);
+  const scale = takmerRovnake ? coverScale : containScale;
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();
   rect.name = "Master visual — 2000×2000 core";
   rect.resize(renderedW, renderedH);
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
-  rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
-  rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
+  if (takmerRovnake) {
+    rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
+    rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
+  } else {
+    // Contain: vodorovne na stred, zvisle k hornej hrane — text, CTA,
+    // logo a legal sa skladajú zdola, takže spodný brand pás je ich miesto.
+    rect.x = Math.round((zone[2] - renderedW) / 2);
+    rect.y = renderedH < zone[3] ? 0 : Math.round((zone[3] - renderedH) / 2);
+  }
   holder.appendChild(rect);
+
+  // ── Doplnená plocha ─────────────────────────────────────────────────
+  // TP: „(the extension zone) ... or A SMOOTH TRANSITION TO ONE COLOUR."
+  // Surď: „keď sa subjekt nezmestí → Contain, okraje = BRAND FARBA."
+  //
+  // Jedna farba, a to tá istá, ktorou sa plní brand panel vo wide
+  // formátoch — brandColor(layout), odvodená z KV (kvBg z ui.html).
+  // Je overená a používa sa v plugine dávno pred týmito úpravami.
+  //
+  // Pozn.: skúšali sme dve „chytrejšie" varianty a obe boli horšie:
+  //  · vzorkovanie farieb pozdĺž hrany KV (kvEdgeColors) — v ostrej
+  //    Figme vracalo čierne plochy, takže doplnená plocha bola čierna
+  //  · natiahnutý pás pixelov cez scaleMode "CROP" + imageTransform —
+  //    Figma tú maticu interpretuje inak, výsledkom bol zlý výrez
+  // Preto tu zámerne zostáva najjednoduchšie riešenie, ktoré funguje.
+  if (!takmerRovnake && brand) {
+    holder.fills = [{ type: "SOLID", color: brand }];
+
+    // Krátky prechod pri hrane fotky, nech medzi ňou a plochou nie je
+    // ostrá linka. Ide z brand farby (priehľadnej pri fotke) do plnej.
+    const prechod = function (name, ex, ey, ew, eh, smerVon) {
+      if (ew <= 1 || eh <= 1) return;
+      const r = figma.createRectangle();
+      r.name = name;
+      r.resize(ew, eh);
+      r.x = ex; r.y = ey;
+      r.fills = [{
+        type: "GRADIENT_LINEAR",
+        gradientTransform: smerVon,
+        gradientStops: [
+          { position: 0.00, color: { r: brand.r, g: brand.g, b: brand.b, a: 0.00 } },
+          { position: 1.00, color: { r: brand.r, g: brand.g, b: brand.b, a: 1.00 } }
+        ]
+      }];
+      holder.insertChild(holder.children.indexOf(rect), r);
+    };
+
+    const dolePod = zone[3] - (rect.y + renderedH);
+    const horeNad = rect.y;
+    const vlavo = rect.x;
+    const vpravo = zone[2] - (rect.x + renderedW);
+    const pasH = Math.round(Math.min(zone[3] * 0.10, 90));
+    const pasW = Math.round(Math.min(zone[2] * 0.10, 90));
+
+    if (dolePod > 1) prechod("Prechod pri hrane — dole",
+      0, rect.y + renderedH - 1, zone[2], Math.min(dolePod + 1, pasH), [[0, 1, 0], [1, 0, 0]]);
+    if (horeNad > 1) prechod("Prechod pri hrane — hore",
+      0, Math.max(0, rect.y - pasH), zone[2], Math.min(horeNad + 1, pasH), [[0, -1, 1], [1, 0, 0]]);
+    if (vlavo > 1) prechod("Prechod pri hrane — vľavo",
+      Math.max(0, rect.x - pasW), 0, Math.min(vlavo + 1, pasW), zone[3], [[-1, 0, 1], [0, 1, 0]]);
+    if (vpravo > 1) prechod("Prechod pri hrane — vpravo",
+      rect.x + renderedW - 1, 0, Math.min(vpravo + 1, pasW), zone[3], [[1, 0, 0], [0, 1, 0]]);
+  }
 
   if (showGuide) {
     const guide = figma.createRectangle();
@@ -1345,12 +1759,15 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
     guide.locked = true;
     holder.appendChild(guide);
   }
-  return holder;
+  // Pozn.: Figma nody nie sú rozšíriteľné, takže vlastnú hodnotu nemožno
+  // priradiť na node — vraciame ju v obale. Žiadny volajúci nepotrebuje
+  // samotný holder, takže je to bezpečné.
+  return { holder: holder, obrazokDole: zone[1] + rect.y + renderedH };
 }
 
 function addMasterCta(frame, value, x, y, w, h) {
   if (!value) return;
-  const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0, g: 0.278, b: 0.973 }, 1);
+  const button = addSolidRect(frame, "CTA button", x, y, w, h, TB.color.cta, 1);
   button.cornerRadius = Math.max(2, Math.round(h * 0.08));
   const labelSize = Math.max(12, Math.round(h * 0.36));
   addTemplateText(frame, "CTA text", value + "  ›", [x, y, w, h],
@@ -1413,16 +1830,39 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   const pad = TB.padding(format.width, format.height);
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
+  // Legal + AI disclosure sa merajú dopredu, nech si pre ne obe vetvy
+  // vyhradia miesto a text sa nedostane pod dolnú hranu frameu.
+  // Textový stĺpec musí byť známy skôr, než sa naplánuje spodný pás —
+  // pri wide layoute sedí text v pravom paneli, takže legal aj AI tag
+  // patria tam, nie na ľavý okraj cez fotku.
+  const _wideTextX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
+  const _wideTextW = Math.max(60, (cb.x + cb.w - pad) - _wideTextX);
+  const spodok = planBottomStack(frame, format, layout, content, cb, pad,
+    family === "wide" ? { x: _wideTextX, w: _wideTextW } : null);
+
+  // Farba textu sa musí riadiť tým, čo je POD textom naozaj:
+  //  · keď sa kreslí scrim, text leží na tmavom → biela
+  //  · keď scrim nie je (text sedí na plnej brand ploche po contain),
+  //    rozhodne jas tej plochy (Surď: „farba textu podľa pozadia")
+  // Nastaví sa nižšie v príslušnej vetve; wide vetva má text na paneli.
+  let FARBA_TEXTU = { r: 1, g: 1, b: 1 };
+
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.75);
-    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
+    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides, brandColor(layout));
     const wideShift = Math.round(format.width * 0.30);
     const panelX = imageW - wideShift;
-    const brand = brandColor(layout);
+    // P0-16b: panel dobieha na brandColor(layout) — pri svetlom pastelovom
+    // KV to bola béžová/pastelová plocha pod bielym headlinom (namerané
+    // 1,6 : 1). Panel nesie text vždy bielou (FARBA_TEXTU sa vo wide vetve
+    // nemení), takže farba, na ktorú dobieha, musí byť voči bielej čitateľná
+    // — ensureReadableSurface ju stmaví so zachovaním hue, nezmení ju na inú.
+    const brand = ensureReadableSurface(brandColor(layout), { r: 1, g: 1, b: 1 }, 4.5);
+    noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 4.5, "wide_panel");
     const panelAlpha = scrimAlphaFor(layout);
-    const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
+    const textX = _wideTextX;
     const textRight = cb.x + cb.w - pad;
-    const textW = Math.max(60, textRight - textX);
+    const textW = _wideTextW;
     const panel = figma.createRectangle();
     panel.name = "Wide content panel";
     panel.resize(format.width - panelX, format.height);
@@ -1445,7 +1885,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const wLogo = TB.logoBox(format.width, format.height);
     const wClear = TB.logoClear(format.width, format.height);
     const showsLogo = shouldShowLogo(format, layout, figmaLogo);
-    const logoTop = showsLogo ? (cb.y + cb.h - pad - wLogo.height) : (cb.y + cb.h);
+    // Dolná hrana pre logo/CTA je NAD spodným pásom (legal + AI), nie na
+    // hrane content boxu — inak logo sadne na legal text.
+    const wDolnaHrana = cb.y + cb.h - pad - spodok.total;
+    const logoTop = showsLogo ? (wDolnaHrana - wLogo.height) : (cb.y + cb.h);
     const reserve = showsLogo ? (wLogo.width + wClear) : 0;
     function wideWidth(y, h) {
       return (y + h > logoTop) ? Math.max(60, textW - reserve) : textW;
@@ -1466,8 +1909,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const wBtn = TB.button(format.width, format.height);
     const showCta = layout.show_cta !== false;
     const wGap = Math.round(headlineSize * 0.30);
-    const aiRezerva = (content.aiGenerated && layout.show_ai_disclosure !== false)
-      ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
+    // Rezerva na celý spodný pás (legal + AI), nie len na AI tag.
+    const aiRezerva = spodok.total;
 
     let wCur = cb.y + cb.h - pad - aiRezerva;
     let btnY = 0, subY = 0;
@@ -1475,7 +1918,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // Poistka na veľkosť (P0-9): subheadline sa nekreslí, ak po odpočítaní
     // CTA a AI tagu ostane menej ako 1,6× jeho výšky, alebo je formát
     // pod min(W,H) 400 px.
-    const showSub = shouldShowSubheadline(format, layout, wCur - (cb.y + pad));
+    const showSub = shouldShowSubheadline(format, layout, wCur - (cb.y + pad), content.headline, content.subheadline);
     const subH = Math.round(TB.subheadline(format.width, format.height) * 1.6);
     if (showSub) { subY = wCur - subH; wCur = subY - Math.round(wGap * 0.6); }
     const hlDost = Math.max(20, wCur - pad);
@@ -1493,12 +1936,15 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         Math.max(88, Math.min(wBtn.width, wideWidth(btnY, wBtn.height))), wBtn.height);
     }
     if (showsLogo) {
+      // Wide: logo leží na plnom brand paneli, nie na fotke → bez podkladu.
       placeLogo(frame, figmaLogo,
-        cb.x + cb.w - pad - wLogo.width, cb.y + cb.h - pad - wLogo.height,
-        wLogo.width, wLogo.height);
+        cb.x + cb.w - pad - wLogo.width, wDolnaHrana - wLogo.height,
+        wLogo.width, wLogo.height, false);
     }
   } else {
-    addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+    const _kvHolder = addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides, brandColor(layout));
+    const _obrazokDole = (_kvHolder && typeof _kvHolder.obrazokDole === "number")
+      ? _kvHolder.obrazokDole : format.height;
 
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
@@ -1511,7 +1957,8 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const logoClear = TB.logoClear(format.width, format.height);
     const showsLogo = shouldShowLogo(format, layout, figmaLogo);
     const logoOwnRow = showsLogo && (logo.width + logoClear) > textW * 0.5;
-    const logoTop = (showsLogo && !logoOwnRow) ? (cb.y + cb.h - pad - logo.height) : (cb.y + cb.h);
+    const sDolnaHrana = cb.y + cb.h - pad - spodok.total;
+    const logoTop = (showsLogo && !logoOwnRow) ? (sDolnaHrana - logo.height) : (cb.y + cb.h);
     const logoReserve = (showsLogo && !logoOwnRow) ? (logo.width + logoClear) : 0;
     // Rezerva podľa SKUTOČNEJ výšky textu (node.height), nie výšky boxu —
     // box headline/subheadline je percento formátu, reálny text v ňom
@@ -1530,10 +1977,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
 
     // Skladanie zdola nahor: pad → tlačidlo → medzera → podnadpis → medzera → headline,
     // aby sa pri väčšom podnadpise nikdy neprekryl s tlačidlom.
-    let cursorY = cb.y + cb.h - pad;
-    if (content.aiGenerated && layout.show_ai_disclosure !== false) {
-      cursorY -= Math.round(aiNoteFontSize(format) * 2.2);
-    }
+    // Rezerva na celý spodný pás (legal + AI disclosure), nie len na AI tag —
+    // predtým sa legal nepočítal vôbec a pri zalomení pretiekol mimo frame.
+    let cursorY = cb.y + cb.h - pad - spodok.total;
     if (logoOwnRow) cursorY -= (logo.height + logoClear);
     let btnY = 0, subheadlineY = 0;
     if (layout.show_cta !== false) {
@@ -1545,7 +1991,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // CTA, loga a AI tagu ostane menej ako 1,6× jeho výšky, alebo je
     // formát pod min(W,H) 400 px. Rovnaký boolean sa použije aj nižšie
     // pri samotnom kreslení, nech sa rezerva miesta a kreslenie nerozídu.
-    const showSubheadline = shouldShowSubheadline(format, layout, cursorY - (cb.y + pad));
+    const showSubheadline = shouldShowSubheadline(format, layout, cursorY - (cb.y + pad), content.headline, content.subheadline);
     if (showSubheadline) {
       cursorY -= subheadlineBoxH;
       subheadlineY = cursorY;
@@ -1554,35 +2000,67 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     cursorY -= headlineBoxH;
     const headlineY = cursorY;
 
-    const scrimH = Math.min(format.height, Math.max(
-      Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
-      format.height - headlineY
-    ));
+    // Scrim musí byť dostatočne krycí UŽ na hornej hrane headlineu, nie až
+    // pod ním. Predtým sa začínal presne na headlineY s krytím 0 %, takže
+    // headline ležal v úplne priesvitnej časti gradientu (namerané
+    // 1,8–2,9 : 1 na svetlom KV).
+    //
+    // Preto: začni o výšku jedného riadku VYŠŠIE (nábeh) a rampu veď tak,
+    // aby na headlineY už bolo ~70 % cieľového krytia. Zároveň scrim
+    // nesiaha ďalej ako treba — to je odpoveď na pôvodnú výhradu z P0-7,
+    // že plošné krytie dolných 62 % prepaľovalo svetlý KV.
+    const scrimHeadroom = Math.round(headlineSize * 1.10);
+    const scrimTop = Math.max(0, headlineY - scrimHeadroom);
+    const scrimH = Math.min(format.height, format.height - scrimTop);
+    // Keď je vizuál vložený cez CONTAIN, text sedí na plnej brand ploche
+    // POD obrázkom. Tam scrim nemá čo robiť — len by zbytočne zašpinil
+    // čistú farbu (presne to bola výhrada „prepaľuje do hneda"). Kreslí sa
+    // len vtedy, keď text naozaj leží na fotke.
+    const scrimTreba = scrimTop < (_obrazokDole - 2);
+    // Podiel scrimu, ktorý padne nad headline — v ňom musí krytie vyrásť
+    // z 0 na ~70 %.
+    const rampEnd = clamp(scrimHeadroom / Math.max(1, scrimH), 0.06, 0.45);
     const scrimAlpha = scrimAlphaFor(layout);
-    const scrimScale = scrimAlpha / 0.90;
     const scrim = figma.createRectangle();
     scrim.name = "Bottom readability gradient";
     scrim.resize(format.width, scrimH);
     scrim.x = 0;
-    scrim.y = format.height - scrimH;
+    scrim.y = scrimTop;
+    const _a = function (podiel) { return Math.round(scrimAlpha * podiel * 100) / 100; };
     scrim.fills = [{
       type: "GRADIENT_LINEAR",
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
       gradientStops: [
-        { position: 0.00, color: { r: 0.40, g: 0.40, b: 0.40, a: 0.00 } },
-        { position: 0.15, color: { r: 0.34, g: 0.34, b: 0.34, a: Math.round(0.08 * scrimScale * 100) / 100 } },
-        { position: 0.35, color: { r: 0.26, g: 0.26, b: 0.26, a: Math.round(0.28 * scrimScale * 100) / 100 } },
-        { position: 0.55, color: { r: 0.17, g: 0.17, b: 0.17, a: Math.round(0.50 * scrimScale * 100) / 100 } },
-        { position: 0.78, color: { r: 0.08, g: 0.08, b: 0.08, a: Math.round(0.72 * scrimScale * 100) / 100 } },
+        { position: 0.00, color: { r: 0.10, g: 0.10, b: 0.10, a: 0.00 } },
+        { position: rampEnd * 0.5, color: { r: 0.08, g: 0.08, b: 0.08, a: _a(0.34) } },
+        { position: rampEnd, color: { r: 0.05, g: 0.05, b: 0.05, a: _a(0.70) } },
+        { position: rampEnd + (1 - rampEnd) * 0.35, color: { r: 0.03, g: 0.03, b: 0.03, a: _a(0.88) } },
         { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: scrimAlpha } }
       ]
     }];
-    frame.appendChild(scrim);
+    // POZOR: vytvorený node bez rodiča Figma položí na aktuálnu STRÁNKU.
+    // Preto sa nepoužitý scrim musí explicitne odstrániť, inak zostanú
+    // na page osirelé obdĺžniky.
+    if (scrimTreba) {
+      frame.appendChild(scrim);
+    } else {
+      try { scrim.remove(); } catch (e) {}
+    }
 
-    const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
+    // Centrovanie headlinu je podľa TP správne len tam, kde pod ním nič
+    // ľavo-zarovnané nestojí (Google 900×1600 — CTA aj lockup dodáva systém).
+    // Keď formát CTA má, tá je vždy vľavo, rovnako logo a AI tag. Centrovaný
+    // headline nad ľavým CTA vyzerá ako chyba sadzby — preto sa centruje
+    // iba pri formátoch bez CTA.
+    const jeVysoky = format.height / format.width >= 1.7 && format.width >= 600;
+    const textAlign = (jeVysoky && layout.show_cta === false) ? "CENTER" : "LEFT";
+    // Keď scrim nie je (text sedí na plnej brand ploche), farbu textu urči
+    // podľa jasu tej plochy — inak biely text na svetlom korale nie je vidieť.
+    FARBA_TEXTU = scrimTreba ? { r: 1, g: 1, b: 1 } : textNaPodklade(brandColor(layout));
+    const farbaTextu = FARBA_TEXTU;
     const headlineNode = placeReserveText(
       "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
+      headlineSize, farbaTextu, "Bold", textAlign
     );
     if (headlineNode && family === "portrait") {
       headlineNode.textAlignVertical = "CENTER";
@@ -1590,7 +2068,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     if (showSubheadline) {
       placeReserveText(
         "Subheadline", content.subheadline, cb.x + pad, subheadlineY, subheadlineBoxH,
-        subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", textAlign
+        subheadlineSize, farbaTextu, "Regular", textAlign
       );
     }
     if (layout.show_cta !== false) {
@@ -1600,7 +2078,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       const logoX = logoOwnRow
         ? Math.round(cb.x + (cb.w - logo.width) / 2)
         : (cb.x + cb.w - pad - logo.width);
-      placeLogo(frame, figmaLogo, logoX, cb.y + cb.h - pad - logo.height, logo.width, logo.height);
+      placeLogo(frame, figmaLogo, logoX, sDolnaHrana - logo.height, logo.width, logo.height);
     }
   }
 
@@ -1614,20 +2092,38 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       Math.max(12, Math.round(badgeH * 0.42)), BRAND_COLOR, "Bold", "CENTER"
     );
   }
-  if (layout.show_legal !== false && content.legalText) {
-    const legalH = Math.round(TB.legal(format.width, format.height) * 1.6);
+  // Legal na odmeranej výške a zarovnaný na spodok content boxu, AI tag
+  // presne nad ním — obe pozície pochádzajú z planBottomStack, takže sedia
+  // s rezervou, ktorú si layout vyhradil vyššie.
+  // Legal aj AI tag ležia v tej istej ploche ako headline → rovnaká farba.
+  // Predtým sa tu farba počítala z brand farby aj vtedy, keď text ležal na
+  // tmavom scrime — výsledkom bol tmavý text na tmavom (kontrast 1,0 : 1).
+  const farbaSpodku = FARBA_TEXTU;
+  if (spodok.legalH) {
     addTemplateText(
       frame, "Legal text", content.legalText,
-      [cb.x + pad, cb.y + cb.h - legalH - Math.max(4, Math.round(pad * 0.25)), cb.w - pad * 2, legalH],
-      TB.legal(format.width, format.height),
-      { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
+      [spodok.x, spodok.legalY, spodok.w, spodok.legalH],
+      spodok.legalSize, farbaSpodku, "Regular", "LEFT"
     );
   }
-  if (content.aiGenerated && layout.show_ai_disclosure !== false) addAiNote(frame, format, cb);
+  // PSD (970×250): AI disclosure je vľavo dole CEZ FOTKU (x=30), aj keď
+  // headline a legal sedia v pravom paneli (legal x=618). Surď to hovorí
+  // rovnako — „AI-generated tag, pozícia vľavo dole". Preto legal sleduje
+  // textový stĺpec, ale AI tag zostáva pri ľavom okraji.
+  if (spodok.aiH) {
+    const aiX = cb.x + pad;
+    const aiY = (spodok.x > cb.x + pad + 2) ? spodok.legalY : spodok.aiY;
+    addAiNote(frame, format, cb, aiY, aiX, farbaSpodku);
+  }
 }
 
 function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo) {
-  const rules = ADFORM_PSD_RULES[format.id];
+  // psdId = "za ktorý PSD artboard sa tento formát považuje". Pre Vinted
+  // 970×250 / 300×600 je to alias na adform_970x250/adform_300x600 (rovnaké
+  // pixelové rozmery, potvrdená výnimka — pozri ADFORM_PSD_ALIASES).
+  // format.id ostáva nedotknutý všade inde (názov frame-u, tbFormatId...).
+  const psdId = ADFORM_PSD_ALIASES[format.id] || format.id;
+  const rules = ADFORM_PSD_RULES[psdId];
   if (!rules) {
     buildFullBleedLayout(frame, format, layout, content.headline, figmaImage, figmaLogo);
     return;
@@ -1638,18 +2134,26 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
   };
-  if (format.id === "adform_970x250") {
+  if (psdId === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 });
-  } else if (format.id === "adform_160x600") {
+  } else if (psdId === "adform_160x600") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: 0.62, y: 0.48 });
-  } else if (format.id === "adform_300x250") {
+  } else if (psdId === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: 0.76, y: 0.52 });
   } else {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: 0.68, y: 0.40 });
   }
 
-  addAdformBackgroundTreatment(frame, format, rules);
-  addSloganLogo(frame, rules.slogan);
+  addAdformBackgroundTreatment(frame, format, rules, psdId);
+  // 970×250 má slogan vpravo hore na plnom brand paneli; 160×600 má
+  // spodný panel, ale slogan je hore na fotke → tam podložku treba.
+  // Na 970×250 leží slogan na tmavom brand paneli → biela.
+  // Inde leží na fotke → farba podľa jasu vizuálu (kvBg z horných rohov,
+  // čo je presne oblasť, kde slogan sedí).
+  // V PSD je slogan biely vo všetkých štyroch artboardoch a leží buď na
+  // tmavom čitateľnostnom prechode (300×250, 300×600), alebo na brand
+  // paneli (970×250). Držíme sa predlohy.
+  addSloganLogo(frame, rules.slogan, psdId === "adform_970x250", { r: 1, g: 1, b: 1 });
 
   // Nahraný lockup patrí do veľkého štvorcového brand prvku, nie do horného sloganu.
   if (shouldShowLogo(format, layout, figmaLogo) && rules.bankLogo) {
@@ -1661,12 +2165,9 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
 
   if (content.badgeText && rules.badge) {
     const b = rules.badge;
-    const badgeBack = addSolidRect(
-      frame, "Badge outline", b[0] - 4, b[1] - 4, b[2] + 8, b[3] + 8,
-      { r: 0.78, g: 0.75, b: 0.75 }, 0.42
-    );
-    badgeBack.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.20);
-    const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], { r: 0.86, g: 0.36, b: 0.29 }, 1);
+    // Žiadny sivý rám okolo prelepky. V PSD je „prelepka" jeden smart
+    // object bez obtiahnutia — pridaný rám vyzeral ako sivá žiara.
+    const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], TB.color.badge, 1);
     badge.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.18);
     const badgePad = Math.max(5, Math.round(Math.min(b[2], b[3]) * 0.12));
     addTemplateText(
@@ -1688,7 +2189,7 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
       frame, "Headline", content.headline, h, headlineSize,
       { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
     );
-    if (headlineNode && content.subheadline) {
+    if (headlineNode && content.subheadline && !jeRovnakyText(content.headline, content.subheadline)) {
       const subY = Math.min(h[1] + h[3] - 14, headlineNode.y + headlineNode.height + 4);
       addTemplateText(
         frame,
@@ -1713,7 +2214,7 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
 
   if (content.ctaText && rules.cta) {
     const c = rules.cta;
-    const button = addSolidRect(frame, "CTA button", c[0], c[1], c[2], c[3], { r: 0, g: 0.278, b: 0.973 }, 1);
+    const button = addSolidRect(frame, "CTA button", c[0], c[1], c[2], c[3], TB.color.cta, 1);
     button.cornerRadius = Math.round(c[3] * 0.08);
     const ctaText = content.ctaText || STYLE.ctaText;
     addTemplateText(
@@ -1724,17 +2225,26 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   }
 
   if (content.aiGenerated && rules.ai) {
-    addTemplateText(
+    const aiNode = addTemplateText(
       frame, "AI generované", "✧  " + STYLE.aiTagText, rules.ai,
       Math.round(clamp(rules.ai[3] * 0.47, 7, 10)),
       { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
     );
+    // PSD: vrstva „AI GENEROVANE" má krytie 204/255 = 80 %.
+    if (aiNode) aiNode.opacity = 0.80;
   }
 }
 
 // Full bleed podľa Surďovej predlohy: KV na celý frame + jemný tmavý gradient
 // dole + headline biely vľavo dole (Tatra banka Sans) + logo VPRAVO DOLE.
 function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
+  // Surďovo pravidlo (9f619e9): pri výraznej nezhode pomerov CONTAIN,
+  // okraje brand farbou. Rovnaký prah 1,35 ako v addMasterCoreImage.
+  if (figmaImage && layout.image_fit !== "contain" && CUR_IMG_W && CUR_IMG_H) {
+    const _fr = format.width / format.height;
+    const _kv = CUR_IMG_W / CUR_IMG_H;
+    if (Math.max(_kv / _fr, _fr / _kv) > 1.35) layout.image_fit = "contain";
+  }
   // FILL = plný záber (Surďov look pre surovú fotku). CONTAIN len keď to výslovne
   // rozhodne engine. Pozn.: pri HOTOVEJ kompozícii (napálené číslo) žiadny režim
   // nevyzerá dobre — správny vstup je SUROVÁ fotka.
@@ -1747,13 +2257,20 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     const s = Math.min(format.width / iw, format.height / ih);
     const dw = Math.round(iw * s), dh = Math.round(ih * s);
     const dx = Math.round((format.width - dw) / 2), dy = Math.round((format.height - dh) / 2);
+    // Text/logo sa kotvia na spodok VIZUÁLU (cBottom = dy+dh), takže sadnú
+    // na fotku, nie na brand pás okolo nej — ten prípad tu nerieš kontrastom.
     frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
     addImageRect(frame, figmaImage, "KV (contain)", dx, dy, dw, dh, "FILL");
     cTop = dy; cBottom = dy + dh; cLeft = dx; cRight = dx + dw;
+  } else if (figmaImage) {
+    frame.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
   } else {
-    frame.fills = figmaImage
-      ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
-      : [{ type: "SOLID", color: brandColor(layout) }];
+    // P0-16b: bez obrázka je toto JEDINÁ plocha pod headlineom — biely text
+    // priamo na brandColor(layout) (z priemernej farby KV) dával pri
+    // svetlom pastelovom KV 1,6 : 1. Stmav so zachovaním hue.
+    const noImageBg = ensureReadableSurface(brandColor(layout), { r: 1, g: 1, b: 1 }, 4.5);
+    noteContrastIfLow(layout, noImageBg, { r: 1, g: 1, b: 1 }, 4.5, "full_bleed_no_image");
+    frame.fills = [{ type: "SOLID", color: noImageBg }];
   }
 
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 10, 60));
@@ -1761,6 +2278,11 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
 
   // Jemný tmavý gradient dole — ukotvený na spodok VIZUÁLU (pri contain končí na
   // spodku obrázka, nie frame-u), aby čitateľnosť textu bola presne tam.
+  // P0-16c: koncová alfa bola natvrdo STYLE.scrimOpacity (0,55) bez ohľadu na
+  // jas KV — na svetlom KV nestačí. scrimAlphaFor() už rieši presne tento
+  // výpočet (biely text, čierny scrim, WCAG 4,5 : 1) inde v master_safe;
+  // rovnaký vzorec platí tu, len bez layout.kv_luma_bottom defaultuje na
+  // najtmavšie krytie (bezpečná strana, rovnako ako predtým).
   const gradH = Math.round(cH * STYLE.scrimHeightPct);
   const gradRect = figma.createRectangle();
   gradRect.name = "Gradient scrim";
@@ -1772,7 +2294,7 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
       { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
-      { position: 1, color: { r: 0, g: 0, b: 0, a: STYLE.scrimOpacity } }
+      { position: 1, color: { r: 0, g: 0, b: 0, a: scrimAlphaFor(layout) } }
     ]
   }];
   frame.appendChild(gradRect);
@@ -1798,7 +2320,11 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
 
   // Podnadpis (ak je) — menší, úplne dole; headline pôjde nad neho.
   // Zobrazí sa LEN na formátoch, kde je naň priestor (per-formát rozhodnutie).
-  if (SUBHEAD && shouldShowSubheadline(format, layout)) {
+  // Rovnaké argumenty (availableHeight, headline, subheadline) ako pri
+  // ostatných volaniach shouldShowSubheadline (P0-21) — predtým tu chýbali,
+  // takže táto vetva nemala ani duplicate-text kontrolu, ani skutočný
+  // priestorový guard.
+  if (SUBHEAD && shouldShowSubheadline(format, layout, bottomY - cTop - pad, headline, SUBHEAD)) {
     const subSize = Math.max(STYLE.minTextPx, Math.round(format.height * STYLE.headlinePct * 0.5));
     const sub = figma.createText();
     sub.fontName = FONT;
@@ -1963,21 +2489,6 @@ function buildMicroLayout(frame, format, layout, headline, figmaImage, figmaLogo
     [0, 0, format.width, format.height], { x: 0.5, y: 0.5 }, { x: 0.5, y: 0.35 }
   );
 
-  const scrim = figma.createRectangle();
-  scrim.name = "Left readability scrim";
-  scrim.resize(Math.round(format.width * 0.55), format.height);
-  scrim.x = 0;
-  scrim.y = 0;
-  scrim.fills = [{
-    type: "GRADIENT_LINEAR",
-    gradientTransform: [[1, 0, 0], [0, 1, 0]],
-    gradientStops: [
-      { position: 0, color: { r: 0, g: 0, b: 0, a: 0.75 } },
-      { position: 1, color: { r: 0, g: 0, b: 0, a: 0 } }
-    ]
-  }];
-  frame.appendChild(scrim);
-
   const pad = Math.max(6, Math.round(format.height * 0.12));
   const hasLogo = shouldShowLogo(format, layout, figmaLogo);
   let contentX = pad;
@@ -1987,6 +2498,45 @@ function buildMicroLayout(frame, format, layout, headline, figmaImage, figmaLogo
     placeLogo(frame, figmaLogo, pad, Math.round((format.height - logoH) / 2), logoW, logoH);
     contentX = pad + logoW + Math.round(pad * 0.8);
   }
+
+  // P0-16d: headline box siaha až po format.width - pad (nižšie, availW).
+  // Scrim musí ostať krycí PO CELEJ tejto šírke a vyblednúť až ZA ňou —
+  // predtým gradient dosiahol alfu 0 presne pri format.width (rovnaká
+  // oblasť, kde končí headline box), takže koniec dlhého textu sadal na
+  // takmer priehľadný scrim nad svetlou fotkou (namerané na 728×90, 320×50).
+  // Plateau alfa je scrimAlphaFor(layout), nie natvrdo 0,66 — to pri
+  // naozaj svetlom/bielom KV (luma≈1) dávalo len ~2,7 : 1 (WCAG:
+  // 1,05 / (luma·(1−0,66) + 0,05)), zďaleka pod požadovaných 4,5 : 1.
+  const textEndX = format.width - pad;
+  const fadeStart = Math.min(0.98, textEndX / format.width);
+  const plateauAlpha = scrimAlphaFor(layout);
+  // Plugin nevidí skutočné pixely KV — použije rovnaký zjednodušený model
+  // ako scrimAlphaFor (čierny scrim nad plochou s jasom kv_luma_bottom),
+  // nie skutočný obrázok. Chýbajúci kv_luma_bottom defaultuje na 1
+  // (najsvetlejšie, najprísnejší prípad) — rovnako ako scrimAlphaFor.
+  const _microLuma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 1;
+  const _microBlend = _microLuma * (1 - plateauAlpha);
+  noteContrastIfLow(
+    layout, { r: _microBlend, g: _microBlend, b: _microBlend }, { r: 1, g: 1, b: 1 }, 4.5, "micro_scrim"
+  );
+  const scrim = figma.createRectangle();
+  scrim.name = "Left readability scrim";
+  scrim.resize(format.width, format.height);
+  scrim.x = 0;
+  scrim.y = 0;
+  scrim.fills = [{
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[1, 0, 0], [0, 1, 0]],
+    gradientStops: [
+      { position: 0.00, color: { r: 0, g: 0, b: 0, a: Math.max(plateauAlpha, 0.78) } },
+      { position: fadeStart * 0.70, color: { r: 0, g: 0, b: 0, a: plateauAlpha } },
+      // Krycí až sem — teda po celej šírke, kde môže sedieť text — a
+      // vyblednutie na 0 nechá až za textEndX, do zvyšného pad-u.
+      { position: fadeStart, color: { r: 0, g: 0, b: 0, a: plateauAlpha } },
+      { position: 1.00, color: { r: 0, g: 0, b: 0, a: 0.00 } }
+    ]
+  }];
+  frame.appendChild(scrim);
 
   if (shouldShowHeadline(layout, headline)) {
     const availW = Math.max(40, format.width - contentX - pad);

@@ -505,7 +505,24 @@ const FORMATS = [
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 30 },
-    notes: "Bez textu/dôležitých prvkov v horných 30px. HTML5 musí byť responzívne."
+    notes: "Statický variant. Bez textu/dôležitých prvkov v horných 30px. HTML5 musí byť responzívne."
+  },
+  {
+    // P0-14: chýbajúci HTML5 variant interscrolleru — TP (UPDATE_TP_Online_TB_INT_KID
+    // 06-09-2026_v2_vinted.xlsx, hárok "Direct", riadok Zoznam/topky.sk):
+    // "Interscroller: if static - 400x600 if HTML5 - 320x480". Limit "max 200kB
+    // (without video), max 1 MB (with video)" je spoločný pre oba varianty v TP,
+    // rovnako safeZones (top 30px zhora, rovnaká formulácia ako pri statickom).
+    id: "topky_html5_320x480",
+    name: "Topky interscroller HTML5 320×480",
+    channel: "Topky",
+    width: 320,
+    height: 480,
+    ratio: "2:3",
+    type: ["awareness", "hardsell"],
+    count: 1,
+    safeZones: { top: 30 },
+    notes: "HTML5 variant. Max 200 kB (bez videa), max 1 MB (s videom). Bez textu/dôležitých prvkov v horných 30px."
   },
 
   // ─── ENGERIO NATIVE ──────────────────────────────────────────

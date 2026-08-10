@@ -192,4 +192,38 @@ for (let k = 1; k < afterRampEnd.length; k++) {
     "alpha must strictly keep increasing past rampEnd, not plateau (flat dark plate regression)");
 }
 
+// ── textNaPodklade: WCAG large-text prah (3:1) pre headline/podnadpis ──────
+// Mirror z plugin/code.js — pri zmene jednej strany treba zmeniť aj druhú.
+function textNaPodklade(farba, minWhiteRatio) {
+  const prah = typeof minWhiteRatio === "number" ? minWhiteRatio : 4.5;
+  const L = relativeLuminance(farba);
+  const kBiela = 1.05 / (L + 0.05);
+  if (kBiela >= prah) return WHITE;
+  const tmava = { r: 0.04, g: 0.10, b: 0.24 };
+  const Lt = relativeLuminance(tmava);
+  const kTmava = (L + 0.05) / (Lt + 0.05);
+  return kTmava > kBiela ? tmava : WHITE;
+}
+
+// Farba zvolená tak, aby biela dala kontrast v [3, 4.5) A ZÁROVEŇ aby tmavá
+// navy pod starou "čo kontrastuje lepšie" logikou vyhrala — presne prípad,
+// ktorý spôsobil regresiu (biely headline na Surďovej referencii sa
+// preklopil na tmavý, hoci 3:1 pre veľký Bold text stačí).
+const midCoral = { r: 0.75, g: 0.40, b: 0.30 };
+const kBielaMid = 1.05 / (relativeLuminance(midCoral) + 0.05);
+assert.ok(kBielaMid >= 3.0 && kBielaMid < 4.5,
+  "test color must land in the 3:1-4.5:1 gap that demonstrates the fix, got " + kBielaMid.toFixed(2));
+
+// Headline/podnadpis (prah 3.0): biela musí vyhrať, keďže 3:1 stačí pre
+// veľký Bold text — presne to, čo Surďova referenčná Figma robí.
+const headlineColor = textNaPodklade(midCoral, 3.0);
+assert.deepStrictEqual(headlineColor, WHITE,
+  "large/bold text (headline/subheadline) must get white when it clears 3:1, matching the reference Figma");
+
+// Legal / AI tag (default prah 4.5): rovnaká farba plochy, ale malý text —
+// tu má zostať prísnejšia požiadavka, správanie sa NESMIE zmeniť.
+const legalColor = textNaPodklade(midCoral);
+assert.notDeepStrictEqual(legalColor, WHITE,
+  "small text (legal/AI tag) must keep the stricter 4.5:1 requirement and fall back to dark here");
+
 console.log("contrast: ok");

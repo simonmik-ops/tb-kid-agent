@@ -1007,13 +1007,26 @@ function clamp(n, min, max) {
 // Keď text leží na plnej brand ploche (contain doplnil farbu a scrim sa
 // nekreslí), biely text na svetlom koralovom podklade nie je čitateľný.
 // Vráti bielu na tmavom podklade a tmavú brand modrú na svetlom.
-function textNaPodklade(farba) {
+// minWhiteRatio: WCAG rozlišuje bežný text (4,5 : 1) a text >= 24 px Bold
+// (3 : 1) — predtým sa tu vždy porovnávalo len "ktorá farba kontrastuje
+// lepšie", bez ohľadu na veľkosť. Na koralovom KV (#c55e4d-rodina) dáva
+// biela len ~4,15 : 1 — voči tmavej navy (~4,04 : 1) je to tesne lepšie,
+// ale nie vždy (zaokrúhľovanie, mierne odlišné odtiene z reálneho KV vedeli
+// preklopiť výsledok na tmavú), aj keď 4,15 už bohato stačí na veľký hrubý
+// nadpis a presne to Surďova referenčná Figma robí (biely headline na tomto
+// type podkladu). Teraz: keď biela sama osebe dosiahne minWhiteRatio, vyhráva
+// vždy — nezávisle od toho, či by tmavá teoreticky kontrastovala ešte
+// o kúsok viac. Pre malý text (legal, AI tag) zostáva prísnejšia požiadavka
+// (default 4,5), pre headline/podnadpis (vždy veľké, Bold) volaj s 3.0.
+function textNaPodklade(farba, minWhiteRatio) {
+  const prah = typeof minWhiteRatio === "number" ? minWhiteRatio : 4.5;
   const kanal = function (c) {
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   };
   const L = 0.2126 * kanal(farba.r) + 0.7152 * kanal(farba.g) + 0.0722 * kanal(farba.b);
   // kontrast bielej voči podkladu vs. kontrast tmavej brand modrej
   const kBiela = 1.05 / (L + 0.05);
+  if (kBiela >= prah) return { r: 1, g: 1, b: 1 };
   const tmava = { r: 0.04, g: 0.10, b: 0.24 };
   const Lt = 0.2126 * kanal(tmava.r) + 0.7152 * kanal(tmava.g) + 0.0722 * kanal(tmava.b);
   const kTmava = (L + 0.05) / (Lt + 0.05);
@@ -1930,7 +1943,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   //  · keď scrim nie je (text sedí na plnej brand ploche po contain),
   //    rozhodne jas tej plochy (Surď: „farba textu podľa pozadia")
   // Nastaví sa nižšie v príslušnej vetve; wide vetva má text na paneli.
+  // FARBA_TEXTU = headline/podnadpis (veľký Bold text, WCAG 3:1).
+  // FARBA_TEXTU_MALY = legal/AI tag (malý text, prísnejší WCAG 4,5:1).
   let FARBA_TEXTU = { r: 1, g: 1, b: 1 };
+  let FARBA_TEXTU_MALY = { r: 1, g: 1, b: 1 };
 
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.75);
@@ -2159,8 +2175,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const textAlign = (jeVysoky && layout.show_cta === false) ? "CENTER" : "LEFT";
     // Keď scrim nie je (text sedí na plnej brand ploche), farbu textu urči
     // podľa jasu tej plochy — inak biely text na svetlom korale nie je vidieť.
-    FARBA_TEXTU = scrimTreba ? { r: 1, g: 1, b: 1 } : textNaPodklade(brandColor(layout));
+    // Headline/podnadpis sú vždy veľké a Bold (TB.headline/subheadline) —
+    // WCAG large-text prah 3 : 1, nie 4,5 : 1 (viď textNaPodklade komentár).
+    FARBA_TEXTU = scrimTreba ? { r: 1, g: 1, b: 1 } : textNaPodklade(brandColor(layout), 3.0);
     const farbaTextu = FARBA_TEXTU;
+    // Malý text (legal, AI tag) — prísnejší prah 4,5 : 1, samostatná farba.
+    FARBA_TEXTU_MALY = scrimTreba ? { r: 1, g: 1, b: 1 } : textNaPodklade(brandColor(layout), 4.5);
     const headlineNode = placeReserveText(
       "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
       headlineSize, farbaTextu, "Bold", textAlign
@@ -2198,10 +2218,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   // Legal na odmeranej výške a zarovnaný na spodok content boxu, AI tag
   // presne nad ním — obe pozície pochádzajú z planBottomStack, takže sedia
   // s rezervou, ktorú si layout vyhradil vyššie.
-  // Legal aj AI tag ležia v tej istej ploche ako headline → rovnaká farba.
+  // Legal aj AI tag ležia v tej istej ploche ako headline, ale sú malý text —
+  // FARBA_TEXTU_MALY (prah 4,5 : 1), nie FARBA_TEXTU (headline, prah 3 : 1).
   // Predtým sa tu farba počítala z brand farby aj vtedy, keď text ležal na
   // tmavom scrime — výsledkom bol tmavý text na tmavom (kontrast 1,0 : 1).
-  const farbaSpodku = FARBA_TEXTU;
+  const farbaSpodku = FARBA_TEXTU_MALY;
   if (spodok.legalH) {
     addTemplateText(
       frame, "Legal text", content.legalText,

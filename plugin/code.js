@@ -1562,6 +1562,33 @@ function addSloganLogo(frame, box, naPaneli, farba) {
   );
 }
 
+// P0-12: box pre "Myslite na seba" slogan mimo Adform PSD vetvy, alebo null,
+// keď sa zmysluplne nezmestí / nemá byť.
+//
+// ROZSAH (overené 2026-08-10 proti Surďovej referenčnej Figme
+// d51uxTh8YqPdHujzi1Plt6): Meta/RSA/PMax/DemandGen frames v tej Figme
+// slogan NEMAJÚ — kontrolované priamo (Meta 1:1, RSA 1200×628, RSA
+// 1200×1200), žiadna z nich neobsahuje "Myslite na seba" ani lomku.
+// Preto sa táto funkcia z buildMasterSafeLayout volá LEN pre profily bez
+// PSD/Figma pokrytia (typicky publisher_branding — Pinterest, Markíza,
+// JOJ, Ringier, Ženské weby, Topky, e-mail, Vinted a pod., ktoré v
+// referenčnej Figme nemajú vlastnú sekciu vôbec) — volajúci (creativeRule
+// gate) rozhoduje PODĽA ROLE, táto funkcia len podľa PRIESTORU.
+function sloganBox(format, contentBox, hasLogo) {
+  // Mikroformáty (h <= 120, napr. 728×90, 320×50) — slogan sem nedáva
+  // zmysel, na takej výške by bol nečitateľný alebo by vytlačil headline.
+  if (format.height <= 120) return null;
+  const cb = contentBox || { x: 0, y: 0, w: format.width, h: format.height };
+  const pad = TB.padding(format.width, format.height);
+  // Výška boxu priamo určuje veľkosť textu (addSloganLogo: lomka box[3]*1.05,
+  // text box[3]*0.37) — P2-4 dolná hranica 12 px teda vyžaduje box[3] >= 33.
+  const h = Math.round(clamp(Math.min(format.width, format.height) * 0.08, 33, 70));
+  const w = Math.round(h * 3.75); // pomer z ADFORM_PSD_RULES (75×20 na 300×600)
+  // Nezmestí sa čitateľne — nekresli namiesto orezaného/prekrývajúceho sa textu.
+  if (w > cb.w - pad * 2 || h > cb.h * 0.25) return null;
+  return [cb.x + pad, cb.y + pad, w, h];
+}
+
 function addAdformBackgroundTreatment(frame, format, rules, psdId) {
   const id = psdId || format.id;
   if (id === "adform_970x250") {
@@ -1829,6 +1856,21 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   };
   const pad = TB.padding(format.width, format.height);
   frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+
+  // P0-12: slogan len pre profily BEZ overenej Figma/PSD evidencie proti
+  // nemu — meta_full/full_creative/headline_only/native_clean/clean_image/
+  // logo_only majú overené referenčné frames (Surďova Figma), kde slogan
+  // nie je. Zvyšok (typicky publisher_branding — Pinterest, Markíza, JOJ,
+  // Ringier, Ženské weby, Topky, e-mail, Vinted…) nemá v referenčnej Figme
+  // vlastnú sekciu vôbec, takže tu je zadanie jediný dostupný zdroj.
+  const _sloganExcluded = {
+    meta_full: 1, full_creative: 1, headline_only: 1,
+    native_clean: 1, clean_image: 1, logo_only: 1
+  };
+  if (!_sloganExcluded[layout.creative_profile]) {
+    const _sBox = sloganBox(format, cb, shouldShowLogo(format, layout, figmaLogo));
+    if (_sBox) addSloganLogo(frame, _sBox, false, { r: 1, g: 1, b: 1 });
+  }
 
   // Legal + AI disclosure sa merajú dopredu, nech si pre ne obe vetvy
   // vyhradia miesto a text sa nedostane pod dolnú hranu frameu.

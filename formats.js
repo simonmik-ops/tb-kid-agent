@@ -127,6 +127,11 @@ const FORMATS = [
     id: "google_rsa_landscape",
     name: "Google RSA 1200×628",
     channel: "Google",
+    // Konflikt medzi Surďovou referenčnou Figmou (headline prítomný) a
+    // TP (klientom schválené technické parametre): "JPG, PNG (obrázky bez
+    // textu)". TP vyhráva — je to skutočná dodacia požiadavka pre reálnu
+    // kampaň, Figma je len dizajnový mockup. Google navyše bežne preferuje
+    // čisté RSA obrázky bez textu (vlastný quality score).
     role: "clean_image",
     width: 1200,
     height: 628,
@@ -134,7 +139,7 @@ const FORMATS = [
     type: ["awareness", "hardsell", "remarketing"],
     count: 2,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Landscape. Min 1 podklad."
+    notes: "Landscape. Obrázky BEZ textu (TP). Min 1 podklad."
   },
   {
     id: "google_rsa_square",
@@ -147,7 +152,7 @@ const FORMATS = [
     type: ["awareness", "hardsell", "remarketing"],
     count: 2,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Square. Min 1 podklad."
+    notes: "Square. Obrázky BEZ textu (TP). Min 1 podklad."
   },
   {
     id: "google_rsa_story",
@@ -160,7 +165,7 @@ const FORMATS = [
     type: ["awareness", "hardsell", "remarketing"],
     count: 2,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Story/portrait. Nepovinné ale odporúčané."
+    notes: "Story/portrait. Obrázky BEZ textu (TP). Nepovinné ale odporúčané."
   },
   {
     id: "google_logo_square",
@@ -628,9 +633,9 @@ const FORMATS = [
   { id: "kkv_meta_img_4x5", name: "Meta image 4:5", channel: "Meta", role: "meta_full", campaign: "kkvisa", width: 1200, height: 1500, ratio: "4:5", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Iba mobil." },
   { id: "kkv_meta_img_9x16", name: "Meta image 9:16", channel: "Meta", role: "meta_full", campaign: "kkvisa", width: 1080, height: 1920, ratio: "9:16", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Stories placement." },
   { id: "kkv_meta_pplad", name: "Meta page post link ad 1:1", channel: "Meta", campaign: "kkvisa", width: 1200, height: 1200, ratio: "1:1", type: ["remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "RMK single image, s headlineom a logom." },
-  { id: "kkv_google_rsa_landscape", name: "Google RSA 1200×628", channel: "Google", campaign: "kkvisa", role: "clean_image", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu." },
-  { id: "kkv_google_rsa_square", name: "Google RSA 1200×1200", channel: "Google", campaign: "kkvisa", role: "clean_image", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu." },
-  { id: "kkv_google_rsa_story", name: "Google RSA 900×1600", channel: "Google", campaign: "kkvisa", role: "clean_image", width: 900, height: 1600, ratio: "9:16", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Story, nepovinné. BEZ textu." },
+  { id: "kkv_google_rsa_landscape", name: "Google RSA 1200×628", channel: "Google", campaign: "kkvisa", role: "clean_image", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu (TP)." },
+  { id: "kkv_google_rsa_square", name: "Google RSA 1200×1200", channel: "Google", campaign: "kkvisa", role: "clean_image", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu (TP)." },
+  { id: "kkv_google_rsa_story", name: "Google RSA 900×1600", channel: "Google", campaign: "kkvisa", role: "clean_image", width: 900, height: 1600, ratio: "9:16", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Story, nepovinné. Obrázky BEZ textu (TP)." },
   { id: "kkv_google_logo_square", name: "Google Logo 1200×1200", channel: "Google", campaign: "kkvisa", role: "logo_only", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Transparentné pozadie." },
   { id: "kkv_google_logo_wide", name: "Google Logo 1200×300", channel: "Google", campaign: "kkvisa", role: "logo_only", width: 1200, height: 300, ratio: "4:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Transparentné pozadie." },
   { id: "kkv_demandgen_landscape", name: "Demand Gen 1200×628", channel: "Google DemandGen", role: "full_creative", campaign: "kkvisa", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Graficky kompletné: headline + CTA + logo." },
@@ -675,9 +680,9 @@ const FORMATS = [
   { id: "hyp_meta_img_4x5", name: "Meta image 4:5", channel: "Meta", role: "meta_full", campaign: "hypo", width: 1200, height: 1500, ratio: "4:5", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "POZOR: TP uvádza 1200×628 pri 4:5 — pravdepodobne preklep, over s kolegyňami (štandard 1200×1500)." },
   { id: "hyp_meta_img_9x16", name: "Meta image 9:16", channel: "Meta", role: "meta_full", campaign: "hypo", width: 1080, height: 1920, ratio: "9:16", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Automatic placements." },
   { id: "hyp_meta_carousel", name: "Meta carousel karta 1:1", channel: "Meta", campaign: "hypo", width: 1200, height: 1200, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "2–10 kariet. Headline 22 zn., description 12 zn." },
-  { id: "hyp_google_rsa_landscape", name: "Google RSA 1200×628", channel: "Google", campaign: "hypo", role: "clean_image", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu." },
-  { id: "hyp_google_rsa_square", name: "Google RSA 1200×1200", channel: "Google", campaign: "hypo", role: "clean_image", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "BEZ textu." },
-  { id: "hyp_google_rsa_story", name: "Google RSA 900×1600", channel: "Google", campaign: "hypo", role: "clean_image", width: 900, height: 1600, ratio: "9:16", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Story, nepovinné." },
+  { id: "hyp_google_rsa_landscape", name: "Google RSA 1200×628", channel: "Google", campaign: "hypo", role: "clean_image", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu (TP)." },
+  { id: "hyp_google_rsa_square", name: "Google RSA 1200×1200", channel: "Google", campaign: "hypo", role: "clean_image", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu (TP)." },
+  { id: "hyp_google_rsa_story", name: "Google RSA 900×1600", channel: "Google", campaign: "hypo", role: "clean_image", width: 900, height: 1600, ratio: "9:16", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Story, nepovinné. Obrázky BEZ textu (TP)." },
   { id: "hyp_google_logo_square", name: "Google Logo 1200×1200", channel: "Google", campaign: "hypo", role: "logo_only", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Transparentné pozadie." },
   { id: "hyp_google_logo_wide", name: "Google Logo 1200×300", channel: "Google", campaign: "hypo", role: "logo_only", width: 1200, height: 300, ratio: "4:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Transparentné pozadie." },
   { id: "hyp_demandgen_landscape", name: "Demand Gen 1200×628", channel: "Google DemandGen", role: "full_creative", campaign: "hypo", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Graficky kompletné: headline + CTA + logo." },
@@ -693,9 +698,9 @@ const FORMATS = [
   { id: "bsu_adform_300x600", name: "Adform 300×600", channel: "Adform", campaign: "bsu", width: 300, height: 600, ratio: "1:2", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB." },
   { id: "bsu_adform_160x600", name: "Adform 160×600", channel: "Adform", campaign: "bsu", width: 160, height: 600, ratio: "4:15", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB." },
   { id: "bsu_adform_970x250", name: "Adform 970×250", channel: "Adform", campaign: "bsu", width: 970, height: 250, ratio: "97:25", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB." },
-  { id: "bsu_google_rsa_landscape", name: "Google RSA 1200×628", channel: "Google", campaign: "bsu", role: "clean_image", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu." },
-  { id: "bsu_google_rsa_square", name: "Google RSA 1200×1200", channel: "Google", campaign: "bsu", role: "clean_image", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "BEZ textu." },
-  { id: "bsu_google_rsa_story", name: "Google RSA 900×1600", channel: "Google", campaign: "bsu", role: "clean_image", width: 900, height: 1600, ratio: "9:16", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Story, nepovinné." },
+  { id: "bsu_google_rsa_landscape", name: "Google RSA 1200×628", channel: "Google", campaign: "bsu", role: "clean_image", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu (TP)." },
+  { id: "bsu_google_rsa_square", name: "Google RSA 1200×1200", channel: "Google", campaign: "bsu", role: "clean_image", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Obrázky BEZ textu (TP)." },
+  { id: "bsu_google_rsa_story", name: "Google RSA 900×1600", channel: "Google", campaign: "bsu", role: "clean_image", width: 900, height: 1600, ratio: "9:16", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Story, nepovinné. Obrázky BEZ textu (TP)." },
   { id: "bsu_google_logo_square", name: "Google Logo 1200×1200", channel: "Google", campaign: "bsu", role: "logo_only", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Transparentné pozadie." },
   { id: "bsu_google_logo_wide", name: "Google Logo 1200×300", channel: "Google", campaign: "bsu", role: "logo_only", width: 1200, height: 300, ratio: "4:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Transparentné pozadie." },
   { id: "bsu_demandgen_landscape", name: "Demand Gen 1200×628", channel: "Google DemandGen", role: "full_creative", campaign: "bsu", width: 1200, height: 628, ratio: "1.91:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Graficky kompletné: headline + CTA + logo." },
@@ -736,7 +741,20 @@ const FORMATS = [
   { id: "tig_games_branding", name: "Games branding 1920×1080", channel: "Games", campaign: "tiger", role: "branding_full", width: 1920, height: 1080, ratio: "16:9", type: ["awareness","hardsell"], count: 1, safeZones: { centerWidth: 1000, topOffset: 100 }, notes: "200 kB. Stred = plocha hry." },
   { id: "tig_yt_companion", name: "YouTube companion 300×60", channel: "YouTube", campaign: "tiger", width: 300, height: 60, ratio: "5:1", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "150 kB. HDL 15 zn., CTA 10 zn." },
   { id: "tig_heyfomo_landscape", name: "Hey FOMO 16:9", channel: "Hey FOMO", campaign: "tiger", width: 1920, height: 1080, ratio: "16:9", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 16:9 — px odvodené." },
-  { id: "tig_heyfomo_portrait", name: "Hey FOMO 9:16", channel: "Hey FOMO", campaign: "tiger", width: 1080, height: 1920, ratio: "9:16", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 9:16 — px odvodené." }
+  { id: "tig_heyfomo_portrait", name: "Hey FOMO 9:16", channel: "Hey FOMO", campaign: "tiger", width: 1080, height: 1920, ratio: "9:16", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 9:16 — px odvodené." },
+
+  // ─── MASS — Účet #premodruplanetu, JAR 2026 ──────────────────
+  // Zdroj: TP MASS 2026 JAR DISPLAY / 150EUR PPC / 3 roky PPC (7. 4. 2026).
+  // Tu sú LEN rozmery, ktoré katalóg doteraz nemal. Zvyšok MASS sady sa
+  // geometricky kryje s existujúcimi formátmi — logika KV a layoutov sa
+  // nemení, mení sa len obsah (2 benefity × 8 kreatívnych variantov).
+  { id: "mass_minuta_320x100", name: "Minúta po minúte banner 320×100", channel: "Minúta po minúte", campaign: "mass", width: 320, height: 100, ratio: "16:5", type: ["awareness"], count: 3, safeZones: { top: 0, bottom: 0 }, notes: "Max 250 kB jpg/gif. 3× kreatíva (typo bledá/čierna/hnedá). Výška ≤120 → micro layout." },
+  { id: "mass_dv360_companion_640x640", name: "DV360 audio companion 640×640", channel: "Google DV360", campaign: "mass", width: 640, height: 640, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Companion banner k 20 s audio spotu." },
+  { id: "mass_valetin_preroll_video", name: "Valetin preroll/midroll 1280×720", channel: "Valetin", campaign: "mass", width: 1280, height: 720, ratio: "16:9", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Iba video placeholder. HD 1280×720, alternatíva Full HD 1920×1080." },
+  { id: "mass_dennikn_podcast_logo", name: "Denník N podcast logo 63×63", channel: "Denník N", campaign: "mass", role: "logo_only", rules: { logoOnly: true }, width: 63, height: 63, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Sponsoring Hlavného podcastu: spot max 30 s + logo 63×63 + krátky text. rules.logoOnly je nutné — bez neho by výška ≤120 spadla na micro layout s headlineom." },
+  { id: "mass_startitup_interscroller", name: "startitup.sk interscroller 500×800", channel: "startitup", campaign: "mass", role: "interscroller", width: 500, height: 800, ratio: "5:8", type: ["awareness","hardsell"], count: 4, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB gif/jpg/html5. Max 4× na obdobie." },
+  { id: "mass_cp_square_300x300", name: "cp.sk square 300×300", channel: "cp.sk", campaign: "mass", width: 300, height: 300, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza 300×300 aj 300×250." },
+  { id: "mass_cp_square_300x250", name: "cp.sk square 300×250", channel: "cp.sk", campaign: "mass", width: 300, height: 250, ratio: "6:5", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza 300×300 aj 300×250." }
 ];
 
 // Metadáta kampaní — tagging pre pomenovanie frameov + label do UI
@@ -745,7 +763,8 @@ const CAMPAIGNS = {
   kkvisa: { tagging: "kk-visa-072026",  label: "KK Visa — kreditné karty" },
   hypo:   { tagging: "hypo-052025",     label: "Digitálna hypotéka" },
   bsu:    { tagging: "bsu-082025",      label: "BSU — Bezúčelový úver" },
-  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026" }
+  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026" },
+  mass:   { tagging: "mass-jar-2026",   label: "MASS — Účet #premodruplanetu JAR 2026" }
 };
 
 module.exports = FORMATS;

@@ -2431,8 +2431,23 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
       { r: 0.78, g: 0.75, b: 0.75 }, 0.42
     );
     badgeBack.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.20);
-    const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], { r: 0.86, g: 0.36, b: 0.29 }, 1);
+    // P2-6/P2-3 (prenesené z master, commity čo predchádzali dddd21d a
+    // dddd21d samotný): PSD-presná farba #DB7B67 (bola tu iná, približná
+    // {0.86,0.36,0.29}) + natočenie ≈ −8° s mäkkým tieňom, ktoré tu úplne
+    // chýbalo. "Badge outline" sivý rám pod prelepkou NEODSTRAŇUJEM — to je
+    // samostatná, tu nezadaná zmena z lokálnej vetvy, mimo rozsahu Kroku 2d.
+    const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], { r: 0.8588, g: 0.4824, b: 0.4039 }, 1);
     badge.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.18);
+    try { badge.rotation = -8; } catch (e) {}
+    badge.effects = [{
+      type: "DROP_SHADOW",
+      color: { r: 0, g: 0, b: 0, a: 0.25 },
+      offset: { x: 0, y: 2 },
+      radius: 4,
+      spread: 0,
+      visible: true,
+      blendMode: "NORMAL"
+    }];
     const badgePad = Math.max(5, Math.round(Math.min(b[2], b[3]) * 0.12));
     addTemplateText(
       frame,

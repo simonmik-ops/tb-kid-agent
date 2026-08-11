@@ -2159,9 +2159,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
     const wideShift = Math.round(format.width * 0.30);
     const panelX = imageW - wideShift;
-    // Keep the KV hue, but darken the copy panel enough for white Tatra Sans
-    // to remain readable. This replaces the unrelated hard-coded navy panel.
-    const brand = shadedColor(brandColor(layout), 0.64);
+    // Krok 3 pravidlo 2: panel sa NESMIE stmavovať kvôli kontrastu — bolo
+    // tu shadedColor(...,0.64), teda 64 % pôvodného jasu, čo z koralovej
+    // robí bahnistú hnedú (viditeľné na 1200×628). Biela CTA/text majú na
+    // čistej brandColor dosť kontrastu pre veľký Bold text (WCAG 3 : 1).
+    const brand = brandColor(layout);
+    noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 4.5, "wide_panel_small_text");
     const panelAlpha = scrimAlphaFor(layout);
     const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
     const textRight = cb.x + cb.w - pad;
@@ -2294,7 +2297,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       adaptivePanel.x = 0;
       adaptivePanel.y = panelY;
       const boundaryStop = (portraitImageH - panelY) / Math.max(1, format.height - panelY);
-      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 0.46)];
+      // Krok 3 pravidlo 2: bottomShade=0.46 stmavovalo brand farbu na 46 %
+      // jasu kvôli kontrastu (bahnistá hnedá, viditeľná na 960×1200). 1 =
+      // shadedColor je no-op, panel dobieha na čistú brandColor. Druhé
+      // volanie tejto funkcie (buildCleanImageLayout, riadok ~1365) je mimo
+      // Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
+      noteContrastIfLow(layout, brandEdgeColor(layout, "bottom"), { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
+      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 1)];
       frame.appendChild(adaptivePanel);
       layout.kv_strategy = "master-protected-single-master";
     } else {
@@ -2363,6 +2372,15 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     ));
     const scrimAlpha = scrimAlphaFor(layout);
     const scrimScale = scrimAlpha / 0.90;
+    // Krok 3 pravidlo 1: prechod je brandová farba, nikdy čierna — bola tu
+    // natvrdo šedá/čierna (Bottom readability gradient dobiehala na
+    // rgba(0,0,0,...)), čo dáva bahnistú hnedú cez koralovú. Pravidlo 2:
+    // farba plochy sa NESMIE stmavovať kvôli kontrastu (žiadny shadedColor
+    // s faktorom < 1) — biela na koralovej dá ~3,4 : 1, čo stačí pre veľký
+    // Bold text (WCAG 3 : 1). Pre malý text (AI tag), kde to nestačí, sa
+    // len zapíše validation_warning nižšie — plocha sa kvôli tomu nemení.
+    const scrimBrand = brandColor(layout);
+    noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 4.5, "scrim_small_text");
     const scrim = figma.createRectangle();
     scrim.name = "Bottom readability gradient";
     scrim.resize(format.width, scrimH);
@@ -2372,12 +2390,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       type: "GRADIENT_LINEAR",
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
       gradientStops: [
-        { position: 0.00, color: { r: 0.40, g: 0.40, b: 0.40, a: 0.00 } },
-        { position: 0.15, color: { r: 0.34, g: 0.34, b: 0.34, a: Math.round(0.08 * scrimScale * 100) / 100 } },
-        { position: 0.35, color: { r: 0.26, g: 0.26, b: 0.26, a: Math.round(0.28 * scrimScale * 100) / 100 } },
-        { position: 0.55, color: { r: 0.17, g: 0.17, b: 0.17, a: Math.round(0.50 * scrimScale * 100) / 100 } },
-        { position: 0.78, color: { r: 0.08, g: 0.08, b: 0.08, a: Math.round(0.72 * scrimScale * 100) / 100 } },
-        { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: scrimAlpha } }
+        { position: 0.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: 0.00 } },
+        { position: 0.15, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.08 * scrimScale * 100) / 100 } },
+        { position: 0.35, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.28 * scrimScale * 100) / 100 } },
+        { position: 0.55, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.50 * scrimScale * 100) / 100 } },
+        { position: 0.78, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.72 * scrimScale * 100) / 100 } },
+        { position: 1.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: scrimAlpha } }
       ]
     }];
     frame.appendChild(scrim);

@@ -222,6 +222,85 @@ async function resolveBrandFont() {
   }
 }
 
+// ── Kontrastný modul (WCAG 2.1) ─────────────────────────────────────────────
+// Prenesené z master (Krok 2e, commit 97b5d3f) — origin tieto funkcie
+// nemal vôbec. POZOR na použitie: ensureReadableSurface sa v tomto kroku
+// NIKDE nezapája na automatické stmavovanie brand plochy kvôli kontrastu —
+// to explicitne zakazuje Krok 3 pravidlo 2 (biela na brandovej ploche je
+// pravidlo, nie výsledok optimalizácie; stmavenie dávalo bahnistú hnedú).
+// Tu sú len ako dostupné čisté funkcie — validation_warnings cez
+// noteContrastIfLow je jediné aktívne prepojenie (origin ich už níta,
+// pozri createValidationReport/addValidationBadge).
+// Samostatný súbor (plugin/contrast.js) by bol čistejší, ale tento plugin
+// nemá build krok — manifest.json ukazuje na jediný "main": "code.js" a
+// Figma ho spúšťa ako plochý skript bez require/import. Preto blok tu,
+// pred prvým použitím (brandColor nižšie).
+
+// sRGB kanál 0..1 → lineárna hodnota.
+function srgbToLinear(c) {
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+// {r,g,b} v rozsahu 0..1 (Figma formát) → relatívny jas.
+function relativeLuminance(color) {
+  return 0.2126 * srgbToLinear(color.r)
+       + 0.7152 * srgbToLinear(color.g)
+       + 0.0722 * srgbToLinear(color.b);
+}
+
+function contrastRatio(a, b) {
+  const la = relativeLuminance(a), lb = relativeLuminance(b);
+  const hi = Math.max(la, lb), lo = Math.min(la, lb);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+// Upraví farbu plochy tak, aby voči textColor dosiahla minRatio — postupne
+// stmavuje (biely text) alebo zosvetľuje (tmavý text) v krokoch po 4 %,
+// max. 40 iterácií. Násobí všetky tri kanály rovnakým faktorom (zachová hue).
+// Ak sa pomer nedosiahne ani pri takmer čiernej/bielej, vráti najlepšiu
+// dosiahnutú hodnotu namiesto pádu na natvrdo modrú.
+function ensureReadableSurface(surface, textColor, minRatio) {
+  const textIsLight = relativeLuminance(textColor) > 0.5;
+  let color = { r: surface.r, g: surface.g, b: surface.b };
+  let best = color, bestRatio = contrastRatio(color, textColor);
+  for (let i = 0; i < 40 && bestRatio < minRatio; i++) {
+    if (textIsLight) {
+      color = { r: color.r * 0.96, g: color.g * 0.96, b: color.b * 0.96 };
+    } else {
+      color = {
+        r: color.r + (1 - color.r) * 0.04,
+        g: color.g + (1 - color.g) * 0.04,
+        b: color.b + (1 - color.b) * 0.04
+      };
+    }
+    const ratio = contrastRatio(color, textColor);
+    if (ratio > bestRatio) { bestRatio = ratio; best = color; }
+  }
+  return best;
+}
+
+// Vráti bielu alebo tmavú textovú farbu podľa toho, ktorá dá voči ploche
+// vyšší kontrast — pre miesta, kde plochu meniť nemôžeme (napr. reálna
+// fotka bez krycej masky). NEPOUŽÍVAŤ na brandColor(layout) plochu — tam
+// platí Krok 3 pravidlo 2 (biela vždy).
+function pickTextColor(surface) {
+  const white = { r: 1, g: 1, b: 1 }, black = { r: 0, g: 0, b: 0 };
+  return contrastRatio(surface, white) >= contrastRatio(surface, black) ? white : black;
+}
+
+// QA hlásenie, keď pomer ostane pod minRatio. Zapisuje do
+// layout.validation_warnings — origin tento kanál už číta
+// (createValidationReport/addValidationBadge).
+function noteContrastIfLow(layout, surface, textColor, minRatio, where) {
+  const ratio = contrastRatio(surface, textColor);
+  if (ratio >= minRatio) return true;
+  if (!layout.validation_warnings) layout.validation_warnings = [];
+  layout.validation_warnings.push(
+    "low_contrast_" + where + "_" + ratio.toFixed(1).replace(".", "_") + "_to_1"
+  );
+  return false;
+}
+
 // Farba brand plochy = z analýzy vizuálu (nie natvrdo modrá); fallback brand blue
 function brandColor(layout) {
   if (layout && typeof layout.bg_r === "number") {

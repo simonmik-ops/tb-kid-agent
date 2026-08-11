@@ -736,7 +736,24 @@ const FORMATS = [
   { id: "tig_games_branding", name: "Games branding 1920×1080", channel: "Games", campaign: "tiger", role: "branding_full", width: 1920, height: 1080, ratio: "16:9", type: ["awareness","hardsell"], count: 1, safeZones: { centerWidth: 1000, topOffset: 100 }, notes: "200 kB. Stred = plocha hry." },
   { id: "tig_yt_companion", name: "YouTube companion 300×60", channel: "YouTube", campaign: "tiger", width: 300, height: 60, ratio: "5:1", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "150 kB. HDL 15 zn., CTA 10 zn." },
   { id: "tig_heyfomo_landscape", name: "Hey FOMO 16:9", channel: "Hey FOMO", campaign: "tiger", width: 1920, height: 1080, ratio: "16:9", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 16:9 — px odvodené." },
-  { id: "tig_heyfomo_portrait", name: "Hey FOMO 9:16", channel: "Hey FOMO", campaign: "tiger", width: 1080, height: 1920, ratio: "9:16", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 9:16 — px odvodené." }
+  { id: "tig_heyfomo_portrait", name: "Hey FOMO 9:16", channel: "Hey FOMO", campaign: "tiger", width: 1080, height: 1920, ratio: "9:16", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 9:16 — px odvodené." },
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MASS — Účet #premodruplanetu, JAR 2026 (mass-jar-2026)
+  //  Zdroj: TP MASS 2026 JAR DISPLAY / 150EUR PPC / 3 roky PPC (7. 4. 2026).
+  //  Prenesené z lokálnej vetvy (master, commit fd7b220) — rozmery, ktoré
+  //  katalóg predtým nemal. role/rules sa tu nezadávajú ručne (na rozdiel
+  //  od pôvodného zdroja), origin ich odvodí cez inferRole/normalizeFormat
+  //  nižšie, okrem mass_dennikn_podcast_logo, kde role: "logo_only" musí
+  //  byť explicitné (bez neho by výška ≤120 spadla na iný layout).
+  // ═══════════════════════════════════════════════════════════════
+  { id: "mass_minuta_320x100", name: "Minúta po minúte banner 320×100", channel: "Minúta po minúte", campaign: "mass", width: 320, height: 100, ratio: "16:5", type: ["awareness"], count: 3, safeZones: { top: 0, bottom: 0 }, notes: "Max 250 kB jpg/gif. 3× kreatíva (typo bledá/čierna/hnedá). Výška ≤120 → micro layout." },
+  { id: "mass_dv360_companion_640x640", name: "DV360 audio companion 640×640", channel: "Google DV360", campaign: "mass", width: 640, height: 640, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Companion banner k 20 s audio spotu." },
+  { id: "mass_valetin_preroll_video", name: "Valetin preroll/midroll 1280×720", channel: "Valetin", campaign: "mass", width: 1280, height: 720, ratio: "16:9", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Iba video placeholder. HD 1280×720, alternatíva Full HD 1920×1080." },
+  { id: "mass_dennikn_podcast_logo", name: "Denník N podcast logo 63×63", channel: "Denník N", campaign: "mass", role: "logo_only", width: 63, height: 63, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Sponsoring Hlavného podcastu: spot max 30 s + logo 63×63 + krátky text. role: \"logo_only\" je nutné — bez neho by výška ≤120 spadla na micro layout s headlineom." },
+  { id: "mass_startitup_interscroller", name: "startitup.sk interscroller 500×800", channel: "startitup", campaign: "mass", role: "interscroller", width: 500, height: 800, ratio: "5:8", type: ["awareness","hardsell"], count: 4, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB gif/jpg/html5. Max 4× na obdobie." },
+  { id: "mass_cp_square_300x300", name: "cp.sk square 300×300", channel: "cp.sk", campaign: "mass", width: 300, height: 300, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza 300×300 aj 300×250." },
+  { id: "mass_cp_square_300x250", name: "cp.sk square 300×250", channel: "cp.sk", campaign: "mass", width: 300, height: 250, ratio: "6:5", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza 300×300 aj 300×250." }
 ];
 
 // Jednotný produkčný tvar formátu. Staršie záznamy vznikali z viacerých
@@ -844,7 +861,8 @@ const CAMPAIGNS = {
   kkvisa: { tagging: "kk-visa-072026",  label: "KK Visa — kreditné karty" },
   hypo:   { tagging: "hypo-052025",     label: "Digitálna hypotéka" },
   bsu:    { tagging: "bsu-082025",      label: "BSU — Bezúčelový úver" },
-  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026" }
+  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026" },
+  mass:   { tagging: "mass-jar-2026",   label: "MASS — Účet #premodruplanetu JAR 2026" }
 };
 
 module.exports = NORMALIZED_FORMATS;

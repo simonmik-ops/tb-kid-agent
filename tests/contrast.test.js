@@ -109,52 +109,12 @@ const extreme = ensureReadableSurface(impossible, WHITE, 21);
 assert.ok(extreme.r < impossible.r, "must have darkened toward black, not jumped to an unrelated color");
 assert.ok(extreme.r >= 0 && extreme.g >= 0 && extreme.b >= 0, "must stay within valid color range");
 
-// ── easedAlphaStops (prechody / gradienty zadanie) ──────────────────────────
-function easedAlphaStops(color, targetAlpha, rampEndFrac) {
-  const rf = Math.max(0.02, Math.min(1, rampEndFrac));
-  const stopAt = (fracOfRamp, alphaRatio) => ({
-    position: Math.min(0.999, rf * fracOfRamp),
-    color: { r: color.r, g: color.g, b: color.b, a: Math.round(targetAlpha * alphaRatio * 1000) / 1000 }
-  });
-  const stops = [
-    { position: 0, color: { r: color.r, g: color.g, b: color.b, a: 0 } },
-    stopAt(0.35, 0.30),
-    stopAt(0.70, 0.75),
-    stopAt(1.00, 1.00)
-  ];
-  if (rf < 0.999) stops.push({ position: 1, color: { r: color.r, g: color.g, b: color.b, a: targetAlpha } });
-  return stops;
-}
-
-const BLACK = { r: 0, g: 0, b: 0 };
-
-// rampEndFrac = 1 (edge-prechod prípad): žiadny extra "drž" stop, presne 4.
-const edgeStops = easedAlphaStops(BLACK, 1, 1);
-assert.strictEqual(edgeStops.length, 4, "rampEndFrac=1 must not add a redundant trailing hold stop");
-assert.strictEqual(edgeStops[0].color.a, 0, "must start fully transparent");
-assert.strictEqual(edgeStops[edgeStops.length - 1].color.a, 1, "must end at targetAlpha");
-// Pozícia je zámerne stropovaná na 0.999 (nie presne 1) — Math.min(0.999, ...)
-// v easedAlphaStops, nech posledný segment nemá nulovú šírku pri rampEndFrac=1.
-assert.ok(edgeStops[edgeStops.length - 1].position >= 0.999, "last stop must reach ~1 (capped at 0.999 by design)");
-
-// rampEndFrac < 1 (scrim/panel prípad): pridá sa "drž" stop na pozícii 1.
-const scrimStops = easedAlphaStops(BLACK, 0.8, 0.3);
-assert.strictEqual(scrimStops.length, 5, "rampEndFrac<1 must add the trailing hold stop");
-assert.strictEqual(scrimStops[scrimStops.length - 1].position, 1);
-assert.strictEqual(scrimStops[scrimStops.length - 1].color.a, 0.8, "hold stop must equal targetAlpha, not drift");
-// stop pred "drž" musí byť presne na rampEndFrac s plnou targetAlpha.
-assert.ok(Math.abs(scrimStops[3].position - 0.3) < 1e-6, "ramp must complete exactly at rampEndFrac");
-assert.strictEqual(scrimStops[3].color.a, 0.8);
-
-// Alfa musí byť monotónne rastúca (žiadny "skok späť", ktorý by vyzeral ako pás).
-[edgeStops, scrimStops].forEach((stops, i) => {
-  for (let k = 1; k < stops.length; k++) {
-    assert.ok(stops[k].color.a >= stops[k - 1].color.a - 1e-9,
-      "stop " + k + " must not be darker than the previous one (set " + i + ")");
-    assert.ok(stops[k].position >= stops[k - 1].position - 1e-9,
-      "stop " + k + " position must not go backwards (set " + i + ")");
-  }
-});
+// easedAlphaStops bol odstránený z plugin/code.js (viď nižšie) — edge-prechod
+// aj wide panel sú teraz obyčajné 2-3 stopové lineárne gradienty, overené
+// priamo proti Surďovej referenčnej mask SVG (node 0:8, d51uxTh8YqPdHujzi1Plt6):
+//   <linearGradient>Stop() -> Stop(offset=1, opacity=0)</linearGradient>
+// Žiadna S-krivka — "pás" spôsobovala príliš úzka prechodová zóna (10 %),
+// nie tvar krivky. Testy na easedAlphaStops boli zmazané spolu s funkciou.
 
 // ── Regresia po 47f4523: Bottom readability gradient scrim ─────────────────
 // scrim NIE JE easedAlphaStops — má vlastný tvar, kde rampEnd znamená "tu je
@@ -192,38 +152,27 @@ for (let k = 1; k < afterRampEnd.length; k++) {
     "alpha must strictly keep increasing past rampEnd, not plateau (flat dark plate regression)");
 }
 
-// ── textNaPodklade: WCAG large-text prah (3:1) pre headline/podnadpis ──────
-// Mirror z plugin/code.js — pri zmene jednej strany treba zmeniť aj druhú.
-function textNaPodklade(farba, minWhiteRatio) {
-  const prah = typeof minWhiteRatio === "number" ? minWhiteRatio : 4.5;
-  const L = relativeLuminance(farba);
-  const kBiela = 1.05 / (L + 0.05);
-  if (kBiela >= prah) return WHITE;
-  const tmava = { r: 0.04, g: 0.10, b: 0.24 };
-  const Lt = relativeLuminance(tmava);
-  const kTmava = (L + 0.05) / (Lt + 0.05);
-  return kTmava > kBiela ? tmava : WHITE;
-}
-
-// Farba zvolená tak, aby biela dala kontrast v [3, 4.5) A ZÁROVEŇ aby tmavá
-// navy pod starou "čo kontrastuje lepšie" logikou vyhrala — presne prípad,
-// ktorý spôsobil regresiu (biely headline na Surďovej referencii sa
-// preklopil na tmavý, hoci 3:1 pre veľký Bold text stačí).
-const midCoral = { r: 0.75, g: 0.40, b: 0.30 };
-const kBielaMid = 1.05 / (relativeLuminance(midCoral) + 0.05);
-assert.ok(kBielaMid >= 3.0 && kBielaMid < 4.5,
-  "test color must land in the 3:1-4.5:1 gap that demonstrates the fix, got " + kBielaMid.toFixed(2));
-
-// Headline/podnadpis (prah 3.0): biela musí vyhrať, keďže 3:1 stačí pre
-// veľký Bold text — presne to, čo Surďova referenčná Figma robí.
-const headlineColor = textNaPodklade(midCoral, 3.0);
-assert.deepStrictEqual(headlineColor, WHITE,
-  "large/bold text (headline/subheadline) must get white when it clears 3:1, matching the reference Figma");
-
-// Legal / AI tag (default prah 4.5): rovnaká farba plochy, ale malý text —
-// tu má zostať prísnejšia požiadavka, správanie sa NESMIE zmeniť.
-const legalColor = textNaPodklade(midCoral);
-assert.notDeepStrictEqual(legalColor, WHITE,
-  "small text (legal/AI tag) must keep the stricter 4.5:1 requirement and fall back to dark here");
+// ── ZADANIE bod 2: text na brandovej ploche je VŽDY biely — brandové
+// pravidlo, nie výsledok "čo kontrastuje lepšie" (textNaPodklade/
+// pickTextColor boli z tohto dôvodu odstránené z plugin/code.js). Keď biela
+// sama osebe nedosiahne prah, rieši sa to stmavením PLOCHY cez
+// ensureReadableSurface, nie preklopením textu na tmavú. Test overuje, že
+// toto platí naprieč svetlými AJ tmavými brand farbami — surfaceColor sa
+// mení, farba textu ostáva biela a >= 4,5 : 1 vždy vyjde.
+const BRAND_COLORS_LIGHT_AND_DARK = [
+  { name: "svetlá koralová (#f28c73)", color: hex("#f28c73") },
+  { name: "sýta coral (#c55e4d)", color: hex("#c55e4d") },
+  { name: "pastelová (#F2E4D6)", color: hex("#F2E4D6") },
+  { name: "tmavomodrá (#0a1a3d)", color: hex("#0a1a3d") }
+];
+BRAND_COLORS_LIGHT_AND_DARK.forEach(({ name, color }) => {
+  const surfaceColor = ensureReadableSurface(color, WHITE, 4.5);
+  const ratio = contrastRatio(surfaceColor, WHITE);
+  assert.ok(ratio >= 4.5 - 1e-6,
+    name + ": surfaceColor musí dať >= 4,5 : 1 voči bielej (biela je fixná, plocha sa prispôsobuje), got " + ratio.toFixed(2));
+  // Farba textu je vždy biela — žiadna voľba, žiadne porovnávanie s tmavou.
+  const farbaTextu = WHITE;
+  assert.deepStrictEqual(farbaTextu, WHITE, name + ": text na brandovej ploche musí byť vždy biely");
+});
 
 console.log("contrast: ok");

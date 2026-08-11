@@ -369,7 +369,7 @@ function aiNoteFontSize(format) {
 // AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
 // Ladený tak, aby pôsobil ako súčasť kompozície: nižšia sýtosť, jemný
 // letter-spacing, zarovnaný na rovnaký ľavý okraj ako headline.
-function addAiNote(frame, format, contentBox, anchorY, anchorX, farba) {
+function addAiNote(frame, format, contentBox, anchorY, anchorX, farba, aiOverPhoto) {
   const cb = contentBox || { x: 0, y: 0, w: format.width, h: format.height };
   const t = figma.createText();
   t.name = "AI generované";
@@ -419,6 +419,10 @@ function addAiNote(frame, format, contentBox, anchorY, anchorX, farba) {
     t.locked = true;
     try {
       if (!aiJeBiely) return;   // tmavý text na svetlom podklade podložku nepotrebuje
+      // ZADANIE_dolad_kompoziciu.md bod 6: na krycej brand ploche (nie na
+      // fotke) Surďova referencia podložku nemá vôbec — biely text priamo
+      // na ploche.
+      if (aiOverPhoto === false) return;
       const bp0 = 4;
       const backing0 = figma.createRectangle();
       backing0.name = "AI generované — podložka";
@@ -1003,36 +1007,12 @@ function clamp(n, min, max) {
 // do hneda) sa nerieši znížením krytia, ale KRATŠÍM scrimom — pozri
 // scrimTop/scrimH v buildMasterSafeLayout: gradient kryje len pás okolo
 // textu, nie plošne dolných 62 % vizuálu.
-// Surď (dotazník, sekcia 2): „Farba textu PODĽA POZADIA (nie vždy biela)."
-// Keď text leží na plnej brand ploche (contain doplnil farbu a scrim sa
-// nekreslí), biely text na svetlom koralovom podklade nie je čitateľný.
-// Vráti bielu na tmavom podklade a tmavú brand modrú na svetlom.
-// minWhiteRatio: WCAG rozlišuje bežný text (4,5 : 1) a text >= 24 px Bold
-// (3 : 1) — predtým sa tu vždy porovnávalo len "ktorá farba kontrastuje
-// lepšie", bez ohľadu na veľkosť. Na koralovom KV (#c55e4d-rodina) dáva
-// biela len ~4,15 : 1 — voči tmavej navy (~4,04 : 1) je to tesne lepšie,
-// ale nie vždy (zaokrúhľovanie, mierne odlišné odtiene z reálneho KV vedeli
-// preklopiť výsledok na tmavú), aj keď 4,15 už bohato stačí na veľký hrubý
-// nadpis a presne to Surďova referenčná Figma robí (biely headline na tomto
-// type podkladu). Teraz: keď biela sama osebe dosiahne minWhiteRatio, vyhráva
-// vždy — nezávisle od toho, či by tmavá teoreticky kontrastovala ešte
-// o kúsok viac. Pre malý text (legal, AI tag) zostáva prísnejšia požiadavka
-// (default 4,5), pre headline/podnadpis (vždy veľké, Bold) volaj s 3.0.
-function textNaPodklade(farba, minWhiteRatio) {
-  const prah = typeof minWhiteRatio === "number" ? minWhiteRatio : 4.5;
-  const kanal = function (c) {
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  };
-  const L = 0.2126 * kanal(farba.r) + 0.7152 * kanal(farba.g) + 0.0722 * kanal(farba.b);
-  // kontrast bielej voči podkladu vs. kontrast tmavej brand modrej
-  const kBiela = 1.05 / (L + 0.05);
-  if (kBiela >= prah) return { r: 1, g: 1, b: 1 };
-  const tmava = { r: 0.04, g: 0.10, b: 0.24 };
-  const Lt = 0.2126 * kanal(tmava.r) + 0.7152 * kanal(tmava.g) + 0.0722 * kanal(tmava.b);
-  const kTmava = (L + 0.05) / (Lt + 0.05);
-  return kTmava > kBiela ? tmava : { r: 1, g: 1, b: 1 };
-}
-
+// textNaPodklade (biela vs. tmavá modrá podľa toho, čo kontrastuje lepšie)
+// bola ODSTRÁNENÁ — ZADANIE bod 2 (biela na brandovej ploche je pravidlo,
+// nie výsledok optimalizácie kontrastu): keď biela nedosiahne prah, rieši sa
+// to stmavením PLOCHY cez ensureReadableSurface (buildMasterSafeLayout),
+// nie preklopením textu na tmavú. Posledný volajúci bol v buildMasterSafeLayout;
+// funkcia už nemá žiadneho volajúceho.
 function scrimAlphaFor(layout) {
   const luma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 1;
   return clamp(0.50 + luma * 0.40, 0.50, 0.90);
@@ -1709,10 +1689,58 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
   return holder;
 }
 
+// Lineárna interpolácia cez namerané body, s klampom mimo rozsah.
+function interpolateMeasured(points, key, x) {
+  if (x <= points[0].r) return points[0][key];
+  const last = points[points.length - 1];
+  if (x >= last.r) return last[key];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    if (x >= a.r && x <= b.r) {
+      const t = (x - a.r) / (b.r - a.r);
+      return a[key] + (b[key] - a[key]) * t;
+    }
+  }
+  return last[key];
+}
+
+// KOMPOZIČNÝ MODEL: namerané priamo z referenčného VIZUAL-KV
+// (d51uxTh8YqPdHujzi1Plt6, node 0:40/0:13/0:4 — get_metadata, nie flattened
+// SVG export) — Surďov štvorcový KV je vždy VÄČŠÍ než šírka frameu, násobok
+// rastie s tým, aký je formát vysoký:
+//   1200×1200 (pomer 1,00) → KV 1628×1628 = ×1,357 šírky frameu
+//   1200×1628 (pomer 1,357) → KV 1842×1842 = ×1,535 šírky frameu
+//   1080×1920 (pomer 1,778) → KV 1686×1686 = ×1,561 šírky frameu
+const KV_OVERSIZE_POINTS = [
+  { r: 1.00, m: 1.357 },
+  { r: 1.357, m: 1.535 },
+  { r: 1.778, m: 1.561 }
+];
+function kvOversizeMultiplier(ratioHW) {
+  return interpolateMeasured(KV_OVERSIZE_POINTS, "m", ratioHW);
+}
+
+// Zvislý stred predimenzovaného KV ako podiel výšky frameu — namerané z
+// tých istých troch node-ov (stred VIZUAL-KV, nie jeho horná hrana).
+const KV_VCENTER_POINTS = [
+  { r: 1.00, f: 0.417 },
+  { r: 1.357, f: 0.423 },
+  { r: 1.778, f: 0.298 }
+];
+function kvVerticalCenterFrac(ratioHW) {
+  return interpolateMeasured(KV_VCENTER_POINTS, "f", ratioHW);
+}
+
 // TP master: 4000×4000 s dôležitým obsahom v stredových 2000×2000.
 // Do obrazovej zóny vkladáme celý master. Centrálne jadro je ochrana proti
 // orezu vonkajších okrajov, nie pokyn zväčšiť jadro na celý cieľový formát.
-function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide, brand) {
+//
+// oversizeSquare (voliteľné, len square/portrait vetva master_safe): keď
+// true, KV sa škáluje/pozicuje podľa kvOversizeMultiplier/kvVerticalCenterFrac
+// namiesto cover/contain mismatch prahu, a spodná rezerva má fixnú dĺžku
+// (~43 % šírky zóny, nie celú medzeru) — pozri ZADANIE_dolad_kompoziciu.md
+// body 1/4/5. Wide vetva toto NEPOUŽÍVA, je nedotknutá.
+function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide, brand, oversizeSquare) {
   const holder = figma.createFrame();
   holder.name = "TP master — centrálne jadro 50 %";
   holder.resize(zone[2], zone[3]);
@@ -1745,14 +1773,29 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   const takmerRovnake = mismatch <= 1.35;
   const coverScale = Math.max(zone[2] / imageSize.width, zone[3] / imageSize.height);
   const containScale = Math.min(zone[2] / imageSize.width, zone[3] / imageSize.height);
-  const scale = takmerRovnake ? coverScale : containScale;
+  let scale;
+  if (oversizeSquare) {
+    // Surďov KV nie je "cover-fit" ani "contain-fit" — je zámerne
+    // PREDIMENZOVANÝ voči šírke zóny, bez ohľadu na to, či by sa "zmestil"
+    // pri bežnom cover.
+    scale = (zone[2] / imageSize.width) * kvOversizeMultiplier(zone[3] / zone[2]);
+  } else {
+    scale = takmerRovnake ? coverScale : containScale;
+  }
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();
   rect.name = "Master visual — 2000×2000 core";
   rect.resize(renderedW, renderedH);
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
-  if (takmerRovnake) {
+  if (oversizeSquare) {
+    // Vodorovne vždy na stred (overené na všetkých troch referenčných
+    // node-och — KV presahuje frame symetricky na oboch stranách, motív
+    // preto pretína obe hrany). Zvisle podľa nameraného zvislého stredu.
+    rect.x = Math.round((zone[2] - renderedW) / 2);
+    const vc = kvVerticalCenterFrac(zone[3] / zone[2]);
+    rect.y = Math.round(vc * zone[3] - renderedH / 2);
+  } else if (takmerRovnake) {
     rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
     rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
   } else {
@@ -1777,7 +1820,39 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   //  · natiahnutý pás pixelov cez scaleMode "CROP" + imageTransform —
   //    Figma tú maticu interpretuje inak, výsledkom bol zlý výrez
   // Preto tu zámerne zostáva najjednoduchšie riešenie, ktoré funguje.
-  if (!takmerRovnake && brand) {
+  let effectiveDolePod = 0;
+  if (oversizeSquare && brand) {
+    holder.fills = [{ type: "SOLID", color: brand }];
+    // ZADANIE_dolad_kompoziciu.md body 2/4/5: Surďov prechod má FIXNÚ dĺžku
+    // (~496 px pri šírke 1200/1080 = ~0,43× šírky zóny) bez ohľadu na to,
+    // koľko miesta zvyšná rezerva má — nenaťahuje sa cez celú medzeru
+    // (predtým to na 9:16 dávalo 817 px pozvoľný prechod, cez ktorý presvitala
+    // silueta). Prechod sa navyše mapuje na VIDITEĽNÚ spodnú hranu zóny, nie
+    // na surovú (často pretekajúcu) geometriu rect-u — inak by pri
+    // predimenzovanom KV nikdy nedosiahol plnú alfu vo viditeľnej oblasti.
+    // Za prechodom (smerom k textu) je už len holder.fills — čistá brand
+    // plocha bez ďalšej vrstvy, presne to, čo je za Surďovým samostatným
+    // "nepriehľadným pásom".
+    const fadeCapPx = Math.round(zone[2] * 0.43);
+    const visibleBottomLocal = zone[3] - rect.y;
+    effectiveDolePod = Math.max(0, Math.min(zone[3], fadeCapPx));
+    if (renderedH > 1 && visibleBottomLocal > 1) {
+      const posFull = clamp(visibleBottomLocal / renderedH, 0, 1);
+      const posStart = clamp((visibleBottomLocal - fadeCapPx) / renderedH, 0, posFull);
+      if (posFull - posStart > 0.001) {
+        rect.fills = [rect.fills[0], {
+          type: "GRADIENT_LINEAR",
+          gradientTransform: [[0, 1, 0], [1, 0, 0]],
+          gradientStops: [
+            { position: posStart, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } },
+            { position: posFull, color: { r: brand.r, g: brand.g, b: brand.b, a: 1 } }
+          ]
+        }];
+      }
+    }
+    // Vodorovne aj hore sa KV zámerne prekrýva cez obe hrany zóny (bod 7) —
+    // žiadny fade tam netreba, holder.clipsContent len oreže presah.
+  } else if (!takmerRovnake && brand) {
     holder.fills = [{ type: "SOLID", color: brand }];
 
     // Mäkký prechod pri hrane fotky, nech medzi ňou a plochou nie je ostrá
@@ -1845,7 +1920,16 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   // Pozn.: Figma nody nie sú rozšíriteľné, takže vlastnú hodnotu nemožno
   // priradiť na node — vraciame ju v obale. Žiadny volajúci nepotrebuje
   // samotný holder, takže je to bezpečné.
-  return { holder: holder, obrazokDole: zone[1] + rect.y + renderedH };
+  //
+  // obrazokDole pri oversizeSquare odráža EFEKTÍVNU (capovanú) hranicu
+  // prechodu — nie surovú geometriu rect-u, ktorá pri predimenzovanom KV
+  // často leží ďaleko za zónou. Toto je zároveň ZAČIATOK prechodu (kde sa
+  // fotka prestáva javiť ako čistá fotka) — presne bod, na ktorý sa má
+  // kotviť textový blok (ZADANIE bod 1 nižšie v buildMasterSafeLayout).
+  const obrazokDole = oversizeSquare
+    ? zone[1] + (zone[3] - effectiveDolePod)
+    : zone[1] + rect.y + renderedH;
+  return { holder: holder, obrazokDole: obrazokDole };
 }
 
 function addMasterCta(frame, value, x, y, w, h) {
@@ -1947,6 +2031,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   // FARBA_TEXTU_MALY = legal/AI tag (malý text, prísnejší WCAG 4,5:1).
   let FARBA_TEXTU = { r: 1, g: 1, b: 1 };
   let FARBA_TEXTU_MALY = { r: 1, g: 1, b: 1 };
+  // ZADANIE bod 6: hranica "fotka vs. krycia brand plocha" pre AI tag —
+  // null = neznáma/nepočítaná (wide vetva), inak nastavená v square/portrait
+  // vetve na _obrazokDole (začiatok prechodu).
+  let _obrazokDoleForAi = null;
 
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.75);
@@ -1971,25 +2059,51 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // — ensureReadableSurface ju stmaví so zachovaním hue, nezmení ju na inú.
     const brand = ensureReadableSurface(brandColor(layout), { r: 1, g: 1, b: 1 }, 4.5);
     noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 4.5, "wide_panel");
-    const panelAlpha = scrimAlphaFor(layout);
     const textRight = cb.x + cb.w - pad;
     const textW = _wideTextW;
+
+    // KOMPOZIČNÝ MODEL, prechod na širokých formátoch: overené priamo z
+    // RAW metadát node 0:24 "PRECHOD" (d51uxTh8YqPdHujzi1Plt6, get_metadata
+    // — nie flattened SVG/code export, ten pri tomto uzle vrátil len
+    // zdedený jednoduchý lineárny mask asset a skryl skutočnú štruktúru).
+    // Surďov prechod NIE JE gradient — sú to dva boolean Subtract páry
+    // elíps (veľká mínus malá), plnené PLNOU nepriesvitnou brand farbou.
+    // Žiadna gradientTransform matica na hádanie — len x/y/w/h elíps, tie
+    // isté primitívy, čo používame všade inde v tomto súbore. Súradnice
+    // namerané na referenčnom 1200×628 frame, tu preškálované ako podiel
+    // format.width/format.height (iné wide formáty nie sú v referencii
+    // odmerané zvlášť — toto je proporčná aproximácia, over vizuálne).
+    const ELLIPSE_ARC_PAIRS = [
+      { bx: -0.391667, by: -0.984076, bw: 1.349167, bh: 2.692675,
+        sx: -0.317786, sy: -0.403448, sw: 0.907279, sh: 1.646736 },
+      { bx: -0.315000, by: -0.890127, bw: 1.272500, bh: 2.598726,
+        sx: -0.245317, sy: -0.329756, sw: 0.855723, sh: 1.588974 }
+    ];
+    ELLIPSE_ARC_PAIRS.forEach(function (p, i) {
+      const big = figma.createEllipse();
+      big.resize(Math.max(1, p.bw * format.width), Math.max(1, p.bh * format.height));
+      big.x = p.bx * format.width;
+      big.y = p.by * format.height;
+      const small = figma.createEllipse();
+      small.resize(Math.max(1, p.sw * format.width), Math.max(1, p.sh * format.height));
+      small.x = p.sx * format.width;
+      small.y = p.sy * format.height;
+      const arc = figma.subtract([big, small], frame);
+      arc.name = "O maska " + (i + 1);
+      arc.fills = [{ type: "SOLID", color: brand }];
+    });
+
+    // Plne krycí pás presne od textX (P0-8) — bez gradientu, Surďova
+    // referencia tu dobieha na plnú, nie čiastočnú alfu (VIZUAL-BACKGROUND
+    // fill je vždy nepriesvitný #c55e4d, masky menia tvar, nie krytie).
+    // Kreslí sa AŽ PO elipsách, takže má vždy prednosť — text má zaručenú
+    // plochu bez ohľadu na to, kam presne elipsy siahajú.
     const panel = figma.createRectangle();
     panel.name = "Wide content panel";
     panel.resize(format.width - panelX, format.height);
     panel.x = panelX;
     panel.y = 0;
-    // Plne krycí presne tam, kde začína text (textX), nie o kus ďalej — inak
-    // časť headline boxu leží nad ešte priesvitným panelom (P0-8). Cesta
-    // k tomu je teraz eased S-krivka (easedAlphaStops), nie 2-segmentový
-    // lineárny nábeh — ten pri krátkom rampFrac vyzeral ako ostrá hrana.
-    panel.fills = [{
-      type: "GRADIENT_LINEAR",
-      gradientTransform: [[1, 0, 0], [0, 1, 0]],
-      gradientStops: easedAlphaStops(
-        brand, panelAlpha, Math.min(0.98, (textX - panelX) / (format.width - panelX))
-      )
-    }];
+    panel.fills = [{ type: "SOLID", color: brand }];
     frame.appendChild(panel);
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);
@@ -2052,27 +2166,102 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         wLogo.width, wLogo.height, false);
     }
   } else {
-    const _kvHolder = addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides, brandColor(layout));
+    // ZADANIE bod 2: biela na brandovej ploche je pravidlo, nie výsledok
+    // optimalizácie (pickTextColor/textNaPodklade). Ak biela na danej
+    // brand farbe nedosiahne 3:1 (veľký text) / 4,5:1 (malý text), rieši sa
+    // to STMAVENÍM PLOCHY (ensureReadableSurface), nie preklopením textu na
+    // tmavý — jeden prah 4,5:1 uspokojí oboje naraz, takže netreba dve
+    // rôzne stmavené verzie. surfaceColor sa použije aj ako "brand" farba
+    // pre KV doplnenie/fade (addMasterCoreImage), aby prechod dobiehal na
+    // presne tú istú farbu ako frame.fills — žiadny šev medzi nimi.
+    const surfaceColor = ensureReadableSurface(brandColor(layout), { r: 1, g: 1, b: 1 }, 4.5);
+    noteContrastIfLow(layout, surfaceColor, { r: 1, g: 1, b: 1 }, 4.5, "master_safe_surface");
+    frame.fills = [{ type: "SOLID", color: surfaceColor }];
+
+    // ZADANIE_dolad_kompoziciu.md body 1/4/5: KV predimenzovaný a
+    // umiestnený podľa Surďovej referencie (oversizeSquare), s fixnou
+    // dĺžkou prechodu namiesto naťahovania cez celú rezervu.
+    const _kvHolder = addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides, surfaceColor, true);
+    // _obrazokDole = kde ZAČÍNA prechod (nie kde končí) — presne bod, na
+    // ktorý sa má kotviť textový blok (nižšie).
     const _obrazokDole = (_kvHolder && typeof _kvHolder.obrazokDole === "number")
       ? _kvHolder.obrazokDole : format.height;
+    _obrazokDoleForAi = _obrazokDole;
 
     const headlineSize = TB.headline(format.width, format.height);
     const subheadlineSize = TB.subheadline(format.width, format.height);
-    const gap = Math.round(headlineSize * 0.35);
+    // ZADANIE_dolad_kompoziciu.md bod 8: medzera odvodená od veľkosti
+    // písma (0,4–0,6×), nie fixne a nie z výšky frameu.
+    const gap = Math.round(headlineSize * 0.5);
     const textW = cb.w - pad * 2;
-    const headlineBoxH = Math.round(format.height * 0.13);
-    const subheadlineBoxH = Math.round(format.height * 0.09);
+    // Box výška podľa SKUTOČNEJ zalomenej výšky textu, nie percenta výšky
+    // frameu — percento bolo oveľa väčšie než reálny 1-riadkový text a
+    // robilo zbytočnú medzeru (namerané ~240 px = takmer 3× veľkosť
+    // písma namiesto cieľových 0,4–0,6×). Horná hranica (2 riadky) je
+    // poistka pre dlhší text.
+    const headlineBoxH = Math.min(
+      Math.max(measureWrappedHeight(frame, content.headline, textW, headlineSize, "Bold"), Math.round(headlineSize * 1.15)),
+      Math.round(headlineSize * 1.15 * 2)
+    );
+    const subheadlineBoxH = Math.min(
+      Math.max(measureWrappedHeight(frame, content.subheadline, textW, subheadlineSize, "Regular"), Math.round(subheadlineSize * 1.3)),
+      Math.round(subheadlineSize * 1.3 * 2)
+    );
     const btn = TB.button(format.width, format.height);
     const logo = TB.logoBox(format.width, format.height);
     const logoClear = TB.logoClear(format.width, format.height);
     const showsLogo = shouldShowLogo(format, layout, figmaLogo);
     const logoOwnRow = showsLogo && (logo.width + logoClear) > textW * 0.5;
-    const sDolnaHrana = cb.y + cb.h - pad - spodok.total;
+    const btnW = Math.max(60, Math.min(btn.width,
+      textW - ((logo.width + logoClear > textW * 0.5) ? 0 : logo.width + logoClear)));
+
+    // ZADANIE bod 1: textový blok sa už NEukotvuje na spodnú hranu frameu.
+    // Kotví sa na ZAČIATOK prechodu — presne ako Surďov LAYOUT-VYSKA leží
+    // CEZ rozplývajúcu sa fotku (cez hruď, telefón), nie pod ňou v prázdnom
+    // páse. scrimHeadroom (výška ~1 riadku) necháva headline začať tesne
+    // PRED prechodom — namerané na 0:4: text blok (36 %) začína pred
+    // prechodom (41 %), nie po jeho konci. Pod blokom ostáva voľná plocha
+    // až po spodnú hranu — to je zámer (Surďov "nepriehľadný pás" bez
+    // ďalšieho obsahu), nie chyba na doplnenie.
+    const scrimHeadroom = Math.round(headlineSize * 1.10);
+    const blockTop = Math.max(cb.y + pad, Math.round(_obrazokDole - scrimHeadroom));
+
+    // Koľko miesta ostáva na podnadpis po headline-i a pred CTA/AI/legal
+    // rezervou — rovnaká poistka ako predtým (P0-9), len počítaná zhora
+    // nadol namiesto zdola nahor.
+    const bottomLimit = cb.y + cb.h - pad;
+    const reserveBelow = spodok.total + (layout.show_cta !== false ? (btn.height + gap) : 0);
+    const availableForSubheadline = (bottomLimit - reserveBelow) - (blockTop + headlineBoxH + gap);
+    const showSubheadline = shouldShowSubheadline(format, layout, availableForSubheadline, content.headline, content.subheadline);
+
+    let cursorY = blockTop;
+    const headlineY = cursorY;
+    cursorY += headlineBoxH;
+    let subheadlineY = 0;
+    if (showSubheadline) {
+      cursorY += gap;
+      subheadlineY = cursorY;
+      cursorY += subheadlineBoxH;
+    }
+    let btnY = 0;
+    if (layout.show_cta !== false) {
+      cursorY += gap;
+      btnY = cursorY;
+      cursorY += btn.height;
+    }
+    cursorY += gap;
+    // Logo príliš široké na to, aby sedelo vedľa AI/legal riadku (rovnaká
+    // podmienka ako predtým) — potrebuje vlastný riadok NAD nimi.
+    if (logoOwnRow) cursorY += (logo.height + logoClear);
+    // Sem nadväzuje AI/legal (spodok.total) — nižšie prepíšeme
+    // spodok.aiY/legalY, aby sedeli priamo pod blokom namiesto pri spodnej
+    // hrane frameu (ZADANIE bod 1: "AI tag prestane byť na spodnej hrane,
+    // Surdo ho má priamo pod headlinom").
+    const blockAiLegalTop = cursorY;
+    const sDolnaHrana = blockAiLegalTop;
     const logoTop = (showsLogo && !logoOwnRow) ? (sDolnaHrana - logo.height) : (cb.y + cb.h);
     const logoReserve = (showsLogo && !logoOwnRow) ? (logo.width + logoClear) : 0;
-    // Rezerva podľa SKUTOČNEJ výšky textu (node.height), nie výšky boxu —
-    // box headline/subheadline je percento formátu, reálny text v ňom
-    // môže byť podstatne nižší, a rezerva sa vtedy zapínala zbytočne.
+    // Rezerva podľa SKUTOČNEJ výšky textu (node.height), nie výšky boxu.
     function placeReserveText(name, value, x, y, boxH, fontSize, color, style, align) {
       let node = addTemplateText(frame, name, value, [x, y, textW, boxH], fontSize, color, style, align);
       if (node && logoReserve && (y + node.height) > logoTop) {
@@ -2082,79 +2271,51 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       }
       return node;
     }
-    const btnW = Math.max(60, Math.min(btn.width,
-      textW - ((logo.width + logoClear > textW * 0.5) ? 0 : logo.width + logoClear)));
-
-    // Skladanie zdola nahor: pad → tlačidlo → medzera → podnadpis → medzera → headline,
-    // aby sa pri väčšom podnadpise nikdy neprekryl s tlačidlom.
-    // Rezerva na celý spodný pás (legal + AI disclosure), nie len na AI tag —
-    // predtým sa legal nepočítal vôbec a pri zalomení pretiekol mimo frame.
-    let cursorY = cb.y + cb.h - pad - spodok.total;
-    if (logoOwnRow) cursorY -= (logo.height + logoClear);
-    let btnY = 0, subheadlineY = 0;
-    if (layout.show_cta !== false) {
-      cursorY -= btn.height;
-      btnY = cursorY;
-      cursorY -= gap;
+    if (spodok.aiH && spodok.legalH) {
+      spodok.aiY = blockAiLegalTop;
+      spodok.legalY = blockAiLegalTop + spodok.aiH + spodok.medzera;
+    } else if (spodok.aiH) {
+      spodok.aiY = blockAiLegalTop;
+    } else if (spodok.legalH) {
+      spodok.legalY = blockAiLegalTop;
     }
-    // Poistka na veľkosť (P0-9): subheadline sa nekreslí, ak po odpočítaní
-    // CTA, loga a AI tagu ostane menej ako 1,6× jeho výšky, alebo je
-    // formát pod min(W,H) 400 px. Rovnaký boolean sa použije aj nižšie
-    // pri samotnom kreslení, nech sa rezerva miesta a kreslenie nerozídu.
-    const showSubheadline = shouldShowSubheadline(format, layout, cursorY - (cb.y + pad), content.headline, content.subheadline);
-    if (showSubheadline) {
-      cursorY -= subheadlineBoxH;
-      subheadlineY = cursorY;
-      cursorY -= gap;
-    }
-    cursorY -= headlineBoxH;
-    const headlineY = cursorY;
 
-    // Scrim musí byť dostatočne krycí UŽ na hornej hrane headlineu, nie až
-    // pod ním. Predtým sa začínal presne na headlineY s krytím 0 %, takže
-    // headline ležal v úplne priesvitnej časti gradientu (namerané
-    // 1,8–2,9 : 1 na svetlom KV).
-    //
-    // Preto: začni o výšku jedného riadku VYŠŠIE (nábeh) a rampu veď tak,
-    // aby na headlineY už bolo ~70 % cieľového krytia. Zároveň scrim
-    // nesiaha ďalej ako treba — to je odpoveď na pôvodnú výhradu z P0-7,
-    // že plošné krytie dolných 62 % prepaľovalo svetlý KV.
-    const scrimHeadroom = Math.round(headlineSize * 1.10);
+    // Scrim (čitateľnostný prechod nad headlineom) rieši len tú časť
+    // textu, ktorá ešte leží na CRISP, nerozplynutej fotke pred začiatkom
+    // prechodu — presne to, čo Surďova referencia robí (headline leží cez
+    // fotku bez krycej plochy pod ňou, spolieha sa na hrubý biely text).
+    // scrimHeadroom necháva rampu nábehnúť skôr, než headline vôbec začne.
     const scrimTop = Math.max(0, headlineY - scrimHeadroom);
     const scrimH = Math.min(format.height, format.height - scrimTop);
-    // Keď je vizuál vložený cez CONTAIN, text sedí na plnej brand ploche
-    // POD obrázkom. Tam scrim nemá čo robiť — len by zbytočne zašpinil
-    // čistú farbu (presne to bola výhrada „prepaľuje do hneda"). Kreslí sa
-    // len vtedy, keď text naozaj leží na fotke.
     const scrimTreba = scrimTop < (_obrazokDole - 2);
-    // Podiel scrimu, ktorý padne nad headline — v ňom musí krytie vyrásť
-    // z 0 na ~70 %.
-    const rampEnd = clamp(scrimHeadroom / Math.max(1, scrimH), 0.06, 0.45);
+    // Dolná hranica rampy zdvihnutá z 6 % na 25 % — blok teraz sedí oveľa
+    // vyššie (bližšie k vrchu), takže scrimH je väčšie a pôvodný pomer by
+    // takmer vždy padol na 6 % strop = ostrý pás namiesto plynulého nábehu.
+    const rampEnd = clamp(scrimHeadroom / Math.max(1, scrimH), 0.25, 0.45);
     const scrimAlpha = scrimAlphaFor(layout);
     const scrim = figma.createRectangle();
     scrim.name = "Bottom readability gradient";
     scrim.resize(format.width, scrimH);
     scrim.x = 0;
     scrim.y = scrimTop;
-    // OPRAVA REGRESIE (po 47f4523): rampEnd tu neznamená "kde je cieľová
-    // alfa dosiahnutá" (to je význam v easedAlphaStops, správny pre
-    // panel/edge-prechod) — znamená "kde je dosiahnutých ~70 % cieľovej
-    // alfy, a odtiaľ sa POKRAČUJE plynulo na 100 % až v spodnom rohu".
-    // Zdieľaná funkcia oba významy zlúčila do jedného (drží plnú alfu už
-    // od rampEnd ďalej), takže scrim vyšiel ako plochá tmavá doska pod
-    // headlineom namiesto plynulého stmavenia až do rohu. Vlastný tvar,
-    // nie easedAlphaStops — pôvodná krivka, overená proti Figme predtým,
-    // než začal tento gradientový zásah.
     const _a = function (podiel) { return Math.round(scrimAlpha * podiel * 1000) / 1000; };
+    // Scrim dobieha na surfaceColor (rovnaká farba ako frame.fills aj KV
+    // fade), nie na čiernu/sivú — čierna cez brand farbu dávala bahnistý
+    // odtieň presne tam, kde sa scrim prekrýval s KV. Farba sa nemení po
+    // ceste, mení sa len alfa — a keďže scrim geometricky siaha až po
+    // spodnú hranu frameu (aj cez už čisto plochú časť pod prechodom),
+    // rovnaká farba ako podklad znamená, že tam, kde sa prekrýva s už
+    // plnou surfaceColor plochou, je zmes vizuálne nerozoznateľná od
+    // podkladu — žiadny šev, žiadne zbytočné stmavenie AI tagu/loga.
     scrim.fills = [{
       type: "GRADIENT_LINEAR",
       gradientTransform: [[0, 1, 0], [1, 0, 0]],
       gradientStops: [
-        { position: 0.00, color: { r: 0.10, g: 0.10, b: 0.10, a: 0.00 } },
-        { position: rampEnd * 0.5, color: { r: 0.08, g: 0.08, b: 0.08, a: _a(0.34) } },
-        { position: rampEnd, color: { r: 0.05, g: 0.05, b: 0.05, a: _a(0.70) } },
-        { position: rampEnd + (1 - rampEnd) * 0.35, color: { r: 0.03, g: 0.03, b: 0.03, a: _a(0.88) } },
-        { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: scrimAlpha } }
+        { position: 0.00, color: { r: surfaceColor.r, g: surfaceColor.g, b: surfaceColor.b, a: 0.00 } },
+        { position: rampEnd * 0.5, color: { r: surfaceColor.r, g: surfaceColor.g, b: surfaceColor.b, a: _a(0.34) } },
+        { position: rampEnd, color: { r: surfaceColor.r, g: surfaceColor.g, b: surfaceColor.b, a: _a(0.70) } },
+        { position: rampEnd + (1 - rampEnd) * 0.35, color: { r: surfaceColor.r, g: surfaceColor.g, b: surfaceColor.b, a: _a(0.88) } },
+        { position: 1.00, color: { r: surfaceColor.r, g: surfaceColor.g, b: surfaceColor.b, a: scrimAlpha } }
       ]
     }];
     // POZOR: vytvorený node bez rodiča Figma položí na aktuálnu STRÁNKU.
@@ -2173,14 +2334,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // iba pri formátoch bez CTA.
     const jeVysoky = format.height / format.width >= 1.7 && format.width >= 600;
     const textAlign = (jeVysoky && layout.show_cta === false) ? "CENTER" : "LEFT";
-    // Keď scrim nie je (text sedí na plnej brand ploche), farbu textu urči
-    // podľa jasu tej plochy — inak biely text na svetlom korale nie je vidieť.
-    // Headline/podnadpis sú vždy veľké a Bold (TB.headline/subheadline) —
-    // WCAG large-text prah 3 : 1, nie 4,5 : 1 (viď textNaPodklade komentár).
-    FARBA_TEXTU = scrimTreba ? { r: 1, g: 1, b: 1 } : textNaPodklade(brandColor(layout), 3.0);
+    // ZADANIE bod 2: biela vždy — surfaceColor (frame.fills aj KV fade)
+    // garantuje ≥ 4,5 : 1 na krycej ploche, scrim (keď je) garantuje
+    // čitateľnosť nad fotkou. Žiadne prepínanie na tmavú.
+    FARBA_TEXTU = { r: 1, g: 1, b: 1 };
     const farbaTextu = FARBA_TEXTU;
-    // Malý text (legal, AI tag) — prísnejší prah 4,5 : 1, samostatná farba.
-    FARBA_TEXTU_MALY = scrimTreba ? { r: 1, g: 1, b: 1 } : textNaPodklade(brandColor(layout), 4.5);
+    FARBA_TEXTU_MALY = { r: 1, g: 1, b: 1 };
     const headlineNode = placeReserveText(
       "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
       headlineSize, farbaTextu, "Bold", textAlign
@@ -2237,7 +2396,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   if (spodok.aiH) {
     const aiX = cb.x + pad;
     const aiY = (spodok.x > cb.x + pad + 2) ? spodok.legalY : spodok.aiY;
-    addAiNote(frame, format, cb, aiY, aiX, farbaSpodku);
+    // ZADANIE_dolad_kompoziciu.md bod 6: podložka pod AI tagom sa kreslí len
+    // tam, kde tag naozaj padne na fotku — na krycej brand ploche (za
+    // _obrazokDole) ju Surďova referencia nemá vôbec, biely text sedí
+    // priamo na ploche. _obrazokDoleForAi === null (wide vetva) = neznáme,
+    // zachová sa pôvodné správanie (podložka vždy, keď je text biely).
+    const aiOverPhoto = _obrazokDoleForAi === null ? true : (aiY < _obrazokDoleForAi - 2);
+    addAiNote(frame, format, cb, aiY, aiX, farbaSpodku, aiOverPhoto);
   }
 }
 

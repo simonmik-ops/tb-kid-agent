@@ -872,13 +872,20 @@ function normalizeFormat(format) {
 const NORMALIZED_FORMATS = FORMATS.map(normalizeFormat);
 
 // Metadáta kampaní — tagging pre pomenovanie frameov + label do UI
+// legalText (prenesené z master, commit 268b782 — P0-11): predvyplnené
+// znenie právneho textu per kampaň. Origin túto hodnotu zatiaľ nikde
+// nečíta (legalText sa mu posiela ako parameter generovania, nie z tohto
+// presetu) — je to len dáta, prefill/UI napojenie je mimo tohto kroku
+// (Krok 2, len dátové položky). Znenie potvrdzuje Simona/legal; kkvisa RPSN
+// je otvorený bloker, zámerne prázdne.
 const CAMPAIGNS = {
-  kid:    { tagging: "kid-062026",      label: "TB KID 2026" },
-  kkvisa: { tagging: "kk-visa-072026",  label: "KK Visa — kreditné karty" },
-  hypo:   { tagging: "hypo-052025",     label: "Digitálna hypotéka" },
-  bsu:    { tagging: "bsu-082025",      label: "BSU — Bezúčelový úver" },
-  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026" },
-  mass:   { tagging: "mass-jar-2026",   label: "MASS — Účet #premodruplanetu JAR 2026" }
+  kid:    { tagging: "kid-062026",      label: "TB KID 2026",
+            legalText: "Marketingové oznámenie. S investovaním sú spojené riziká." },
+  kkvisa: { tagging: "kk-visa-072026",  label: "KK Visa — kreditné karty", legalText: "" },
+  hypo:   { tagging: "hypo-052025",     label: "Digitálna hypotéka", legalText: "" },
+  bsu:    { tagging: "bsu-082025",      label: "BSU — Bezúčelový úver", legalText: "" },
+  tiger:  { tagging: "tiger-aura-2026", label: "Tiger — Aura 2026", legalText: "" },
+  mass:   { tagging: "mass-jar-2026",   label: "MASS — Účet #premodruplanetu JAR 2026", legalText: "" }
 };
 
 module.exports = NORMALIZED_FORMATS;

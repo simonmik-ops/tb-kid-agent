@@ -369,8 +369,8 @@ function sampledLowerPanelGradient(layout, bottomShade) {
   };
 }
 
-function sampledPortraitOverlayGradient(layout, imageBoundaryStop, bottomShade) {
-  const edge = brandEdgeColor(layout, "bottom");
+function sampledPortraitOverlayGradient(layout, imageBoundaryStop, bottomShade, colorOverride) {
+  const edge = colorOverride || brandEdgeColor(layout, "bottom");
   const dark = shadedColor(edge, typeof bottomShade === "number" ? bottomShade : 0.46);
   const boundary = clamp(imageBoundaryStop, 0.16, 0.72);
   const firstDark = Math.max(0.06, boundary * 0.48);
@@ -2427,13 +2427,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       adaptivePanel.x = 0;
       adaptivePanel.y = panelY;
       const boundaryStop = (portraitImageH - panelY) / Math.max(1, format.height - panelY);
-      // Krok 3 pravidlo 2: bottomShade=0.46 stmavovalo brand farbu na 46 %
-      // jasu kvôli kontrastu (bahnistá hnedá, viditeľná na 960×1200). 1 =
-      // shadedColor je no-op, panel dobieha na čistú brandColor. Druhé
-      // volanie tejto funkcie (buildCleanImageLayout, riadok ~1365) je mimo
-      // Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
-      noteContrastIfLow(layout, brandEdgeColor(layout, "bottom"), { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
-      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 1)];
+      // Krok 3 pravidlo 1+2: brandEdgeColor(layout,"bottom") vzorkuje reálnu
+      // farbu spodného okraja fotky — pri tmavom oblečení/tieni to bola
+      // tmavohnedá/gaštanová plocha namiesto brand farby (nahlásené ako
+      // "hnedý panel" a "vidieť prechody"). colorOverride = brandColor(layout)
+      // vynúti čistú, jednotnú brand farbu bez stmavovania (pravidlo 2).
+      // Druhé volanie tejto funkcie (buildCleanImageLayout, riadok ~1365) je
+      // mimo Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
+      const portraitPanelColor = brandColor(layout);
+      noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
+      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 1, portraitPanelColor)];
       frame.appendChild(adaptivePanel);
       layout.kv_strategy = "master-protected-single-master";
     } else {

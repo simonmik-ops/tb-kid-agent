@@ -1381,28 +1381,36 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       family === "wide" ? undefined : (format.height / format.width)
     );
     if (family === "wide") {
-      // Krok 4a (clean_image wide): CONTAIN necháva ostrú hranu presne tam,
-      // kde končí obrázok (628 px pri 1200×628) — vidieť šev voči
-      // sampledBrandGradient pozadiu za ním. Surďova referencia (0:21) rieši
-      // presne toto úzkym "prechod" pásom (136 px pri 1200 px šírke) —
-      // plná brand farba odkrývaná lineárnou alpha rampou. Rovnaký princíp
-      // tu, bez zásahu do CONTAIN geometrie obrázka (žiadne riziko
-      // opakovania orezanej hlavy z 0fec0a7).
+      // Krok 4a (clean_image wide), tretí pokus. Prvé dva (a798494/2a499d1:
+      // pás ZAČÍNAL presne na hrane obrázka, 628 px) nemiešali nič, len
+      // priložili farebne sedivi pás vedľa neporušenej fotky — žiadny
+      // prekryv, žiadne miešanie, šev ostal (nahlásené ako "pruh"). Tretí
+      // pokus (c5b762a: isMask priamo na KV recte) sa v Figme nevykreslil
+      // vôbec — potvrdené pixelovým vzorkovaním, revertnuté. Tento pokus
+      // kopíruje jediný overený funkčný vzor v tomto súbore — "Clean
+      // portrait colour extension" nižšie: pás musí ZAČAŤ VNÚTRI obrázka
+      // (rovnakých posledných ~22 % ako tam, faktor 0.78), nie na jeho
+      // hrane, inak sa nemá čo s čím miešať. Rovnaká 3-stopová rampa
+      // (0 → priehľadná, boundary → plná farba, 1 → plná farba), len
+      // horizontálny gradientTransform namiesto vertikálneho.
       const wideScale = Math.min(format.width / CUR_IMG_W, format.height / CUR_IMG_H);
       const wideImageRightEdge = Math.round(CUR_IMG_W * wideScale);
       if (wideImageRightEdge < format.width - 1) {
-        const stripW = Math.min(format.width - wideImageRightEdge, Math.round(clamp(format.width * 0.113, 60, 160)));
+        const overlapStart = Math.round(wideImageRightEdge * 0.78);
         const stripColor = brandColor(layout);
+        const boundaryStop = (wideImageRightEdge - overlapStart) /
+          Math.max(1, format.width - overlapStart);
         const strip = figma.createRectangle();
         strip.name = "Clean wide seam blend";
-        strip.resize(stripW, format.height);
-        strip.x = wideImageRightEdge;
+        strip.resize(format.width - overlapStart, format.height);
+        strip.x = overlapStart;
         strip.y = 0;
         strip.fills = [{
           type: "GRADIENT_LINEAR",
           gradientTransform: [[1, 0, 0], [0, 1, 0]],
           gradientStops: [
             { position: 0, color: { r: stripColor.r, g: stripColor.g, b: stripColor.b, a: 0 } },
+            { position: clamp(boundaryStop, 0.02, 0.98), color: { r: stripColor.r, g: stripColor.g, b: stripColor.b, a: 1 } },
             { position: 1, color: { r: stripColor.r, g: stripColor.g, b: stripColor.b, a: 1 } }
           ]
         }];

@@ -1343,16 +1343,28 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
     // a face-only portrait or a vertically sliced landscape crop.
     const family = format.width / format.height >= 1.25 ? "wide" :
       (format.width / format.height <= 0.8 ? "portrait" : "square");
+    // Krok 4c: predimenzovanie len pre square/portrait (zone == celý frame,
+    // rovnaká báza ako v addMasterCoreImage) — wide necháva pôvodné CONTAIN
+    // zarovnanie, samostatné meranie/kolo ako inde.
     addProtectedImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Adapted clean master — full composition",
       [0, 0, format.width, format.height],
       family === "wide" ? { x: 0, y: 0.5 } :
-        (family === "portrait" ? { x: 0.5, y: 0 } : { x: 0.5, y: 0.5 })
+        (family === "portrait" ? { x: 0.5, y: 0 } : { x: 0.5, y: 0.5 }),
+      family === "wide" ? undefined : (format.height / format.width)
     );
     if (family === "portrait") {
-      const cleanScale = Math.min(format.width / CUR_IMG_W, format.height / CUR_IMG_H);
-      const cleanImageH = Math.min(format.height, CUR_IMG_H * cleanScale);
+      // Musí zodpovedať PRESNE tomu, čo addProtectedImageFrame vyššie
+      // skutočne vykreslilo (Krok 4c oversize), inak "Clean portrait colour
+      // extension" panel vychádza z geometrie starého (menšieho) obrázka a
+      // sedí na nesprávnom mieste — buď sa prekrýva s (teraz väčším)
+      // obrázkom, alebo necháva medzeru.
+      const cleanRatioHW = format.height / format.width;
+      const cleanScale = (format.width / CUR_IMG_W) * kvOversizeMultiplier(cleanRatioHW);
+      const cleanRenderedH = CUR_IMG_H * cleanScale;
+      const cleanRectY = Math.round(kvVerticalCenterFrac(cleanRatioHW) * format.height - cleanRenderedH / 2);
+      const cleanImageH = Math.min(format.height, cleanRectY + cleanRenderedH);
       if (cleanImageH < format.height - 1) {
         const extensionY = Math.round(cleanImageH * 0.78);
         const extension = figma.createRectangle();
@@ -1981,7 +1993,11 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
 // Preserve the complete master when it is reused for another orientation.
 // The remaining area is intentionally transparent so the sampled frame colour
 // continues the visual, exactly as the Surd master-safe rule specifies.
-function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, alignment) {
+// oversizeFrameRatio (voliteľné, len keď zone == celý frame, family
+// square/portrait — nie wide, ten má inú bázu pomeru, pozri
+// kvOversizeMultiplier komentár nižšie): rovnaký Krok 4c mechanizmus ako
+// addMasterCoreImage, len napojený na CONTAIN-bázovanú funkciu.
+function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, alignment, oversizeFrameRatio) {
   const holder = figma.createFrame();
   holder.name = name;
   holder.resize(zone[2], zone[3]);
@@ -1996,17 +2012,24 @@ function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, align
     return holder;
   }
 
-  const scale = Math.min(zone[2] / imageSize.width, zone[3] / imageSize.height);
+  const scale = typeof oversizeFrameRatio === "number"
+    ? (zone[2] / imageSize.width) * kvOversizeMultiplier(oversizeFrameRatio)
+    : Math.min(zone[2] / imageSize.width, zone[3] / imageSize.height);
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();
   rect.name = "Key visual — protected full master";
   rect.resize(renderedW, renderedH);
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
-  const ax = alignment && typeof alignment.x === "number" ? alignment.x : 0.5;
-  const ay = alignment && typeof alignment.y === "number" ? alignment.y : 0.5;
-  rect.x = Math.round((zone[2] - renderedW) * clamp(ax, 0, 1));
-  rect.y = Math.round((zone[3] - renderedH) * clamp(ay, 0, 1));
+  if (typeof oversizeFrameRatio === "number") {
+    rect.x = Math.round((zone[2] - renderedW) / 2);
+    rect.y = Math.round(kvVerticalCenterFrac(oversizeFrameRatio) * zone[3] - renderedH / 2);
+  } else {
+    const ax = alignment && typeof alignment.x === "number" ? alignment.x : 0.5;
+    const ay = alignment && typeof alignment.y === "number" ? alignment.y : 0.5;
+    rect.x = Math.round((zone[2] - renderedW) * clamp(ax, 0, 1));
+    rect.y = Math.round((zone[3] - renderedH) * clamp(ay, 0, 1));
+  }
   holder.appendChild(rect);
   return holder;
 }

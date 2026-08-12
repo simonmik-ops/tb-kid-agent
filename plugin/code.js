@@ -1088,8 +1088,17 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
     const protectedMaster = qaFind(frame, "Key visual — protected full master");
     if (!protectedMaster) add("qa_unsafe_single_master_crop");
     if (protectedMaster && protectedMaster.parent) {
-      if (protectedMaster.width > protectedMaster.parent.width + 1 ||
-          protectedMaster.height > protectedMaster.parent.height + 1) {
+      // Krok 4c zámerne predimenzováva KV nad rámec zóny (holder má
+      // clipsContent, takže presah je bezpečne orezaný) — najviac
+      // WIDE_KV_ZONE_MULTIPLIER (1,23×) na wide, KV_OVERSIZE_POINTS max
+      // 1,561× na square/portrait. Pôvodná kontrola "> parent + 1" pochádza
+      // ešte spred Kroku 4c a hlásila tento zámerný presah ako falošný
+      // pozitív (Performance/Headline assets landscape). Tolerancia 1,7×
+      // necháva rezervu nad reálne použité multiplikátory a stále odchytí
+      // skutočne rozbitý prípad (zle dosadená zóna a pod.).
+      const maxOversize = 1.7;
+      if (protectedMaster.width > protectedMaster.parent.width * maxOversize + 1 ||
+          protectedMaster.height > protectedMaster.parent.height * maxOversize + 1) {
         add("qa_unsafe_single_master_crop");
       }
     }

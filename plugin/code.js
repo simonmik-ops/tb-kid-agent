@@ -373,13 +373,16 @@ function sampledPortraitOverlayGradient(layout, imageBoundaryStop, bottomShade, 
   const edge = colorOverride || brandEdgeColor(layout, "bottom");
   const dark = shadedColor(edge, typeof bottomShade === "number" ? bottomShade : 0.46);
   const boundary = clamp(imageBoundaryStop, 0.16, 0.72);
-  const firstDark = Math.max(0.06, boundary * 0.48);
+  // Surďov referenčný "prechod" mask (d51uxTh8YqPdHujzi1Plt6, 0:19) je čisto
+  // 2-stopový lineárny alpha rampa (offset 0 = plná, offset 1 = 0 %), žiadny
+  // medzistop. Predošlý medzistop (firstDark @ 0,58 alpha) vytváral dve
+  // rôzne rýchle rampy za sebou = viditeľný "kolienko" efekt, nie plynulý
+  // prechod. Rovná rampa 0 → boundary, potom plocha až po 1.
   return {
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
       { position: 0, color: { r: edge.r, g: edge.g, b: edge.b, a: 0 } },
-      { position: firstDark, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.58 } },
       { position: boundary, color: { r: dark.r, g: dark.g, b: dark.b, a: 1 } },
       { position: 1, color: { r: dark.r, g: dark.g, b: dark.b, a: 1 } }
     ]

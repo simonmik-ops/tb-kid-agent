@@ -1346,17 +1346,20 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
     // Krok 4c: predimenzovanie pre VŠETKY tri rodiny — na rozdiel od
     // buildMasterSafeLayout tu zóna vždy == celý frame (clean_image nemá
     // textový panel, ktorý by wide zúžil na 75 % šírky), takže rovnaká báza
-    // (oversizeFrameRatio, nie WIDE_KV_ZONE_MULTIPLIER) platí aj pre wide.
-    // Pri ratio <= 1,00 (wide) sa interpolácia zastropuje na hodnote pre
-    // štvorec (×1,357) — nemáme samostatné meranie pre clean_image wide,
-    // toto je rozumný, konzervatívny predvolený stav.
+    // (oversizeFrameRatio, nie WIDE_KV_ZONE_MULTIPLIER) — square/portrait.
+    // OPRAVA: wide bolo krátko zapojené s rovnakým vzorcom, zastropovaným
+    // na hodnotu pre štvorec (×1,357). To orezávalo hlavu — 628 px vysoký
+    // frame vidí len 38 % z 1628 px vysokého obrázka, takže nech je stred
+    // kdekoľvek, niečo výrazné sa odreže. Nemáme skutočné meranie pre
+    // clean_image wide (na rozdiel od buildMasterSafeLayout, kde je 0:21) —
+    // vrátené na pôvodné, bezpečné CONTAIN zarovnanie.
     addProtectedImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Adapted clean master — full composition",
       [0, 0, format.width, format.height],
       family === "wide" ? { x: 0, y: 0.5 } :
         (family === "portrait" ? { x: 0.5, y: 0 } : { x: 0.5, y: 0.5 }),
-      format.height / format.width
+      family === "wide" ? undefined : (format.height / format.width)
     );
     if (family === "portrait") {
       // Musí zodpovedať PRESNE tomu, čo addProtectedImageFrame vyššie
@@ -1394,13 +1397,14 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
       y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
     };
-    // Krok 4c: predimenzovanie pre všetky tri rodiny (rovnaký dôvod ako pri
-    // addProtectedImageFrame vyššie — zone == celý frame aj pre wide).
+    // Krok 4c: predimenzovanie pre square/portrait. Wide vrátené na pôvodné
+    // cover+overscan (pozri opravu pri addProtectedImageFrame vyššie —
+    // rovnaký dôvod, orezávalo by hlavu bez skutočného merania pre tento tvar).
     addFocalImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Image asset - no text / no logo", [0, 0, format.width, format.height],
       cleanFocal, { x: 0.5, y: cleanRatio > 1.45 ? 0.62 : 0.5 }, 1.08,
-      1 / cleanRatio
+      cleanRatio > 1.45 ? undefined : (1 / cleanRatio)
     );
   }
 }

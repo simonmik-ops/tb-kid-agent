@@ -1390,10 +1390,13 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
       y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
     };
+    // Krok 4c: predimenzovanie pre square/portrait (rovnaká báza ako
+    // ostatné dve volania); wide necháva pôvodné cover+overscan zarovnanie.
     addFocalImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Image asset - no text / no logo", [0, 0, format.width, format.height],
-      cleanFocal, { x: 0.5, y: cleanRatio > 1.45 ? 0.62 : 0.5 }, 1.08
+      cleanFocal, { x: 0.5, y: cleanRatio > 1.45 ? 0.62 : 0.5 }, 1.08,
+      cleanRatio > 1.45 ? undefined : (1 / cleanRatio)
     );
   }
 }
@@ -1957,7 +1960,12 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
   frame.appendChild(gradient);
 }
 
-function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, desired, overscan) {
+// oversizeFrameRatio (voliteľné, len clean_image square/portrait, zone ==
+// celý frame): Krok 4c, rovnaký mechanizmus ako addMasterCoreImage/
+// addProtectedImageFrame. Ostatní volajúci (side_safe, Adform PSD, micro)
+// tento parameter neposielajú — mimo Surďovho referenčného modelu, zámerne
+// nedotknutí.
+function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, desired, overscan, oversizeFrameRatio) {
   const holder = figma.createFrame();
   holder.name = name;
   holder.resize(zone[2], zone[3]);
@@ -1972,7 +1980,9 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
     return holder;
   }
 
-  const scale = Math.max(zone[2] / imageSize.width, zone[3] / imageSize.height) * (overscan || 1);
+  const scale = typeof oversizeFrameRatio === "number"
+    ? (zone[2] / imageSize.width) * kvOversizeMultiplier(oversizeFrameRatio)
+    : Math.max(zone[2] / imageSize.width, zone[3] / imageSize.height) * (overscan || 1);
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();
@@ -1980,12 +1990,17 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
   rect.resize(renderedW, renderedH);
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
 
-  const focalX = clamp(focal.x, 0, 1);
-  const focalY = clamp(focal.y, 0, 1);
-  const targetX = zone[2] * desired.x;
-  const targetY = zone[3] * desired.y;
-  rect.x = clamp(targetX - focalX * renderedW, zone[2] - renderedW, 0);
-  rect.y = clamp(targetY - focalY * renderedH, zone[3] - renderedH, 0);
+  if (typeof oversizeFrameRatio === "number") {
+    rect.x = Math.round((zone[2] - renderedW) / 2);
+    rect.y = Math.round(kvVerticalCenterFrac(oversizeFrameRatio) * zone[3] - renderedH / 2);
+  } else {
+    const focalX = clamp(focal.x, 0, 1);
+    const focalY = clamp(focal.y, 0, 1);
+    const targetX = zone[2] * desired.x;
+    const targetY = zone[3] * desired.y;
+    rect.x = clamp(targetX - focalX * renderedW, zone[2] - renderedW, 0);
+    rect.y = clamp(targetY - focalY * renderedH, zone[3] - renderedH, 0);
+  }
   holder.appendChild(rect);
   return holder;
 }

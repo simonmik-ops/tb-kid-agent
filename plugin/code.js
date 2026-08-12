@@ -2005,14 +2005,26 @@ function addFocalImageFrame(parent, figmaImage, imageSize, name, zone, focal, de
   return holder;
 }
 
+// Krok 4c, wide: namerané priamo z referenčného VIZUAL-KV (d51uxTh8YqPdHujzi1Plt6,
+// node 0:21, get_metadata) — 1107×1107 KV v zóne 900 px (75 % z 1200 px
+// frameu) = ×1,23 šírky ZÓNY (nie celého frameu — na rozdiel od square/
+// portrait, kde je zóna == frame, wide zóna je len 75 % šírky). Jediný
+// nameraný wide bod (na rozdiel od square/portrait, kde sú tri) — fixná
+// konštanta, nie interpolácia. Pozícia: takmer presne zarovnaná k PRAVEJ
+// hrane zóny (KV pravý okraj 898 px vs. zóna 900 px — subjekt je pri hrane
+// textového panelu, rozplýva sa smerom k nemu), zvislo takmer presne na
+// strede (312,5/628 = 49,8 %).
+const WIDE_KV_ZONE_MULTIPLIER = 1.23;
+
 // Preserve the complete master when it is reused for another orientation.
 // The remaining area is intentionally transparent so the sampled frame colour
 // continues the visual, exactly as the Surd master-safe rule specifies.
 // oversizeFrameRatio (voliteľné, len keď zone == celý frame, family
-// square/portrait — nie wide, ten má inú bázu pomeru, pozri
-// kvOversizeMultiplier komentár nižšie): rovnaký Krok 4c mechanizmus ako
-// addMasterCoreImage, len napojený na CONTAIN-bázovanú funkciu.
-function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, alignment, oversizeFrameRatio) {
+// square/portrait): Krok 4c mechanizmus ako addMasterCoreImage, len
+// napojený na CONTAIN-bázovanú funkciu. wideZone (voliteľné, len family
+// wide, zone == 75 % šírky sub-zóna): WIDE_KV_ZONE_MULTIPLIER, pravé
+// zarovnanie, zvislý stred.
+function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, alignment, oversizeFrameRatio, wideZone) {
   const holder = figma.createFrame();
   holder.name = name;
   holder.resize(zone[2], zone[3]);
@@ -2029,7 +2041,9 @@ function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, align
 
   const scale = typeof oversizeFrameRatio === "number"
     ? (zone[2] / imageSize.width) * kvOversizeMultiplier(oversizeFrameRatio)
-    : Math.min(zone[2] / imageSize.width, zone[3] / imageSize.height);
+    : wideZone
+      ? (zone[2] / imageSize.width) * WIDE_KV_ZONE_MULTIPLIER
+      : Math.min(zone[2] / imageSize.width, zone[3] / imageSize.height);
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();
@@ -2039,6 +2053,11 @@ function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, align
   if (typeof oversizeFrameRatio === "number") {
     rect.x = Math.round((zone[2] - renderedW) / 2);
     rect.y = Math.round(kvVerticalCenterFrac(oversizeFrameRatio) * zone[3] - renderedH / 2);
+  } else if (wideZone) {
+    // Pravé zarovnanie k hrane zóny (subjekt pri textovom paneli, rozplýva
+    // sa smerom k nemu), zvisle na strede — namerané na 0:21.
+    rect.x = Math.round(zone[2] - renderedW);
+    rect.y = Math.round((zone[3] - renderedH) / 2);
   } else {
     const ax = alignment && typeof alignment.x === "number" ? alignment.x : 0.5;
     const ay = alignment && typeof alignment.y === "number" ? alignment.y : 0.5;
@@ -2097,7 +2116,7 @@ function kvVerticalCenterFrac(ratioHW) {
 // (square/portrait volanie) — wide volanie (zone = 75 % šírky sub-zóna)
 // tento parameter zatiaľ neposiela, jeho predimenzovanie je samostatné
 // kolo (iný pomer KV k zóne, iné referenčné meranie).
-function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide, oversizeFrameRatio) {
+function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide, oversizeFrameRatio, wideZone) {
   const holder = figma.createFrame();
   holder.name = "TP master — centrálne jadro 50 %";
   holder.resize(zone[2], zone[3]);
@@ -2115,6 +2134,8 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
   let scale, rectX, rectY;
   if (typeof oversizeFrameRatio === "number") {
     scale = (zone[2] / imageSize.width) * kvOversizeMultiplier(oversizeFrameRatio);
+  } else if (wideZone) {
+    scale = (zone[2] / imageSize.width) * WIDE_KV_ZONE_MULTIPLIER;
   } else {
     // Jemný presah odstráni 1–2 % technický/brandový okraj, ktorý býva
     // súčasťou exportovaného KV. Centrálne 50 % jadro ostáva bezpečné.
@@ -2135,6 +2156,9 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
     // obe hrany). Zvisle podľa nameraného zvislého stredu.
     rectX = Math.round((zone[2] - renderedW) / 2);
     rectY = Math.round(kvVerticalCenterFrac(oversizeFrameRatio) * zone[3] - renderedH / 2);
+  } else if (wideZone) {
+    rectX = Math.round(zone[2] - renderedW);
+    rectY = Math.round((zone[3] - renderedH) / 2);
   } else {
     rectX = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
     rectY = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
@@ -2249,11 +2273,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     if (adaptedWide) {
       addProtectedImageFrame(
         frame, figmaImage, imageSize, "Protected single master — wide image zone",
-        [0, 0, imageW, format.height], { x: 0, y: 0.5 }
+        [0, 0, imageW, format.height], { x: 0, y: 0.5 }, undefined, true
       );
       layout.kv_strategy = "master-protected-single-master";
     } else {
-      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides);
+      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, imageW, format.height], focal, content.showGuides, undefined, true);
     }
     const wideShift = Math.round(format.width * 0.30);
     const panelX = imageW - wideShift;

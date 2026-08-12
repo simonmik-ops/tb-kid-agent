@@ -2327,7 +2327,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
          : (format.width / format.height >= 1.8 ? 0.36 : 0.5))
   };
   const pad = TB.padding(format.width, format.height);
-  frame.fills = [sampledBrandGradient(layout, 1)];
+  // Surďova referencia: pozadie je vždy jedna plochá brand farba, nikdy
+  // vertikálne tmavnúci sampledBrandGradient (rovnaký princíp ako 8623b0d
+  // pre buildCleanImageLayout). Tu je frame.fills vždy prekrytý — square/
+  // portrait predimenzovaným obrázkom (Krok 4c), wide "Wide content panel"
+  // dosahuje plnú krycosť ešte pred okrajom frame — zmena je teda
+  // neviditeľná, ide len o architektonický súlad so Surďovou referenciou.
+  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.75);

@@ -369,8 +369,13 @@ function sampledLowerPanelGradient(layout, bottomShade) {
   };
 }
 
-function sampledPortraitOverlayGradient(layout, imageBoundaryStop, bottomShade) {
-  const edge = brandEdgeColor(layout, "bottom");
+// colorOverride (voliteľné): nahradí brandEdgeColor(layout,"bottom") —
+// ten je navzorkovaný z konkrétneho miesta fotky a pri tmavšom odeve/tieni
+// tam dá tmavú, bahnistú farbu. buildMasterSafeLayout posiela
+// brandColor(layout) (pravidlo 1, jedna pevná farba); buildCleanImageLayout
+// (iný profil, mimo dnešného rozsahu) toto zatiaľ neposiela, nezmenené.
+function sampledPortraitOverlayGradient(layout, imageBoundaryStop, bottomShade, colorOverride) {
+  const edge = colorOverride || brandEdgeColor(layout, "bottom");
   const dark = shadedColor(edge, typeof bottomShade === "number" ? bottomShade : 0.46);
   const boundary = clamp(imageBoundaryStop, 0.16, 0.72);
   const firstDark = Math.max(0.06, boundary * 0.48);
@@ -1334,8 +1339,12 @@ function getReadablePad(format) {
 
 // Google RSA / Demand Gen image assets: no text, no logo.
 function buildCleanImageLayout(frame, format, layout, figmaImage) {
+  // Pravidlo 1: Surď používa JEDNU pevnú sýtu brand farbu (#c55e4d na
+  // 0:40/0:13), nie gradient vzorkovaný po výškach fotky — ten pri tmavšom
+  // odeve/tieni na konkrétnom mieste fotky dá tmavú, bahnistú farbu presne
+  // tam. sampledBrandGradient nahradená pevnou brandColor(layout).
   frame.fills = layout.asset_fallback_kind
-    ? [sampledBrandGradient(layout, 1)]
+    ? [{ type: "SOLID", color: brandColor(layout) }]
     : [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
   if (layout.asset_fallback_kind && figmaImage && CUR_IMG_W && CUR_IMG_H) {
     // Protected single-master rule applies to clean assets too. Preserve the
@@ -2273,7 +2282,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
          : (format.width / format.height >= 1.8 ? 0.36 : 0.5))
   };
   const pad = TB.padding(format.width, format.height);
-  frame.fills = [sampledBrandGradient(layout, 1)];
+  // Pravidlo 1: Surď používa jednu pevnú sýtu brand farbu (#c55e4d na
+  // 0:40/0:13/0:4), nie gradient vzorkovaný po výškach fotky. Ten pri
+  // tmavšom mieste na fotke (napr. tmavá sukňa) dal viditeľne tmavú,
+  // bahnistú škvrnu presne tam — nie umelé stmavenie (to už bolo
+  // opravené), ale reálne navzorkovaná tmavá farba použitá ako "brand".
+  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
 
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.75);
@@ -2429,11 +2443,15 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       const boundaryStop = (portraitImageH - panelY) / Math.max(1, format.height - panelY);
       // Krok 3 pravidlo 2: bottomShade=0.46 stmavovalo brand farbu na 46 %
       // jasu kvôli kontrastu (bahnistá hnedá, viditeľná na 960×1200). 1 =
-      // shadedColor je no-op, panel dobieha na čistú brandColor. Druhé
-      // volanie tejto funkcie (buildCleanImageLayout, riadok ~1365) je mimo
-      // Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
-      noteContrastIfLow(layout, brandEdgeColor(layout, "bottom"), { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
-      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 1)];
+      // shadedColor je no-op. Ďalšia oprava (dnes): brandEdgeColor(layout,
+      // "bottom") je navzorkovaná PRIAMO z fotky pri jej dolnom okraji —
+      // pri tmavom odeve/tieni práve tam dá tmavú, bahnistú farbu (nie
+      // umelé stmavenie, reálna vzorka). colorOverride=brandColor(layout)
+      // (pravidlo 1, jedna pevná farba) to nahrádza. Druhé volanie tejto
+      // funkcie (buildCleanImageLayout) je mimo dnešného rozsahu, nezmenené.
+      const portraitPanelColor = brandColor(layout);
+      noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
+      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 1, portraitPanelColor)];
       frame.appendChild(adaptivePanel);
       layout.kv_strategy = "master-protected-single-master";
     } else {

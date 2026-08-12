@@ -1343,16 +1343,20 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
     // a face-only portrait or a vertically sliced landscape crop.
     const family = format.width / format.height >= 1.25 ? "wide" :
       (format.width / format.height <= 0.8 ? "portrait" : "square");
-    // Krok 4c: predimenzovanie len pre square/portrait (zone == celý frame,
-    // rovnaká báza ako v addMasterCoreImage) — wide necháva pôvodné CONTAIN
-    // zarovnanie, samostatné meranie/kolo ako inde.
+    // Krok 4c: predimenzovanie pre VŠETKY tri rodiny — na rozdiel od
+    // buildMasterSafeLayout tu zóna vždy == celý frame (clean_image nemá
+    // textový panel, ktorý by wide zúžil na 75 % šírky), takže rovnaká báza
+    // (oversizeFrameRatio, nie WIDE_KV_ZONE_MULTIPLIER) platí aj pre wide.
+    // Pri ratio <= 1,00 (wide) sa interpolácia zastropuje na hodnote pre
+    // štvorec (×1,357) — nemáme samostatné meranie pre clean_image wide,
+    // toto je rozumný, konzervatívny predvolený stav.
     addProtectedImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Adapted clean master — full composition",
       [0, 0, format.width, format.height],
       family === "wide" ? { x: 0, y: 0.5 } :
         (family === "portrait" ? { x: 0.5, y: 0 } : { x: 0.5, y: 0.5 }),
-      family === "wide" ? undefined : (format.height / format.width)
+      format.height / format.width
     );
     if (family === "portrait") {
       // Musí zodpovedať PRESNE tomu, čo addProtectedImageFrame vyššie
@@ -1390,13 +1394,13 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
       y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
     };
-    // Krok 4c: predimenzovanie pre square/portrait (rovnaká báza ako
-    // ostatné dve volania); wide necháva pôvodné cover+overscan zarovnanie.
+    // Krok 4c: predimenzovanie pre všetky tri rodiny (rovnaký dôvod ako pri
+    // addProtectedImageFrame vyššie — zone == celý frame aj pre wide).
     addFocalImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Image asset - no text / no logo", [0, 0, format.width, format.height],
       cleanFocal, { x: 0.5, y: cleanRatio > 1.45 ? 0.62 : 0.5 }, 1.08,
-      cleanRatio > 1.45 ? undefined : (1 / cleanRatio)
+      1 / cleanRatio
     );
   }
 }

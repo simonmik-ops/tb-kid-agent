@@ -1385,46 +1385,21 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       const wideImageRightEdge = Math.round(CUR_IMG_W * wideScale);
       if (wideImageRightEdge < format.width - 1) {
         const stripW = Math.min(format.width - wideImageRightEdge, Math.round(clamp(format.width * 0.113, 60, 160)));
-        // Jeden plochý flat pás nesedel na tmavnúci chvost
-        // sampledBrandGradient v spodnej časti — vytváral vlastný svetlejší
-        // zvislý prúžok (viditeľné na 1200×628 Clean assets). Namiesto
-        // jednej flat farby sa pás rozdelí na vodorovné pásma podľa
-        // rovnakých stopov, aké má frame.fills (sampledBrandGradient), takže
-        // pravý okraj pásu vždy sedí s lokálnou farbou pozadia za ním.
-        const bgStops = sampledBrandGradient(layout, 1).gradientStops
-          .slice().sort(function (a, b) { return a.position - b.position; });
-        const bands = figma.createFrame();
-        bands.name = "Clean wide seam blend";
-        bands.resize(stripW, format.height);
-        bands.x = wideImageRightEdge;
-        bands.y = 0;
-        bands.fills = [];
-        bands.clipsContent = true;
-        frame.appendChild(bands);
-        for (let i = 0; i < bgStops.length - 1; i++) {
-          const top = bgStops[i], bottom = bgStops[i + 1];
-          const bandY = Math.round(top.position * format.height);
-          const bandH = Math.max(1, Math.round(bottom.position * format.height) - bandY);
-          const c = {
-            r: (top.color.r + bottom.color.r) / 2,
-            g: (top.color.g + bottom.color.g) / 2,
-            b: (top.color.b + bottom.color.b) / 2
-          };
-          const band = figma.createRectangle();
-          band.name = "seam band " + i;
-          band.resize(stripW, bandH);
-          band.x = 0;
-          band.y = bandY;
-          band.fills = [{
-            type: "GRADIENT_LINEAR",
-            gradientTransform: [[1, 0, 0], [0, 1, 0]],
-            gradientStops: [
-              { position: 0, color: { r: c.r, g: c.g, b: c.b, a: 0 } },
-              { position: 1, color: { r: c.r, g: c.g, b: c.b, a: 1 } }
-            ]
-          }];
-          bands.appendChild(band);
-        }
+        const stripColor = brandColor(layout);
+        const strip = figma.createRectangle();
+        strip.name = "Clean wide seam blend";
+        strip.resize(stripW, format.height);
+        strip.x = wideImageRightEdge;
+        strip.y = 0;
+        strip.fills = [{
+          type: "GRADIENT_LINEAR",
+          gradientTransform: [[1, 0, 0], [0, 1, 0]],
+          gradientStops: [
+            { position: 0, color: { r: stripColor.r, g: stripColor.g, b: stripColor.b, a: 0 } },
+            { position: 1, color: { r: stripColor.r, g: stripColor.g, b: stripColor.b, a: 1 } }
+          ]
+        }];
+        frame.appendChild(strip);
       }
     }
     if (family === "portrait") {

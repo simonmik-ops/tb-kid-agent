@@ -2367,11 +2367,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
     const textRight = cb.x + cb.w - pad;
     const textW = Math.max(60, textRight - textX);
-    const panel = figma.createRectangle();
+    const panel = figma.createFrame();
     panel.name = "Wide content panel";
     panel.resize(format.width - panelX, format.height);
     panel.x = panelX;
     panel.y = 0;
+    panel.clipsContent = true;
     const imageBoundaryStop = Math.min(0.99, Math.max(0.01,
       (imageW - panelX) / (format.width - panelX)));
     const textStartStop = Math.min(imageBoundaryStop - 0.01, Math.max(0.01,
@@ -2393,6 +2394,35 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(panel);
+    // Surďova referencia pre wide Performance/Meta (d51uxTh8YqPdHujzi1Plt6,
+    // 0:82 "Google – Performance Max") nerozširuje fotku len plochou farbou —
+    // žiariaci prstenec za modelkou pokračuje aj do doplnenej zóny (u Surďa
+    // booleovské maskované prstence vyplnené kópiou pozadia, nody 0:90/0:95).
+    // Naša KV je jeden plochý foto súbor (subjekt a pozadie nie sú oddelené
+    // vrstvy), takže presnú booleovskú geometriu nemožno 1:1 preniesť —
+    // namiesto toho mäkký radiálny glow, ktorého stred je kalibrovaný na
+    // skutočne odmeranú polohu žiary v Surďovej vykreslenej referencii
+    // (surdo_wide_628.png, pixelovo zmerané: ~54 % šírky, ~34 % výšky
+    // frameu). panel.clipsContent orezáva glow presne na panel — nemôže
+    // teda nikdy prekryť skutočnú fotku vľavo od panelX.
+    const glowCxFrame = format.width * 0.54;
+    const glowCyFrame = format.height * 0.34;
+    const glowR = format.height * 0.62;
+    const glow = figma.createEllipse();
+    glow.name = "Wide panel glow continuation";
+    glow.resize(glowR * 2, glowR * 2);
+    glow.x = (glowCxFrame - glowR) - panel.x;
+    glow.y = (glowCyFrame - glowR) - panel.y;
+    glow.fills = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: [[0.5, 0, 0.5], [0, 0.5, 0.5]],
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 1, b: 1, a: 0.55 } },
+        { position: 0.45, color: { r: brand.r, g: brand.g, b: brand.b, a: 0.25 } },
+        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } }
+      ]
+    }];
+    panel.appendChild(glow);
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);
     const wClear = TB.logoClear(format.width, format.height);

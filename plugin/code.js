@@ -2468,36 +2468,64 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         : Math.round(format.height * 0.62);
       // Keep the square master at full target width. The older 62%-high
       // contain box shrank 4:5 masters and created side bars; cover-cropping
-      // the same input made the face unacceptably large. A colour overlay
-      // begins inside the lower extension zone and becomes opaque exactly by
-      // the image boundary, leaving room for copy without a hard horizontal
-      // band.
+      // the same input made the face unacceptably large.
       const portraitImageH = Math.min(format.height, fittedMasterH);
-      addProtectedImageFrame(
-        frame, figmaImage, imageSize, "Protected single master — portrait image zone",
-        [0, 0, format.width, portraitImageH], { x: 0.5, y: 0 }
-      );
       const panelY = Math.min(
         Math.round(format.height * 0.58),
         Math.round(portraitImageH * 0.78)
       );
+      // Krok 3 pravidlo 1+2: brandEdgeColor(layout,"bottom") vzorkuje reálnu
+      // farbu spodného okraja fotky — pri tmavom oblečení/tieni to bola
+      // tmavohnedá/gaštanová plocha namiesto brand farby (nahlásené ako
+      // "hnedý panel"). brandColor(layout) vynúti čistú, jednotnú brand farbu
+      // bez stmavovania (pravidlo 2). frame.fills je už táto istá farba
+      // (riadok vyššie), panel tu ostáva ako explicitný, testovaný layer.
+      const portraitPanelColor = brandColor(layout);
+      noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
       const adaptivePanel = figma.createRectangle();
       adaptivePanel.name = "Adaptive portrait content panel";
       adaptivePanel.resize(format.width, format.height - panelY);
       adaptivePanel.x = 0;
       adaptivePanel.y = panelY;
-      const boundaryStop = (portraitImageH - panelY) / Math.max(1, format.height - panelY);
-      // Krok 3 pravidlo 1+2: brandEdgeColor(layout,"bottom") vzorkuje reálnu
-      // farbu spodného okraja fotky — pri tmavom oblečení/tieni to bola
-      // tmavohnedá/gaštanová plocha namiesto brand farby (nahlásené ako
-      // "hnedý panel" a "vidieť prechody"). colorOverride = brandColor(layout)
-      // vynúti čistú, jednotnú brand farbu bez stmavovania (pravidlo 2).
-      // Druhé volanie tejto funkcie (buildCleanImageLayout, riadok ~1365) je
-      // mimo Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
-      const portraitPanelColor = brandColor(layout);
-      noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
-      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 1, portraitPanelColor)];
+      adaptivePanel.fills = [{ type: "SOLID", color: portraitPanelColor }];
       frame.appendChild(adaptivePanel);
+
+      const kvHolder = addProtectedImageFrame(
+        frame, figmaImage, imageSize, "Protected single master — portrait image zone",
+        [0, 0, format.width, portraitImageH], { x: 0.5, y: 0 }
+      );
+      // Pravidlo 3 (po neúspešnom pokuse c5b762a na clean_image wide, kde
+      // kvRect nemusel byť spoľahlivo skutočný obrázok — revertnuté):
+      // addProtectedImageFrame tu vždy vracia holder s presne jedným
+      // dieťaťom (samotný "Key visual — protected full master" rect, viď
+      // funkcia vyššie), takže children[0] je spoľahlivé. Fotka sa rozplýva
+      // cez alfa masku priamo na tomto recte — nie cez polopriehľadný
+      // obdĺžnik nad neporušenou fotkou (to bol predošlý, nesprávny prístup
+      // cez sampledPortraitOverlayGradient). Pravidlo 4: rampa je dlhá
+      // (namerané u Surďa 26–41 % výšky formátu), nie krátka ~12 % ako
+      // predtým — a dokončí sa presne na hranici portraitImageH, kde
+      // začína adaptivePanel, takže bez šva.
+      const kvRect = kvHolder && kvHolder.children && kvHolder.children[0];
+      if (kvRect) {
+        const fadeSpan = Math.round(format.height * 0.33);
+        const fadeEnd = portraitImageH;
+        const fadeStart = Math.max(0, fadeEnd - fadeSpan);
+        const fadeMask = figma.createRectangle();
+        fadeMask.name = "Key visual bottom fade mask";
+        fadeMask.resize(format.width, Math.max(1, fadeEnd - fadeStart));
+        fadeMask.x = 0;
+        fadeMask.y = fadeStart;
+        fadeMask.fills = [{
+          type: "GRADIENT_LINEAR",
+          gradientTransform: [[0, 1, 0], [1, 0, 0]],
+          gradientStops: [
+            { position: 0, color: { r: 1, g: 1, b: 1, a: 1 } },
+            { position: 1, color: { r: 1, g: 1, b: 1, a: 0 } }
+          ]
+        }];
+        fadeMask.isMask = true;
+        kvHolder.appendChild(fadeMask);
+      }
       layout.kv_strategy = "master-protected-single-master";
     } else {
       addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides, format.height / format.width);

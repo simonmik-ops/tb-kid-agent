@@ -1346,8 +1346,15 @@ function getReadablePad(format) {
 
 // Google RSA / Demand Gen image assets: no text, no logo.
 function buildCleanImageLayout(frame, format, layout, figmaImage) {
+  // Surďova referencia (d51uxTh8YqPdHujzi1Plt6) má pozadie VŽDY jedna plochá
+  // brand farba na celom plátne, nikdy vertikálne stmavujúci sampledBrandGradient.
+  // V tejto funkcii je frame.fills viditeľný LEN na wide (1200×628) letterboxe
+  // za "Clean wide seam blend" pásom — všade inde (square/portrait) obrázok
+  // alebo panel vždy prekrýva celý frame, takže zmena je tam neviditeľná/
+  // bezpečná. Plochá farba tu odstraňuje nesúlad medzi flat pásom a
+  // tmavnúcim chvostom gradientu za ním (zvyšný "pruh" na Clean assets 1200×628).
   frame.fills = layout.asset_fallback_kind
-    ? [sampledBrandGradient(layout, 1)]
+    ? [{ type: "SOLID", color: brandColor(layout) }]
     : [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
   if (layout.asset_fallback_kind && figmaImage && CUR_IMG_W && CUR_IMG_H) {
     // Protected single-master rule applies to clean assets too. Preserve the

@@ -183,7 +183,7 @@ async function analyzeVisual(imageBase64, mediaType) {
   "recommended_focal_x": 0.5,
   "recommended_focal_y": 0.5
 }
-bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je true ak je vizuál príliš detailný/rušný na použitie v malom priestore (napr. veľa postáv, rušné pozadie). has_text je true ak je v obrázku už vypálený (natívny) text/headline. has_logo je true ak je v obrázku už viditeľné akékoľvek logo alebo brand mark (napr. VISA, značka produktu) — nepočíta sa Tatra banka logo, ktoré dopĺňa nástroj.`
+bg_r/g/b sú hodnoty 0.0–1.0 farby pozadia — NIE priemer ani najsvetlejšie/najvýraznejšie miesto celej plochy. Vzorkuj konkrétne z tmavšej, tieňovanej časti steny za objektom (typicky dolná alebo bočná časť pozadia, mimo hlavného svetla/glow efektu okolo objektu), ale ešte nie z najtmavšieho rohového tieňa. Overené na referenčnom vizuáli: jasná horná časť steny je cca (0.97, 0.48, 0.40), samotný rohový tieň cca (0.55, 0.25, 0.21), a správna vzorkovaná hodnota (0.77, 0.37, 0.30) leží medzi nimi, bližšie k tieňu. is_complex_visual je true ak je vizuál príliš detailný/rušný na použitie v malom priestore (napr. veľa postáv, rušné pozadie). has_text je true ak je v obrázku už vypálený (natívny) text/headline. has_logo je true ak je v obrázku už viditeľné akékoľvek logo alebo brand mark (napr. VISA, značka produktu) — nepočíta sa Tatra banka logo, ktoré dopĺňa nástroj.`
         }
       ]
     }]

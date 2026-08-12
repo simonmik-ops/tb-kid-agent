@@ -1372,7 +1372,7 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
     // kdekoľvek, niečo výrazné sa odreže. Nemáme skutočné meranie pre
     // clean_image wide (na rozdiel od buildMasterSafeLayout, kde je 0:21) —
     // vrátené na pôvodné, bezpečné CONTAIN zarovnanie.
-    addProtectedImageFrame(
+    const cleanMasterHolder = addProtectedImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Adapted clean master — full composition",
       [0, 0, format.width, format.height],
@@ -1381,32 +1381,32 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       family === "wide" ? undefined : (format.height / format.width)
     );
     if (family === "wide") {
-      // Krok 4a (clean_image wide): CONTAIN necháva ostrú hranu presne tam,
-      // kde končí obrázok (628 px pri 1200×628) — vidieť šev voči
-      // sampledBrandGradient pozadiu za ním. Surďova referencia (0:21) rieši
-      // presne toto úzkym "prechod" pásom (136 px pri 1200 px šírke) —
-      // plná brand farba odkrývaná lineárnou alpha rampou. Rovnaký princíp
-      // tu, bez zásahu do CONTAIN geometrie obrázka (žiadne riziko
-      // opakovania orezanej hlavy z 0fec0a7).
-      const wideScale = Math.min(format.width / CUR_IMG_W, format.height / CUR_IMG_H);
-      const wideImageRightEdge = Math.round(CUR_IMG_W * wideScale);
-      if (wideImageRightEdge < format.width - 1) {
-        const stripW = Math.min(format.width - wideImageRightEdge, Math.round(clamp(format.width * 0.113, 60, 160)));
-        const stripColor = brandColor(layout);
-        const strip = figma.createRectangle();
-        strip.name = "Clean wide seam blend";
-        strip.resize(stripW, format.height);
-        strip.x = wideImageRightEdge;
-        strip.y = 0;
-        strip.fills = [{
+      // Pravidlo 3 (opatrne, po dvoch neúspešných pokusoch s vedľajším
+      // farebným pásom — a798494/2a499d1 revertnuté): namiesto samostatného
+      // obdĺžnika sa teraz feathruje priamo alfa samotného KV na jeho
+      // pravom okraji cez Figma isMask. frame.fills je už plochá brandColor
+      // (8623b0d), takže odhalené pozadie za vyblednutou fotkou sedí presne
+      // — žiadny samostatný pás už netreba, nie je čo zosúlaďovať.
+      const kvRect = cleanMasterHolder && cleanMasterHolder.children &&
+        cleanMasterHolder.children[0];
+      if (kvRect && kvRect.width < format.width - 1) {
+        const featherW = Math.min(kvRect.width, Math.round(clamp(format.width * 0.113, 60, 160)));
+        const maskStart = Math.max(0, (kvRect.width - featherW) / kvRect.width);
+        const mask = figma.createRectangle();
+        mask.name = "Key visual edge feather mask";
+        mask.resize(kvRect.width, kvRect.height);
+        mask.x = kvRect.x;
+        mask.y = kvRect.y;
+        mask.fills = [{
           type: "GRADIENT_LINEAR",
           gradientTransform: [[1, 0, 0], [0, 1, 0]],
           gradientStops: [
-            { position: 0, color: { r: stripColor.r, g: stripColor.g, b: stripColor.b, a: 0 } },
-            { position: 1, color: { r: stripColor.r, g: stripColor.g, b: stripColor.b, a: 1 } }
+            { position: maskStart, color: { r: 1, g: 1, b: 1, a: 1 } },
+            { position: 1, color: { r: 1, g: 1, b: 1, a: 0 } }
           ]
         }];
-        frame.appendChild(strip);
+        mask.isMask = true;
+        cleanMasterHolder.appendChild(mask);
       }
     }
     if (family === "portrait") {

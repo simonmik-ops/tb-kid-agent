@@ -2011,10 +2011,55 @@ function addProtectedImageFrame(parent, figmaImage, imageSize, name, zone, align
   return holder;
 }
 
+// Krok 4c: namerané priamo z referenčného VIZUAL-KV (d51uxTh8YqPdHujzi1Plt6,
+// node 0:40/0:13/0:4 — get_metadata) — Surďov štvorcový KV je vždy VÄČŠÍ
+// než šírka frameu, násobok rastie s tým, aký je formát vysoký:
+//   1200×1200 (pomer 1,00) → KV 1628×1628 = ×1,357 šírky frameu
+//   1200×1628 (pomer 1,357) → KV 1842×1842 = ×1,535 šírky frameu
+//   1080×1920 (pomer 1,778) → KV 1686×1686 = ×1,561 šírky frameu
+function interpolateMeasured(points, key, x) {
+  if (x <= points[0].r) return points[0][key];
+  const last = points[points.length - 1];
+  if (x >= last.r) return last[key];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    if (x >= a.r && x <= b.r) {
+      const t = (x - a.r) / (b.r - a.r);
+      return a[key] + (b[key] - a[key]) * t;
+    }
+  }
+  return last[key];
+}
+const KV_OVERSIZE_POINTS = [
+  { r: 1.00, m: 1.357 },
+  { r: 1.357, m: 1.535 },
+  { r: 1.778, m: 1.561 }
+];
+function kvOversizeMultiplier(ratioHW) {
+  return interpolateMeasured(KV_OVERSIZE_POINTS, "m", ratioHW);
+}
+// Zvislý stred predimenzovaného KV ako podiel výšky zóny — namerané z tých
+// istých troch node-ov (stred VIZUAL-KV, nie jeho horná hrana). Subjekt tak
+// ostáva v hornej/strednej tretine namiesto na geometrickom strede.
+const KV_VCENTER_POINTS = [
+  { r: 1.00, f: 0.417 },
+  { r: 1.357, f: 0.423 },
+  { r: 1.778, f: 0.298 }
+];
+function kvVerticalCenterFrac(ratioHW) {
+  return interpolateMeasured(KV_VCENTER_POINTS, "f", ratioHW);
+}
+
 // TP master: 4000×4000 s dôležitým obsahom v stredových 2000×2000.
 // Do obrazovej zóny vkladáme celý master. Centrálne jadro je ochrana proti
 // orezu vonkajších okrajov, nie pokyn zväčšiť jadro na celý cieľový formát.
-function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide) {
+// oversizeFrameRatio (voliteľné): keď je zadané (format.height/format.width
+// CELÉHO frameu, nie zóny), použije sa Krok 4c predimenzovanie namiesto
+// pôvodného 1,06× cover-presahu. Zámerne len tam, kde zone == celý frame
+// (square/portrait volanie) — wide volanie (zone = 75 % šírky sub-zóna)
+// tento parameter zatiaľ neposiela, jeho predimenzovanie je samostatné
+// kolo (iný pomer KV k zóne, iné referenčné meranie).
+function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuide, oversizeFrameRatio) {
   const holder = figma.createFrame();
   holder.name = "TP master — centrálne jadro 50 %";
   holder.resize(zone[2], zone[3]);
@@ -2029,20 +2074,35 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
     return holder;
   }
 
-  // Jemný presah odstráni 1–2 % technický/brandový okraj, ktorý býva
-  // súčasťou exportovaného KV. Centrálne 50 % jadro ostáva bezpečné.
-  const scale = Math.max(
-    zone[2] / imageSize.width,
-    zone[3] / imageSize.height
-  ) * 1.06;
+  let scale, rectX, rectY;
+  if (typeof oversizeFrameRatio === "number") {
+    scale = (zone[2] / imageSize.width) * kvOversizeMultiplier(oversizeFrameRatio);
+  } else {
+    // Jemný presah odstráni 1–2 % technický/brandový okraj, ktorý býva
+    // súčasťou exportovaného KV. Centrálne 50 % jadro ostáva bezpečné.
+    scale = Math.max(
+      zone[2] / imageSize.width,
+      zone[3] / imageSize.height
+    ) * 1.06;
+  }
   const renderedW = imageSize.width * scale;
   const renderedH = imageSize.height * scale;
   const rect = figma.createRectangle();
   rect.name = "Master visual — 2000×2000 core";
   rect.resize(renderedW, renderedH);
   rect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
-  rect.x = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
-  rect.y = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
+  if (typeof oversizeFrameRatio === "number") {
+    // Vodorovne na stred (overené na troch referenčných node-och — KV
+    // presahuje frame symetricky na oboch stranách, motív preto pretína
+    // obe hrany). Zvisle podľa nameraného zvislého stredu.
+    rectX = Math.round((zone[2] - renderedW) / 2);
+    rectY = Math.round(kvVerticalCenterFrac(oversizeFrameRatio) * zone[3] - renderedH / 2);
+  } else {
+    rectX = clamp(zone[2] * 0.5 - clamp(focal.x, 0.25, 0.75) * renderedW, zone[2] - renderedW, 0);
+    rectY = clamp(zone[3] * 0.5 - clamp(focal.y, 0.20, 0.75) * renderedH, zone[3] - renderedH, 0);
+  }
+  rect.x = rectX;
+  rect.y = rectY;
   holder.appendChild(rect);
 
   if (showGuide) {
@@ -2307,7 +2367,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       frame.appendChild(adaptivePanel);
       layout.kv_strategy = "master-protected-single-master";
     } else {
-      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides);
+      addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, format.width, format.height], focal, content.showGuides, format.height / format.width);
     }
 
     const headlineSize = TB.headline(format.width, format.height);

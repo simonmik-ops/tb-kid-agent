@@ -2367,11 +2367,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
     const textRight = cb.x + cb.w - pad;
     const textW = Math.max(60, textRight - textX);
-    const panel = figma.createRectangle();
+    const panel = figma.createFrame();
     panel.name = "Wide content panel";
     panel.resize(format.width - panelX, format.height);
     panel.x = panelX;
     panel.y = 0;
+    panel.clipsContent = true;
     const imageBoundaryStop = Math.min(0.99, Math.max(0.01,
       (imageW - panelX) / (format.width - panelX)));
     const textStartStop = Math.min(imageBoundaryStop - 0.01, Math.max(0.01,
@@ -2393,6 +2394,36 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ]
     }];
     frame.appendChild(panel);
+    // Krok 3 (Performance/Meta wide) — 2. pokus, tentoraz overený priamo
+    // proti izolovanému renderu Surďovej "O maska" vrstvy (d51uxTh8YqPdLM..
+    // Plt6, 0:90), nie proti fotke kontaminovanej ikonou "5"/€. Pixelové
+    // meranie (ring_mask_alone.png): skutočný biely vrchol žiary leží pri
+    // ~5 % šírky / ~4 % výšky frameu — teda VNÚTRI fotky, nie v strede
+    // panelu. Prvý pokus (revertnutý) mal stred na 54 % šírky = priamo v
+    // paneli, čo vytváralo druhú, nenapojenú žiaru namiesto plynulého
+    // dobehu tej existujúcej. Teraz: stred blízko ľavého horného rohu
+    // frameu (vnútri obrázka), veľký polomer — v paneli je tak vidieť len
+    // mäkký, doznievajúci chvost, presne ako u Surďa. panel.clipsContent
+    // orezáva glow presne na panel, takže nemôže prekryť fotku vľavo.
+    const glowCxFrame = format.width * 0.12;
+    const glowCyFrame = format.height * 0.15;
+    const glowR = format.width * 0.85;
+    const glow = figma.createEllipse();
+    glow.name = "Wide panel glow continuation";
+    glow.resize(glowR * 2, glowR * 2);
+    glow.x = (glowCxFrame - glowR) - panel.x;
+    glow.y = (glowCyFrame - glowR) - panel.y;
+    glow.fills = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: [[0.5, 0, 0.5], [0, 0.5, 0.5]],
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 1, b: 1, a: 0.8 } },
+        { position: 0.35, color: { r: 1, g: 1, b: 1, a: 0.3 } },
+        { position: 0.7, color: { r: brand.r, g: brand.g, b: brand.b, a: 0.1 } },
+        { position: 1, color: { r: brand.r, g: brand.g, b: brand.b, a: 0 } }
+      ]
+    }];
+    panel.appendChild(glow);
     const headlineSize = TB.headline(format.width, format.height);
     const wLogo = TB.logoBox(format.width, format.height);
     const wClear = TB.logoClear(format.width, format.height);

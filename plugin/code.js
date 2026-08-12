@@ -1370,6 +1370,12 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       // extension" panel vychádza z geometrie starého (menšieho) obrázka a
       // sedí na nesprávnom mieste — buď sa prekrýva s (teraz väčším)
       // obrázkom, alebo necháva medzeru.
+      //
+      // Pravidlo 1+2/3+4 (rovnaký fix ako 036aa5c + 8acb2ce pre
+      // buildMasterSafeLayout): brandEdgeColor(layout,"bottom") tu vzorkovala
+      // tmavý spodný okraj fotky namiesto brand farby — rovnaký "hnedý
+      // panel" bug, len na clean_image profile. sampledPortraitOverlayGradient
+      // už má čisto lineárnu rampu (8acb2ce), takže tu treba len farbu.
       const cleanRatioHW = format.height / format.width;
       const cleanScale = (format.width / CUR_IMG_W) * kvOversizeMultiplier(cleanRatioHW);
       const cleanRenderedH = CUR_IMG_H * cleanScale;
@@ -1384,7 +1390,7 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
         extension.y = extensionY;
         const cleanBoundaryStop = (cleanImageH - extensionY) /
           Math.max(1, format.height - extensionY);
-        extension.fills = [sampledPortraitOverlayGradient(layout, cleanBoundaryStop, 0.78)];
+        extension.fills = [sampledPortraitOverlayGradient(layout, cleanBoundaryStop, 1, brandColor(layout))];
         frame.appendChild(extension);
       }
     }

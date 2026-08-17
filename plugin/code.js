@@ -60,8 +60,18 @@ figma.ui.onmessage = async (msg) => {
   }
   if (msg.type === "create-frames") {
     try {
+      const p = msg.payload || {};
+      console.log("[TB] create-frames prijate. bytes: square=" +
+        (p.kvSquareBytes ? p.kvSquareBytes.length : 0) + " portrait=" +
+        (p.kvPortraitBytes ? p.kvPortraitBytes.length : 0) + " landscape=" +
+        (p.kvLandscapeBytes ? p.kvLandscapeBytes.length : 0) + " logo=" +
+        (p.logoBytes ? p.logoBytes.length : 0) + " formats=" +
+        (p.formats ? p.formats.length : 0));
+      const t0 = Date.now();
       await createAllFrames(msg.payload);
+      console.log("[TB] createAllFrames hotovo za " + (Date.now() - t0) + " ms");
     } catch (err) {
+      console.error("[TB] create-frames zlyhalo:", err);
       figma.ui.postMessage({ type: "error", message: err.message });
     }
   }
@@ -498,14 +508,22 @@ async function createAllFrames({
   await figma.loadFontAsync({ family: "Inter", style: "Bold" });
   await resolveBrandFont(); // Tatra banka Sans, fallback Inter
 
-  function mkImage(bytes) {
+  function mkImage(bytes, label) {
     if (!bytes || !bytes.length) return null;
-    try { return figma.createImage(new Uint8Array(bytes)); } catch (e) { return null; }
+    const t0 = Date.now();
+    try {
+      const img = figma.createImage(new Uint8Array(bytes));
+      console.log("[TB] figma.createImage(" + label + ") hotovo za " + (Date.now() - t0) + " ms, hash=" + img.hash);
+      return img;
+    } catch (e) {
+      console.error("[TB] figma.createImage(" + label + ") zlyhalo po " + (Date.now() - t0) + " ms:", e);
+      return null;
+    }
   }
   // KV pre 3 orientácie; imageBytes = spätná kompatibilita (starý single vstup → štvorec)
-  const imgSquare = mkImage(kvSquareBytes || imageBytes);
-  const imgPortrait = mkImage(kvPortraitBytes);
-  const imgLandscape = mkImage(kvLandscapeBytes);
+  const imgSquare = mkImage(kvSquareBytes || imageBytes, "square");
+  const imgPortrait = mkImage(kvPortraitBytes, "portrait");
+  const imgLandscape = mkImage(kvLandscapeBytes, "landscape");
 
   function assetKindForFormat(format) {
     const r = format.width / format.height;
@@ -543,7 +561,7 @@ async function createAllFrames({
     try { figmaImageSize = await figmaImage.getSizeAsync(); } catch (e) { figmaImageSize = null; }
   }
 
-  var figmaLogo = mkImage(logoBytes);
+  var figmaLogo = mkImage(logoBytes, "logo");
 
   const byChannel = {};
   for (const item of formats) {
@@ -581,6 +599,8 @@ async function createAllFrames({
 
     for (const item of items) {
       const format = item.format;
+      const __itemT0 = Date.now();
+      console.log("[TB] frame " + (allFrames.length + 1) + "/" + formats.length + " start: " + format.id + " (" + format.width + "x" + format.height + ")");
       // Excel cesta: keď layout nepríde zo servera, vyrieš ho lokálne z rozmerov.
       const layout = item.layout || resolveLayoutLocal(format);
 
@@ -819,6 +839,7 @@ async function createAllFrames({
       allFrames.push(frame);
       xOffset += format.width + 80;
 
+      console.log("[TB] frame " + allFrames.length + "/" + formats.length + " done: " + format.id + " za " + (Date.now() - __itemT0) + " ms");
       figma.ui.postMessage({ type: "progress", done: allFrames.length, total: formats.length });
     }
   }

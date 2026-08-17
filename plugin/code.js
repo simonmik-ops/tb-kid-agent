@@ -380,14 +380,18 @@ function sampledLowerPanelGradient(layout, bottomShade) {
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
       // Max 0.92 este stale takmer uplne prekrylo fotku (vyzeralo to ako
-      // plna farba, nahlasene pri porovnani s PSD — fotka tam je vidno cez
-      // cely frame). Znizene na max 0.60 — brand farba sama osebe uz da
-      // dostatocny kontrast pre biely text (~3,4:1, WCAG pre velky bold
-      // text staci), takze silnejsie stmavenie ani nie je nutne.
-      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.08 } },
-      { position: 0.30, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.26 } },
-      { position: 0.65, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.46 } },
-      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.60 } }
+      // plna farba, porovnane s PSD — fotka tam je vidno cez cely frame).
+      // Znizene na max 0.65. POZOR ale — pri prvom pokuse (0.08→0.26 az do
+      // 30 % panelu) sa headline (zacina ~20-22 % vysky panelu pri 160x600
+      // aj 300x600 — rules.panel a rules.headline v resolveAdformPsdRules)
+      // ocitol v este prilis svetlej casti rampy → nizky kontrast, splyva s
+      // fotkou (nahlasene pri vizualnej kontrole). Rampa teraz stuhne
+      // rychlejsie v prvej tretine (0→0.48 uz na 20 %), aby mala dostatocny
+      // kontrast presne tam, kde realne zacina text, a len pozvoľna dalej.
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
+      { position: 0.20, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.48 } },
+      { position: 0.55, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.58 } },
+      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.65 } }
     ]
   };
 }
@@ -1128,7 +1132,13 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
     // staci ju uznat ako bezpecnu, inak by tento QA hlasil falosny poplach
     // pri kazdom Adform formate.
     const focalCrop = qaFind(frame, "Key visual — focal crop");
-    if (!protectedMaster && !focalCrop) add("qa_unsafe_single_master_crop");
+    // addMasterCoreImage (square-family master_safe, napr. Meta/Google
+    // 1200x1200) pouziva TRETI nazov vrstvy — "Master visual — 2000×2000
+    // core". Chybal v tejto kontrole, takze qa_unsafe_single_master_crop
+    // falosne hlasil pri kazdom takomto formate (potvrdene vo Validation
+    // report — Meta aj Google Demand gen 1200x1200 formaty).
+    const coreMaster = qaFind(frame, "Master visual — 2000×2000 core");
+    if (!protectedMaster && !focalCrop && !coreMaster) add("qa_unsafe_single_master_crop");
     if (protectedMaster && protectedMaster.parent) {
       // Krok 4c zámerne predimenzováva KV nad rámec zóny (holder má
       // clipsContent, takže presah je bezpečne orezaný) — najviac

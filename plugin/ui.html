@@ -849,6 +849,37 @@
         return Array.from(new Uint8Array(b));
       }
 
+      // Plugin main-thread beží vo Figme vo vlastnom WASM sandboxe (jsvm-cpp),
+      // NIE v normálnom prehliadači/Node — má pevný, obmedzený pamäťový heap.
+      // Poslanie print-rozlíšenia mastera (napr. 7000×7000, 50+ MB) cez
+      // postMessage doň spôsobilo priamo overené "Uncaught InternalError: out
+      // of memory" → "Plugin runtime aborted" (celý plugin spadol, 0 frame-ov).
+      // Katalóg formátov má max 2000×1920 (formats.js), master_safe rodina
+      // (kde sa oversize multiplier kvOversizeMultiplier ~1,56× reálne
+      // používa) má frame šírky najviac okolo 1200 px → cieľové rozlíšenie
+      // KV nikdy nepotrebuje viac než ~1900 px. 2400 px dlhšia hrana má
+      // rezervu a zároveň drasticky zníži payload do sandboxu (51 MB →
+      // ~6 MB pri testovacom 7000×7000 masteri).
+      async function capImageSize(file, maxEdge) {
+        if (!file) return file;
+        try {
+          const bitmap = await createImageBitmap(file);
+          if (Math.max(bitmap.width, bitmap.height) <= maxEdge) return file;
+          const scale = maxEdge / Math.max(bitmap.width, bitmap.height);
+          const w = Math.max(1, Math.round(bitmap.width * scale));
+          const h = Math.max(1, Math.round(bitmap.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+          const blob = await new Promise(function (resolve, reject) {
+            canvas.toBlob(function (b) { b ? resolve(b) : reject(new Error("cap failed")); }, "image/png");
+          });
+          return blob;
+        } catch (e) {
+          return file; // fallback: posli original — nezhorsi to oproti sucasnemu stavu
+        }
+      }
+
       let formats, tagging;
 
       if (excelDims && excelDims.length) {
@@ -883,9 +914,9 @@
       const preparedSquare = await normalizeKvFile(selectedFile);
       const preparedPortrait = await normalizeKvFile(selectedPortrait);
       const preparedLandscape = await normalizeKvFile(selectedLandscape);
-      const kvSquareBytes = await toBytes(preparedSquare.file);
-      const kvPortraitBytes = await toBytes(preparedPortrait.file);
-      const kvLandscapeBytes = await toBytes(preparedLandscape.file);
+      const kvSquareBytes = await toBytes(await capImageSize(preparedSquare.file, 2400));
+      const kvPortraitBytes = await toBytes(await capImageSize(preparedPortrait.file, 2400));
+      const kvLandscapeBytes = await toBytes(await capImageSize(preparedLandscape.file, 2400));
       const logoBytes = await toBytes(selectedLogo);
       const kvBg = await kvBackgroundColor(preparedSquare.file);
       const kvEdges = await kvEdgePalette(preparedSquare.file);

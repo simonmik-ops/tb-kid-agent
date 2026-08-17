@@ -366,6 +366,12 @@ function sampledBrandGradient(layout, shade) {
   };
 }
 
+// Skutocny scrim, nie plna nepriehladna plocha — priamo overene proti
+// Adform_dievca.psd (klientom dodany zdroj): fotka je pod textovou zonou
+// stale ciastocne vidno, tmavne plynulo smerom nadol (najsilnejsie pri CTA/
+// legal texte dole). Predtym boli oba stopy a:1 (uplne nepriehladne), co pri
+// full-bleed fotke (Krok — cover-crop namiesto stvorcoveho orezu vyssie)
+// vytvaralo ostry viditelny rez presne na hranici panelu.
 function sampledLowerPanelGradient(layout, bottomShade) {
   const edge = brandEdgeColor(layout, "bottom");
   const dark = shadedColor(edge, typeof bottomShade === "number" ? bottomShade : 0.46);
@@ -373,8 +379,10 @@ function sampledLowerPanelGradient(layout, bottomShade) {
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
-      { position: 0, color: { r: edge.r, g: edge.g, b: edge.b, a: 1 } },
-      { position: 1, color: { r: dark.r, g: dark.g, b: dark.b, a: 1 } }
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.12 } },
+      { position: 0.30, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.40 } },
+      { position: 0.65, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.72 } },
+      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.92 } }
     ]
   };
 }
@@ -1988,21 +1996,21 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     return;
   }
   if (rules.panel) {
-    if (layout && layout.asset_fallback_kind) {
-      const panel = figma.createRectangle();
-      panel.name = "Dark lower panel";
-      panel.resize(rules.panel[2], rules.panel[3]);
-      panel.x = rules.panel[0];
-      panel.y = rules.panel[1];
-      panel.fills = [sampledLowerPanelGradient(layout, 0.46)];
-      frame.appendChild(panel);
-    } else {
-      addSolidRect(
-        frame, "Dark lower panel",
-        rules.panel[0], rules.panel[1], rules.panel[2], rules.panel[3],
-        { r: 0.12, g: 0.10, b: 0.10 }, 0.94
-      );
-    }
+    // Vzdy plynuly gradient vzorkovany z realnej farby dolneho okraja KV
+    // (sampledLowerPanelGradient), nikdy natvrdo cierno-hneda plocha.
+    // Predtym sa tvrdy solid {0.12,0.10,0.10} pouzival mimo asset_fallback_kind
+    // (bezny, nefallback pripad) — tam vznikal ostry rez medzi fotkou a
+    // panelom bez akehokolvek prechodu, presne ten isty typ problemu, aky
+    // sme uz opravili pri portretovom master_safe layoute (Surdova
+    // referencia: panel vzdy nadvazuje na farbu KV, nikdy vlastna nesuvisiaca
+    // farba).
+    const panel = figma.createRectangle();
+    panel.name = "Dark lower panel";
+    panel.resize(rules.panel[2], rules.panel[3]);
+    panel.x = rules.panel[0];
+    panel.y = rules.panel[1];
+    panel.fills = [sampledLowerPanelGradient(layout, 0.46)];
+    frame.appendChild(panel);
     return;
   }
 
@@ -2744,7 +2752,6 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     buildFullBleedLayout(frame, format, layout, content.headline, figmaImage, figmaLogo);
     return;
   }
-  const adaptedPortrait = layout.asset_fallback_kind === "portrait";
   const compactCopy = String(content.headline || "").trim().length <= 22 &&
     !content.badgeText && !content.legalText;
 
@@ -2753,26 +2760,17 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5
   };
-  const adapted = !!layout.asset_fallback_kind;
-  if (adapted && activeTemplate === "adform_970x250") {
-    addProtectedImageFrame(
-      frame, figmaImage, imageSize, "Protected square master — left zone",
-      [0, 0, 425, 250], { x: 1, y: 0.5 }
-    );
-    layout.kv_strategy = "adform-protected-single-master";
-  } else if (adaptedPortrait && activeTemplate === "adform_160x600") {
-    addProtectedImageFrame(
-      frame, figmaImage, imageSize, "Protected square master — top zone",
-      [0, 0, 160, 160], { x: 0.5, y: 0 }
-    );
-    layout.kv_strategy = "adform-protected-single-master";
-  } else if (adaptedPortrait && activeTemplate === "adform_300x600") {
-    addProtectedImageFrame(
-      frame, figmaImage, imageSize, "Protected square master — upper zone",
-      [0, 0, 300, 300], { x: 0.5, y: 0 }
-    );
-    layout.kv_strategy = "adform-protected-single-master";
-  } else if (activeTemplate === "adform_970x250") {
+  // Krok — priamo overene proti realnemu Adform_dievca.psd (dodany klientom):
+  // fotka je VZDY cover-crop cez celu (alebo pri 970x250 lavu) zonu, nikdy
+  // orezana na maly stvorec s oddelenym panelom pod nou. Predtym mal
+  // "adapted"/"adaptedPortrait" (jediny stvorcovy master, co je JEDINY
+  // realny vstup — uzivatel nikdy nenahrava samostatne portrait/landscape
+  // mastery) vlastnu vetvu s addProtectedImageFrame do maleho stvorca —
+  // to vytvaralo tvrdy rez medzi fotkou a panelom namiesto plynuleho
+  // prekryvu ako v PSD. addFocalImageFrame robi cover-crop nezavisle od
+  // pomeru strán zdroja, takze rovnaka zona/focal funguje pre stvorcovy
+  // aj akykolvek iny master — fallback vetvy uz nie su potrebne.
+  if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 }, 1.02);
   } else if (activeTemplate === "adform_160x600") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.48 }, 1.02);

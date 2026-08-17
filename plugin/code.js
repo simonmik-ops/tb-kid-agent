@@ -1894,7 +1894,11 @@ function resolveAdformPsdRules(templateId, content, layout) {
       panel: [0, 160, 160, 440],
       headline: [12, 250, 136, 54], headlineSize: 22,
       cta: [15, 320, 130, 42], bankLogo: [43, 390, 74, 73],
-      ai: [30, 548, 100, 19]
+      // ai bolo na y:548 — logo konci na 390+73=463, takze medzi nimi
+      // zostavala ~85px prazdna medzera (cca 17 % vysky frame-u), nahlasene
+      // pri vizualnej kontrole. Posunute na 483 (~20px pod logom), konzistentne
+      // s tesnejsim rozostupom, aky uz ma 300x600 (logo koniec 542, ai 562).
+      ai: [30, 483, 100, 19]
     });
   }
   return rules;

@@ -2500,7 +2500,17 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         wLogo.width, wLogo.height);
     }
   } else {
-    const adaptedPortrait = family === "portrait" && !!layout.asset_fallback_kind;
+    // Portrét formáty vždy skladajú fotku (fitted na šírku, bez cover-cropu)
+    // + brandový gradient panel pod ňou — presne ako Surďova referencia
+    // (d51uxTh8YqPdHujzi1Plt6, 1080x1920 / 1200x1628: postava hore, plynulý
+    // coral gradient dole, žiadny tmavý scrim navrstvený na fotke). Predtým
+    // sa táto vetva používala len pri asset_fallback_kind (núdzový adapt),
+    // inak sa fotka natiahla cover-crop na celú výšku frame + navyše sa
+    // pridal tmavý "Bottom readability gradient" scrim priamo na fotku —
+    // to orezávalo hlavu na úzkych formátoch a pôsobilo to "špinavo" oproti
+    // referencii. Teraz je fitted+panel vždy default pre celú "portrait"
+    // rodinu; scrim nižšie (riadok ~2634) sa preto vždy skryje.
+    const adaptedPortrait = family === "portrait";
     if (adaptedPortrait) {
       const fittedMasterH = imageSize && imageSize.width
         ? Math.round(format.width * imageSize.height / imageSize.width)
@@ -2535,7 +2545,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // mimo Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
       const portraitPanelColor = brandColor(layout);
       noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
-      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 1, portraitPanelColor)];
+      // bottomShade 0.85, nie 1: priamo zmeraný Surďov panel (0:7 v
+      // d51uxTh8YqPdHujzi1Plt6) je rgb(197,94,77) ≈ (0.77,0.37,0.30) — teda
+      // bližšie k tieňu, presne podľa agent.js promptu ("vzorkuj z tmavšej
+      // časti pozadia, bližšie k tieňu"). Surový layout.bg_r/g/b sa ale
+      // sampluje per-foto a niekedy vyjde svetlejšie, než tento overený
+      // cieľ. 0.85 je jemný "richness floor" (nie kontrastný hack ako
+      // predošlé zavrhnuté shadedColor(...,0.64), ktoré z koralovej robilo
+      // hnedú) — len dorovnáva sýtosť bližšie k referencii, kontrast s
+      // bielym textom to len zlepšuje.
+      adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, boundaryStop, 0.85, portraitPanelColor)];
       frame.appendChild(adaptivePanel);
       layout.kv_strategy = "master-protected-single-master";
     } else {

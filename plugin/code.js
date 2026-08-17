@@ -2676,7 +2676,17 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // s faktorom < 1) — biela na koralovej dá ~3,4 : 1, čo stačí pre veľký
     // Bold text (WCAG 3 : 1). Pre malý text (AI tag), kde to nestačí, sa
     // len zapíše validation_warning nižšie — plocha sa kvôli tomu nemení.
-    const scrimBrand = brandColor(layout);
+    // brandColor(layout) je JEDNA globalna farba z AI vizualnej analyzy
+    // celeho obrazku — pri fotkach s tmavym oblecenim vie AI vzorkovat tu
+    // farbu prave z tej tmavej/tienovej oblasti (miesto skutocneho pozadia),
+    // co pri scrime nad TOU ISTOU oblastou (oblecenie postavy dole) vytvara
+    // viditelnu farebne nesuvisiacu flek oproti okolitej koralovej ploche
+    // (nahlasene pri vizualnej kontrole — fialovo-gastanovy pas cez nohavice).
+    // brandEdgeColor(..., "bottom") uprednostni layout.bg_bottom_r/g/b —
+    // realny pixel vzorok z DOLNEHO OKRAJA KV (kvEdgePalette v ui.html),
+    // teda presne z miesta, kde scrim naozaj sedi, takze farba nadvazuje na
+    // skutocne viditelnu fotku namiesto nesuvisiaceho globalneho odhadu.
+    const scrimBrand = brandEdgeColor(layout, "bottom");
     noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 4.5, "scrim_small_text");
     const scrim = figma.createRectangle();
     scrim.name = "Bottom readability gradient";

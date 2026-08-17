@@ -76,7 +76,7 @@
   <input type="file" id="landscapeInput" accept="image/jpeg,image/png" style="display:none">
   <img id="landscapePreview" class="preview" alt="landscape preview">
 
-  <label>Tatra banka logo / lockup (png, transparentné pozadie)</label>
+  <label>Tatra banka logo / lockup — tmavý variant (png, transparentné pozadie)</label>
   <div class="drop" id="dropLogo" onclick="document.getElementById('logoInput').click()">
     <div class="drop-icon">🏷️</div>
     <div class="drop-text" id="logoDropText">Pretiahni sem alebo klikni</div>
@@ -84,6 +84,15 @@
   </div>
   <input type="file" id="logoInput" accept="image/png" style="display:none">
   <img id="logoPreview" class="preview" alt="logo preview">
+
+  <label>Tatra banka logo / lockup — biely variant (voliteľné, pre tmavé plochy)</label>
+  <div class="drop" id="dropLogoWhite" onclick="document.getElementById('logoWhiteInput').click()">
+    <div class="drop-icon">🏷️</div>
+    <div class="drop-text" id="logoWhiteDropText">Pretiahni sem alebo klikni</div>
+    <div class="drop-hint">Plugin sám vyberie tmavý/biely variant podľa toho, na čom logo sedí</div>
+  </div>
+  <input type="file" id="logoWhiteInput" accept="image/png" style="display:none">
+  <img id="logoWhitePreview" class="preview" alt="logo white preview">
 
   <label>Headline (voliteľné)</label>
   <input type="text" id="headline" placeholder="napr. Získajte až 50 EUR späť">
@@ -543,6 +552,7 @@
 
   let selectedFile = null;
   let selectedLogo = null;
+  let selectedLogoWhite = null;
   let totalFormats = 0;
 
   // Drag & drop — vizuál
@@ -595,6 +605,34 @@
     const reader = new FileReader();
     reader.onload = (e) => {
       const preview = document.getElementById("logoPreview");
+      preview.src = e.target.result;
+      preview.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Drag & drop — biely variant loga (voliteľný)
+  const dropLogoWhite = document.getElementById("dropLogoWhite");
+  dropLogoWhite.ondragover = (e) => { e.preventDefault(); dropLogoWhite.classList.add("active"); };
+  dropLogoWhite.ondragleave = () => dropLogoWhite.classList.remove("active");
+  dropLogoWhite.ondrop = (e) => {
+    e.preventDefault();
+    dropLogoWhite.classList.remove("active");
+    const file = e.dataTransfer.files[0];
+    if (file) setLogoWhite(file);
+  };
+
+  document.getElementById("logoWhiteInput").onchange = (e) => {
+    if (e.target.files[0]) setLogoWhite(e.target.files[0]);
+  };
+
+  function setLogoWhite(file) {
+    selectedLogoWhite = file;
+    document.getElementById("logoWhiteDropText").textContent = file.name;
+    dropLogoWhite.classList.add("active");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const preview = document.getElementById("logoWhitePreview");
       preview.src = e.target.result;
       preview.style.display = "block";
     };
@@ -918,6 +956,7 @@
       const kvPortraitBytes = await toBytes(await capImageSize(preparedPortrait.file, 2400));
       const kvLandscapeBytes = await toBytes(await capImageSize(preparedLandscape.file, 2400));
       const logoBytes = await toBytes(selectedLogo);
+      const logoBytesWhite = await toBytes(selectedLogoWhite);
       const kvBg = await kvBackgroundColor(preparedSquare.file);
       const kvEdges = await kvEdgePalette(preparedSquare.file);
       const kvLumaBottom = await kvBottomLuma(preparedSquare.file);
@@ -933,7 +972,7 @@
         ctaText, legalText, badgeText,
         kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
         imageBytes: kvSquareBytes,
-        logoBytes, kvBg, kvBgTop: kvEdges.top, kvBgBottom: kvEdges.bottom,
+        logoBytes, logoBytesWhite, kvBg, kvBgTop: kvEdges.top, kvBgBottom: kvEdges.bottom,
         kvBgVertical: kvEdges.vertical,
         kvLumaBottom, kvInputCleanup,
         visualRecipe, showGuides, aiGenerated

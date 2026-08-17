@@ -487,7 +487,7 @@ function addAiNote(frame, format, contentBox) {
 async function createAllFrames({
   formats, headline, subheadline, ctaText, legalText, badgeText, adType,
   imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
-  logoBytes, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvBgTop, kvBgBottom,
+  logoBytes, logoBytesWhite, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvBgTop, kvBgBottom,
   kvLumaBottom, kvInputCleanup, kvBgVertical
 }) {
   SUBHEAD = (subheadline || "").trim();
@@ -578,7 +578,23 @@ async function createAllFrames({
     try { figmaImageSize = await figmaImage.getSizeAsync(); } catch (e) { figmaImageSize = null; }
   }
 
-  var figmaLogo = mkImage(logoBytes, "logo");
+  var figmaLogoDark = mkImage(logoBytes, "logo");
+  var figmaLogoWhite = mkImage(logoBytesWhite, "logo-white");
+  var figmaLogo = figmaLogoDark;
+
+  // Vyberie tmavy/biely variant loga podla toho, na com logo realne sedi
+  // pre dany format — nie natvrdo jeden variant vzdy. Bez bieleho uploadu
+  // (figmaLogoWhite chyba) sa vzdy pouzije tmavy, spravanie beze zmeny.
+  // Zdroj farby pozadia (v poradi priority): layout.bg_bottom_r/g/b (realny
+  // pixel vzorok z dolneho okraja KV — tam, kde vacsina layoutov logo kladie),
+  // inak layout.bg_r/g/b (AI odhad), inak BRAND_COLOR fallback.
+  function pickLogoForLayout(layout) {
+    if (!figmaLogoWhite) return figmaLogoDark;
+    if (!figmaLogoDark) return figmaLogoWhite;
+    const bg = brandEdgeColor(layout, "bottom");
+    const luma = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+    return luma < 0.5 ? figmaLogoWhite : figmaLogoDark;
+  }
 
   const byChannel = {};
   for (const item of formats) {
@@ -740,6 +756,8 @@ async function createAllFrames({
       frame.x = xOffset;
       frame.y = runYOffset;
       frame.clipsContent = true;
+
+      figmaLogo = pickLogoForLayout(layout);
 
       if (layoutType === "video_placeholder") {
         buildVideoPlaceholderLayout(frame, format, layout, hl, figmaImage, figmaLogo);

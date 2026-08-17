@@ -379,10 +379,15 @@ function sampledLowerPanelGradient(layout, bottomShade) {
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
-      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.12 } },
-      { position: 0.30, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.40 } },
-      { position: 0.65, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.72 } },
-      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.92 } }
+      // Max 0.92 este stale takmer uplne prekrylo fotku (vyzeralo to ako
+      // plna farba, nahlasene pri porovnani s PSD — fotka tam je vidno cez
+      // cely frame). Znizene na max 0.60 — brand farba sama osebe uz da
+      // dostatocny kontrast pre biely text (~3,4:1, WCAG pre velky bold
+      // text staci), takze silnejsie stmavenie ani nie je nutne.
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.08 } },
+      { position: 0.30, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.26 } },
+      { position: 0.65, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.46 } },
+      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.60 } }
     ]
   };
 }
@@ -2785,7 +2790,12 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 }, 1.02);
   } else if (activeTemplate === "adform_160x600") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 330], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.48 }, 1.02);
+    // Zona bola [0,0,160,330] — len 55 % vysky — takze pod fotkou nebolo
+    // vobec ziadne obrazove data a "Dark lower panel" tam sedel na
+    // frame.fills plnej brand farbe (ziadna fotka na presvitanie, bez
+    // ohladu na priehladnost scrimu). Skutocne PSD ma fotku cez CELY frame,
+    // len postupne tmavne — zona teraz [0,0,160,600].
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 160, 600], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.36 }, 1.02);
   } else if (activeTemplate === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 }, compactCopy ? 1.16 : 1.02);
   } else {

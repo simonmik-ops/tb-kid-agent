@@ -2828,12 +2828,19 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   if (activeTemplate === "adform_970x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 }, 1.02);
   } else if (activeTemplate === "adform_160x600") {
-    // Zona bola [0,0,160,330] — len 55 % vysky — takze pod fotkou nebolo
-    // vobec ziadne obrazove data a "Dark lower panel" tam sedel na
-    // frame.fills plnej brand farbe (ziadna fotka na presvitanie, bez
-    // ohladu na priehladnost scrimu). Skutocne PSD ma fotku cez CELY frame,
-    // len postupne tmavne — zona teraz [0,0,160,600].
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 160, 600], focal, { x: compactCopy ? 0.68 : 0.62, y: 0.36 }, 1.02);
+    // POZOR — predchadzajuci pokus [0,0,160,600] (cela vyska) bol sam
+    // o sebe chyba: cover-crop stvorcoveho zdroja do zony s pomerom 160:600
+    // (1:3,75) matematicky vynuti scale = zoneH/imgSize, cim zostane vidno
+    // len zoneW/zoneH = 27 % SIRKY povodneho obrazka — pri strede na tvari
+    // to davalo extremny detail-zoom na tvar (nahlasene screenshotom).
+    // 300x600 (pomer 1:2, 50 % sirky vidno) tento problem nema, preto tam
+    // full-bleed sedel. Pre 160x600 zona spat na [0,0,160,160] (stvorec,
+    // 100 % sirky vidno, ziadny extra zoom) — presne take, ako povodne
+    // "Protected square master — top zone", len teraz cez zjednoteny
+    // addFocalImageFrame. Panel/scrim (uz opraveny na plynuly, farebne
+    // nadvazujuci prechod) zacina presne tam, kde fotka konci — ziadny
+    // prekryv, ale aj ziadny tvrdy farebny rez vdaka fixnutemu scrimu vyssie.
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 160], focal, { x: 0.5, y: 0.5 }, 1.02);
   } else if (activeTemplate === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 }, compactCopy ? 1.16 : 1.02);
   } else {

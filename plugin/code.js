@@ -1115,7 +1115,15 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
 
   if (layout.asset_fallback_kind && (layoutType === "master_safe" || layoutType === "adform_psd")) {
     const protectedMaster = qaFind(frame, "Key visual — protected full master");
-    if (!protectedMaster) add("qa_unsafe_single_master_crop");
+    // Adform PSD (Krok — full-bleed cover-crop namiesto stvorca s panelom)
+    // pouziva addFocalImageFrame → vrstva "Key visual — focal crop", nie
+    // "...protected full master". Jej overscan je pevne dany na mieste
+    // volania (max 1,16×), nie odvodeny z nepredvidatelnych dat, takze
+    // nepotrebuje ten isty runtime oversize check ako protected master —
+    // staci ju uznat ako bezpecnu, inak by tento QA hlasil falosny poplach
+    // pri kazdom Adform formate.
+    const focalCrop = qaFind(frame, "Key visual — focal crop");
+    if (!protectedMaster && !focalCrop) add("qa_unsafe_single_master_crop");
     if (protectedMaster && protectedMaster.parent) {
       // Krok 4c zámerne predimenzováva KV nad rámec zóny (holder má
       // clipsContent, takže presah je bezpečne orezaný) — najviac

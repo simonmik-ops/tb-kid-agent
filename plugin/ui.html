@@ -849,6 +849,30 @@
         return Array.from(new Uint8Array(b));
       }
 
+      // Master vizuály od klienta bývajú print-rozlíšenie (napr. 7000×7000 px,
+      // 50+ MB) — do Figmy ide vždy plná kvalita (selectedFile/preparedSquare
+      // nižšie), ale na /analyze (Claude vision) sa posiela len na "pozri sa a
+      // popíš mi ho". Bez zmenšenia tu trvá samotný upload desiatky sekúnd aj
+      // pri normálnom pripojení, nehľadiac na server-side limit veľkosti.
+      async function shrinkForAnalysis(file, maxEdge, quality) {
+        if (!file || file.size <= 4 * 1024 * 1024) return file;
+        try {
+          const bitmap = await createImageBitmap(file);
+          const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+          const w = Math.max(1, Math.round(bitmap.width * scale));
+          const h = Math.max(1, Math.round(bitmap.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+          const blob = await new Promise(function (resolve, reject) {
+            canvas.toBlob(function (b) { b ? resolve(b) : reject(new Error("shrink failed")); }, "image/jpeg", quality);
+          });
+          return blob;
+        } catch (e) {
+          return file; // fallback: posli original, server-side zmensenie (sharp) to este zachyti
+        }
+      }
+
       let formats, tagging;
 
       if (excelDims && excelDims.length) {
@@ -861,7 +885,7 @@
       } else {
         // ── Kampaň cesta ── server (Claude) naplánuje layouty z katalógu.
         const formData = new FormData();
-        formData.append("visual", selectedFile);
+        formData.append("visual", await shrinkForAnalysis(selectedFile, 1568, 0.85), "visual.jpg");
         formData.append("headline", headline);
         formData.append("projectName", projectName);
         formData.append("adType", adType);

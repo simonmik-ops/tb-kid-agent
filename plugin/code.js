@@ -2879,13 +2879,22 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     // len zoneW/zoneH = 27 % SIRKY povodneho obrazka — pri strede na tvari
     // to davalo extremny detail-zoom na tvar (nahlasene screenshotom).
     // 300x600 (pomer 1:2, 50 % sirky vidno) tento problem nema, preto tam
-    // full-bleed sedel. Pre 160x600 zona spat na [0,0,160,160] (stvorec,
-    // 100 % sirky vidno, ziadny extra zoom) — presne take, ako povodne
-    // "Protected square master — top zone", len teraz cez zjednoteny
-    // addFocalImageFrame. Panel/scrim (uz opraveny na plynuly, farebne
-    // nadvazujuci prechod) zacina presne tam, kde fotka konci — ziadny
-    // prekryv, ale aj ziadny tvrdy farebny rez vdaka fixnutemu scrimu vyssie.
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 160], focal, { x: 0.5, y: 0.5 }, 1.02);
+    // full-bleed sedel.
+    //
+    // Kolo 2, krok 3: [0,0,160,160] (stvorec) tento zoom problem vyriesil,
+    // ale vytvoril NOVY — panel (rules.panel zacina uz na y=160) sa stretava
+    // s fotkou presne na tej istej hranici. Nech ma panel akykolvek mekky
+    // alfa nabeh, fotka POD nim konci ostro — dve vrstvy na tom istom
+    // riadku sa alfou vyriesit neda. Surdova referencia rieši presne toto
+    // tak, ze KV vyrazne presahuje pod zaciatok panelu a prechod sa
+    // odohrava CEZ fotku, nie na jej hrane.
+    // Zona teraz [0,0,160,260] — pomer 160:260 = 1:1,6 (bezpecne, ~62 %
+    // sirky vidno, ziadny extra zoom ako pri 1:3,75). Panel (nezmeneny,
+    // stale zacina na y=160) sa teraz prekryva s fotkou od 160 do 260 —
+    // presne v tomto pasme uz aj tak zacina jeho alfa rampa (0->0,28 na
+    // 20 % z 440px vysky panelu = do y≈248), takze prechod prebehne CEZ
+    // fotku namiesto NA jej hrane.
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 260], focal, { x: 0.5, y: 0.5 }, 1.02);
   } else if (activeTemplate === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 }, compactCopy ? 1.16 : 1.02);
   } else {

@@ -1551,10 +1551,7 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
         extension.y = extensionY;
         const cleanBoundaryStop = (cleanImageH - extensionY) /
           Math.max(1, format.height - extensionY);
-        // Kolo 4, uloha 2: campaignSurface(layout) namiesto holeho
-        // brandColor — zjednotene s podkladom, rovnaky dovod ako ostatne
-        // panely v tomto kole.
-        extension.fills = [sampledPortraitOverlayGradient(layout, cleanBoundaryStop, 1, campaignSurface(layout))];
+        extension.fills = [sampledPortraitOverlayGradient(layout, cleanBoundaryStop, 1, brandColor(layout))];
         frame.appendChild(extension);
       }
     }
@@ -2519,11 +2516,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // tu shadedColor(...,0.64), teda 64 % pôvodného jasu, čo z koralovej
     // robí bahnistú hnedú (viditeľné na 1200×628). Biela CTA/text majú na
     // čistej brandColor dosť kontrastu pre veľký Bold text (WCAG 3 : 1).
-    // Kolo 4, uloha 2: campaignSurface(layout) namiesto holeho brandColor —
-    // zjednotene s podkladom (frame.fills), inak by panel (dosahujuci alfu
-    // 1,00, teda plne krycu vlastnu farbu) niesol INY odtien nez zvysok
-    // frame-u.
-    const brand = campaignSurface(layout);
+    const brand = brandColor(layout);
     noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 4.5, "wide_panel_small_text");
     const panelAlpha = scrimAlphaFor(layout);
     const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
@@ -2705,10 +2698,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // vynúti čistú, jednotnú brand farbu bez stmavovania (pravidlo 2).
       // Druhé volanie tejto funkcie (buildCleanImageLayout, riadok ~1365) je
       // mimo Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
-      // Kolo 4, uloha 2: campaignSurface(layout) namiesto holeho brandColor
-      // — zjednotene s podkladom (frame.fills), aby panel a to, co je pod
-      // nim, nesli rovnaku (kalibrovanu) farbu.
-      const portraitPanelColor = campaignSurface(layout);
+      const portraitPanelColor = brandColor(layout);
       noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
       // bottomShade 0.85, nie 1: priamo zmeraný Surďov panel (0:7 v
       // d51uxTh8YqPdHujzi1Plt6) je rgb(197,94,77) ≈ (0.77,0.37,0.30) — teda
@@ -2796,17 +2786,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
         format.height - headlineY
       ));
-      // Kolo 4, uloha 2: namerane — scrim (#F87B66 az alfa 0,59) mal PRESNE
-      // rovnaku farbu ako podklad, takze cez podklad nerobil nic a cez
-      // fotku len pretonoval bez skutocneho stmavenia (text 2,62:1).
-      // "Wide content panel" (ktory funguje) ide na alfu 1,00 — plna
-      // krycost. Rovnaky princip aplikovany aj tu: zdroj farby
-      // campaignSurface(layout) (zjednotene s podkladom aj ostatnymi
-      // panelmi) a rampa teraz konci na plnej krycosti namiesto
-      // scrimAlphaFor (0,46-0,64) rozsahu, ktory bol kalibrovany pre
-      // "fotka ciastocne presviti" ucel — ten uz neplati, ked ma panel
-      // fotku naozaj zakryt.
-      const scrimBrand = campaignSurface(layout);
+      const scrimAlpha = scrimAlphaFor(layout);
+      const scrimScale = scrimAlpha / 0.90;
+      // Krok 3 pravidlo 1: prechod je brandová farba, nikdy čierna. Kolo 3,
+      // krok B — skutocna pricina hnedeho scrimu na 1200x1200 (bez
+      // dedikovaneho panelu, tak tento vetva stale plati) nebola alfa, ale
+      // ZDROJ farby: brandEdgeColor(layout,"bottom") pri fotkach s tmavym
+      // oblecenim vzorkuje z tej tmavej/tienovej oblasti namiesto
+      // skutocneho pozadia. Zdroj teraz brandColor(layout) — po kole 3
+      // krok A2 je to bud explicitna kampanova farba (CAMPAIGN_COLOR), bud
+      // ten isty AI odhad, aky pouziva frame.fills — konzistentna farba
+      // podkladu, nie samostatny (a chybny) vzorok z dolneho okraja.
+      const scrimBrand = brandColor(layout);
       noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 4.5, "scrim_small_text");
       const scrim = figma.createRectangle();
       scrim.name = "Bottom readability gradient";
@@ -2818,9 +2809,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         gradientTransform: [[0, 1, 0], [1, 0, 0]],
         gradientStops: [
           { position: 0.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: 0.00 } },
-          { position: 0.25, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: 0.55 } },
-          { position: 0.55, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: 1.00 } },
-          { position: 1.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: 1.00 } }
+          { position: 0.15, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.08 * scrimScale * 100) / 100 } },
+          { position: 0.35, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.28 * scrimScale * 100) / 100 } },
+          { position: 0.55, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.50 * scrimScale * 100) / 100 } },
+          { position: 0.78, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.72 * scrimScale * 100) / 100 } },
+          { position: 1.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: scrimAlpha } }
         ]
       }];
       frame.appendChild(scrim);

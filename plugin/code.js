@@ -388,19 +388,18 @@ function sampledLowerPanelGradient(layout, bottomShade) {
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
-      // Max 0.92 este stale takmer uplne prekrylo fotku (vyzeralo to ako
-      // plna farba, porovnane s PSD — fotka tam je vidno cez cely frame).
-      // Znizene na max 0.65. POZOR ale — pri prvom pokuse (0.08→0.26 az do
-      // 30 % panelu) sa headline (zacina ~20-22 % vysky panelu pri 160x600
-      // aj 300x600 — rules.panel a rules.headline v resolveAdformPsdRules)
-      // ocitol v este prilis svetlej casti rampy → nizky kontrast, splyva s
-      // fotkou (nahlasene pri vizualnej kontrole). Rampa teraz stuhne
-      // rychlejsie v prvej tretine (0→0.48 uz na 20 %), aby mala dostatocny
-      // kontrast presne tam, kde realne zacina text, a len pozvoľna dalej.
-      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
-      { position: 0.20, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.48 } },
-      { position: 0.55, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.58 } },
-      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.65 } }
+      // Kolo 2, krok 2: Surdova referencia nema na tychto pozadiach ziadne
+      // stmavenie (jedina legitimna tmava vrstva v celej kompozicii je
+      // #000000 @ 20 % v 55px prechodovom pase). Max alfa 0.65 stale davala
+      // hnedy spodok na 300x600/160x600 (jediny panel, co sa v 1. kole
+      // neupravil). Znizene na max 0.38, stopy skalovane rovnakym pomerom —
+      // ramp-up po 20 % vysky panelu (kde zacina text, pozri kontrast fix
+      // nizsie) zostava proporcialne rychlejsi nez zvysok, len s nizsim
+      // stropom.
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.06 } },
+      { position: 0.20, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.28 } },
+      { position: 0.55, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.34 } },
+      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.38 } }
     ]
   };
 }
@@ -2085,10 +2084,10 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     panel.resize(rules.panel[2], rules.panel[3]);
     panel.x = rules.panel[0];
     panel.y = rules.panel[1];
-    // P0-18 (1b): 0,46 davalo pri namerani prilis tmavy odtien pri spodnom
-    // okraji panelu (bahnista hneda). Zdvihnute na 0,60 — panel citelne
-    // sytejsi coral, nie hneda, kontrast s bielym textom stale dostatocny.
-    panel.fills = [sampledLowerPanelGradient(layout, 0.60)];
+    // Kolo 2, krok 2: 0,60 (z 1. kola) stale nesedelo so Surdovou referenciou
+    // (ziadne stmavenie na tychto pozadiach). Zdvihnute na 0,70 — menej
+    // stmavenia RGB pre "dark" farbu v spodnej casti gradientu.
+    panel.fills = [sampledLowerPanelGradient(layout, 0.70)];
     frame.appendChild(panel);
     return;
   }

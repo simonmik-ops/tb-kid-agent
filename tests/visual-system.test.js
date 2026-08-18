@@ -45,7 +45,7 @@ assert(source.includes('family === "wide" ? { x: 0, y: 0.5 }'), "clean wide asse
 assert(source.includes('Clean portrait colour extension'), "clean portrait assets must continue from the master's bottom edge without a light horizontal band");
 assert(source.includes('[0, 0, imageW, format.height], { x: 0, y: 0.5 }'), "wide creative masters must keep the focal visual on the left as in the Surd reference");
 assert(source.includes('ratio >= 1.25 ? "wide" : (ratio <= 0.8 ? "portrait" : "square")'), "4:5 and other orientation boundaries must match the KV picker exactly");
-assert(source.includes('const edge = brandColor(layout);\n    const panel = figma.createRectangle();\n    panel.name = "Brand panel";'), "970x250 must derive its panel from the current KV/campaign colour instead of hard-coded navy");
+assert(source.includes('const edge = campaignSurface(layout);\n    const panel = figma.createRectangle();\n    panel.name = "Brand panel";'), "970x250 must derive its panel from the shared campaign colour instead of hard-coded navy");
 assert(source.includes('const panelX = 549;'), "970x250 panel must sit near the Surd reference geometry (x=549)");
 assert(source.includes('const runYOffset = page.children.length'), "a new generation must not overlap an older run");
 assert(uiSource.includes('async function normalizeKvFile(file)'), "uploaded KV edges must be normalized before rendering");

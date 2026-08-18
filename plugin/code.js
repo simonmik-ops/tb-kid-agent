@@ -2079,15 +2079,20 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     // skutocnosti tmavnuci #76372D podklad POD nim (opravene v kroku 1).
     // Panel zuzeny blizsie k Surdovej referencii (x=549, w=421 — teda uz
     // sa VOBEC neprekryva s fotkou koncnou na 425, medzera medzi nimi je
-    // teraz jednotna frame.fills farba, takze ziadny seam nevznika) a max
-    // alfa znizena z 0,80 na 0,40. Farba brandEdgeColor(layout,"bottom")
-    // -> brandColor(layout) — rovnaky dovod ako krok B (Meta): edge-sampled
-    // farba pri tmavom oblecani vzorkuje z tienovej oblasti, nie z
-    // pozadia; brandColor(layout) je po kroku A2 bud explicitna kampanova
-    // farba, bud konzistentny AI odhad zdielany s frame.fills.
+    // teraz jednotna frame.fills farba, takze ziadny seam nevznika).
+    //
+    // Kolo 4, uloha 3: namerane — panel (#F87B66, max alfa 0,40) bol
+    // SVETLEJSI nez uz kalibrovany podklad (#C46151 po uloha 1), takze
+    // pravu stranu PRESVETLOVAL a kontrast klesal namiesto stupal (4,06:1
+    // -> 3,39:1) — presny opak ucelu readability panelu. Pricina: podklad
+    // pouzival campaignSurface (kalibrovany), panel stale holy
+    // brandColor(layout) (nekalibrovany) — rozisli sa. Zjednotene na
+    // campaignSurface(layout) a max alfa 0,40 -> 1,00, rovnaky vzor ako
+    // "Wide content panel" (Meta 1200x628) — plna krycost fotku naozaj
+    // zakryje, panel nezavisi na tom, co je pod nim.
     const panelX = 549;
     const panelW = 970 - panelX;
-    const edge = brandColor(layout);
+    const edge = campaignSurface(layout);
     const panel = figma.createRectangle();
     panel.name = "Brand panel";
     panel.resize(panelW, 250);
@@ -2097,9 +2102,9 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
       type: "GRADIENT_LINEAR",
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
       gradientStops: [
-        { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
-        { position: 0.50, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.28 } },
-        { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.40 } }
+        { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.20 } },
+        { position: 0.45, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.70 } },
+        { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } }
       ]
     }];
     frame.appendChild(panel);

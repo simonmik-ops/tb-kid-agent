@@ -2741,50 +2741,52 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     cursorY -= headlineBoxH;
     const headlineY = cursorY;
 
-    const scrimH = Math.min(format.height, Math.max(
-      Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
-      format.height - headlineY
-    ));
-    const scrimAlpha = scrimAlphaFor(layout);
-    const scrimScale = scrimAlpha / 0.90;
-    // Krok 3 pravidlo 1: prechod je brandová farba, nikdy čierna — bola tu
-    // natvrdo šedá/čierna (Bottom readability gradient dobiehala na
-    // rgba(0,0,0,...)), čo dáva bahnistú hnedú cez koralovú. Pravidlo 2:
-    // farba plochy sa NESMIE stmavovať kvôli kontrastu (žiadny shadedColor
-    // s faktorom < 1) — biela na koralovej dá ~3,4 : 1, čo stačí pre veľký
-    // Bold text (WCAG 3 : 1). Pre malý text (AI tag), kde to nestačí, sa
-    // len zapíše validation_warning nižšie — plocha sa kvôli tomu nemení.
-    // brandColor(layout) je JEDNA globalna farba z AI vizualnej analyzy
-    // celeho obrazku — pri fotkach s tmavym oblecenim vie AI vzorkovat tu
-    // farbu prave z tej tmavej/tienovej oblasti (miesto skutocneho pozadia),
-    // co pri scrime nad TOU ISTOU oblastou (oblecenie postavy dole) vytvara
-    // viditelnu farebne nesuvisiacu flek oproti okolitej koralovej ploche
-    // (nahlasene pri vizualnej kontrole — fialovo-gastanovy pas cez nohavice).
-    // brandEdgeColor(..., "bottom") uprednostni layout.bg_bottom_r/g/b —
-    // realny pixel vzorok z DOLNEHO OKRAJA KV (kvEdgePalette v ui.html),
-    // teda presne z miesta, kde scrim naozaj sedi, takze farba nadvazuje na
-    // skutocne viditelnu fotku namiesto nesuvisiaceho globalneho odhadu.
-    const scrimBrand = brandEdgeColor(layout, "bottom");
-    noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 4.5, "scrim_small_text");
-    const scrim = figma.createRectangle();
-    scrim.name = "Bottom readability gradient";
-    scrim.resize(format.width, scrimH);
-    scrim.x = 0;
-    scrim.y = format.height - scrimH;
-    scrim.fills = [{
-      type: "GRADIENT_LINEAR",
-      gradientTransform: [[0, 1, 0], [1, 0, 0]],
-      gradientStops: [
-        { position: 0.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: 0.00 } },
-        { position: 0.15, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.08 * scrimScale * 100) / 100 } },
-        { position: 0.35, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.28 * scrimScale * 100) / 100 } },
-        { position: 0.55, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.50 * scrimScale * 100) / 100 } },
-        { position: 0.78, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.72 * scrimScale * 100) / 100 } },
-        { position: 1.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: scrimAlpha } }
-      ]
-    }];
-    frame.appendChild(scrim);
-    if (adaptedPortrait) scrim.visible = false;
+    // Kolo 3, krok B: namerane vo Figme (Meta) — tam, kde uz existuje
+    // vlastny farebny panel ("Adaptive portrait content panel" na portraite,
+    // "Wide content panel" na wide), tento scrim navrch len zaspinil uz
+    // hotovy panel hnedym odtienom. Predtym sa scrim vzdy VYTVORIL a len
+    // pre portrait sa skryl (scrim.visible=false) — teraz sa pre kazdy
+    // format s vlastnym panelom vobec NEVYTVARA. Obrana aj pre "Wide
+    // content panel" (nie len adaptedPortrait), ak by sem wide rodina
+    // niekedy dosla inou cestou.
+    const hasDedicatedPanel = adaptedPortrait || !!qaFind(frame, "Wide content panel");
+    if (!hasDedicatedPanel) {
+      const scrimH = Math.min(format.height, Math.max(
+        Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
+        format.height - headlineY
+      ));
+      const scrimAlpha = scrimAlphaFor(layout);
+      const scrimScale = scrimAlpha / 0.90;
+      // Krok 3 pravidlo 1: prechod je brandová farba, nikdy čierna. Kolo 3,
+      // krok B — skutocna pricina hnedeho scrimu na 1200x1200 (bez
+      // dedikovaneho panelu, tak tento vetva stale plati) nebola alfa, ale
+      // ZDROJ farby: brandEdgeColor(layout,"bottom") pri fotkach s tmavym
+      // oblecenim vzorkuje z tej tmavej/tienovej oblasti namiesto
+      // skutocneho pozadia. Zdroj teraz brandColor(layout) — po kole 3
+      // krok A2 je to bud explicitna kampanova farba (CAMPAIGN_COLOR), bud
+      // ten isty AI odhad, aky pouziva frame.fills — konzistentna farba
+      // podkladu, nie samostatny (a chybny) vzorok z dolneho okraja.
+      const scrimBrand = brandColor(layout);
+      noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 4.5, "scrim_small_text");
+      const scrim = figma.createRectangle();
+      scrim.name = "Bottom readability gradient";
+      scrim.resize(format.width, scrimH);
+      scrim.x = 0;
+      scrim.y = format.height - scrimH;
+      scrim.fills = [{
+        type: "GRADIENT_LINEAR",
+        gradientTransform: [[0, 1, 0], [1, 0, 0]],
+        gradientStops: [
+          { position: 0.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: 0.00 } },
+          { position: 0.15, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.08 * scrimScale * 100) / 100 } },
+          { position: 0.35, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.28 * scrimScale * 100) / 100 } },
+          { position: 0.55, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.50 * scrimScale * 100) / 100 } },
+          { position: 0.78, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: Math.round(0.72 * scrimScale * 100) / 100 } },
+          { position: 1.00, color: { r: scrimBrand.r, g: scrimBrand.g, b: scrimBrand.b, a: scrimAlpha } }
+        ]
+      }];
+      frame.appendChild(scrim);
+    }
 
     const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
     let headlineNode = placeReserveText(

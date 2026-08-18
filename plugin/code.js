@@ -402,25 +402,27 @@ function sampledBrandGradient(layout, shade) {
 // legal texte dole). Predtym boli oba stopy a:1 (uplne nepriehladne), co pri
 // full-bleed fotke (Krok — cover-crop namiesto stvorcoveho orezu vyssie)
 // vytvaralo ostry viditelny rez presne na hranici panelu.
-function sampledLowerPanelGradient(layout, bottomShade) {
-  const edge = brandEdgeColor(layout, "bottom");
-  const dark = shadedColor(edge, typeof bottomShade === "number" ? bottomShade : 0.46);
+function sampledLowerPanelGradient(layout) {
+  // Doplnok 18.8. (Doplnok 1): predchadzajuci max 0,38 (kolo 2) nikdy
+  // nedosiahol plnu krycost — na 160x600 mala fotozona [0,0,160,260]
+  // koncit presne tam, kde panel prestava presvitat, ale panel na y=260
+  // dosahoval len ~0,29, takze fotka sa tam ostro odrezala este pri ~70%
+  // viditelnosti (tvrdy rez, nie plynuly prechod). Vzor "Wide content
+  // panel" (Meta 1200x628, funguje spravne) nedarkuje farbu vobec — len
+  // alfa nabeh k plnej krycosti. Rovnaky princip aj tu: edge (bez
+  // shadedColor stmavenia) a rampa 0->0,45 dosahuje alfu 1,00, potom
+  // ostava plna. campaignSurface(layout) namiesto brandEdgeColor(...,
+  // "bottom") — pri alfe 1,00 by chybne vzorkovana farba (tmave oblecenie
+  // namiesto pozadia, rovnaky problem ako Meta scrim v kole 3) bola teraz
+  // plne viditelna, nie len ciastocne pretonovana.
+  const edge = campaignSurface(layout);
   return {
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
-      // Kolo 2, krok 2: Surdova referencia nema na tychto pozadiach ziadne
-      // stmavenie (jedina legitimna tmava vrstva v celej kompozicii je
-      // #000000 @ 20 % v 55px prechodovom pase). Max alfa 0.65 stale davala
-      // hnedy spodok na 300x600/160x600 (jediny panel, co sa v 1. kole
-      // neupravil). Znizene na max 0.38, stopy skalovane rovnakym pomerom —
-      // ramp-up po 20 % vysky panelu (kde zacina text, pozri kontrast fix
-      // nizsie) zostava proporcialne rychlejsi nez zvysok, len s nizsim
-      // stropom.
-      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.06 } },
-      { position: 0.20, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.28 } },
-      { position: 0.55, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.34 } },
-      { position: 1.00, color: { r: dark.r, g: dark.g, b: dark.b, a: 0.38 } }
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
+      { position: 0.45, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
+      { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } }
     ]
   };
 }
@@ -2145,10 +2147,10 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     panel.resize(rules.panel[2], rules.panel[3]);
     panel.x = rules.panel[0];
     panel.y = rules.panel[1];
-    // Kolo 2, krok 2: 0,60 (z 1. kola) stale nesedelo so Surdovou referenciou
-    // (ziadne stmavenie na tychto pozadiach). Zdvihnute na 0,70 — menej
-    // stmavenia RGB pre "dark" farbu v spodnej casti gradientu.
-    panel.fills = [sampledLowerPanelGradient(layout, 0.70)];
+    // Doplnok 18.8.: sampledLowerPanelGradient uz nema bottomShade
+    // parameter (ziadne RGB stmavenie, len alfa nabeh k plnej krycosti —
+    // pozri komentar pri definicii funkcie).
+    panel.fills = [sampledLowerPanelGradient(layout)];
     frame.appendChild(panel);
     return;
   }
@@ -2953,7 +2955,14 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   // pomeru strán zdroja, takze rovnaka zona/focal funguje pre stvorcovy
   // aj akykolvek iny master — fallback vetvy uz nie su potrebne.
   if (activeTemplate === "adform_970x250") {
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 425, 250], focal, { x: 0.66, y: 0.52 }, 1.02);
+    // Doplnok 18.8.: namerane — Surdova Figma ma KV 579x579 od x=-30, fotka
+    // siaha po 549, teda PRESNE po zaciatok panelu (medzera 0px). Nasa zona
+    // koncila na 425, panel zacinal na 549 — 124px holeho podkladu medzi
+    // nimi, ktore nema co zmakcit ziadny alfa nabeh panelu. Zona teraz
+    // [0,0,549,250] — presny zaciatok panelu, ziadna medzera. Pomer 549:250
+    // = 2,2:1 (bezpecne — NIE plna vyska/sirka ako 6b052be regresia,
+    // ktora davala 1:3,75 a extremny zoom na tvar).
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — left zone", [0, 0, 549, 250], focal, { x: 0.66, y: 0.52 }, 1.02);
   } else if (activeTemplate === "adform_160x600") {
     // POZOR — predchadzajuci pokus [0,0,160,600] (cela vyska) bol sam
     // o sebe chyba: cover-crop stvorcoveho zdroja do zony s pomerom 160:600
@@ -2965,18 +2974,20 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     //
     // Kolo 2, krok 3: [0,0,160,160] (stvorec) tento zoom problem vyriesil,
     // ale vytvoril NOVY — panel (rules.panel zacina uz na y=160) sa stretava
-    // s fotkou presne na tej istej hranici. Nech ma panel akykolvek mekky
-    // alfa nabeh, fotka POD nim konci ostro — dve vrstvy na tom istom
-    // riadku sa alfou vyriesit neda. Surdova referencia rieši presne toto
-    // tak, ze KV vyrazne presahuje pod zaciatok panelu a prechod sa
-    // odohrava CEZ fotku, nie na jej hrane.
-    // Zona teraz [0,0,160,260] — pomer 160:260 = 1:1,6 (bezpecne, ~62 %
-    // sirky vidno, ziadny extra zoom ako pri 1:3,75). Panel (nezmeneny,
-    // stale zacina na y=160) sa teraz prekryva s fotkou od 160 do 260 —
-    // presne v tomto pasme uz aj tak zacina jeho alfa rampa (0->0,28 na
-    // 20 % z 440px vysky panelu = do y≈248), takze prechod prebehne CEZ
-    // fotku namiesto NA jej hrane.
-    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 260], focal, { x: 0.5, y: 0.5 }, 1.02);
+    // s fotkou presne na tej istej hranici. Surdova referencia rieši presne
+    // toto tak, ze KV vyrazne presahuje pod zaciatok panelu a prechod sa
+    // odohrava CEZ fotku, nie na jej hrane. Zona [0,0,160,260] (kolo 2)
+    // tento princip skusila, ale panel na y=260 dosahoval len alfu ~0,29
+    // (kolo 2 malo max 0,38 s pomalym nabehom) — fotka sa tam ostro
+    // odrezala este pri ~70 % viditelnosti, tvrdy rez pretrvaval.
+    //
+    // Doplnok 18.8. (Doplnok 1): sampledLowerPanelGradient uz dosahuje
+    // alfu 1,00 na 45 % vysky panelu (440px) = y = 160 + 0,45*440 ≈ 358.
+    // Zona teraz [0,0,160,360] — fotka konci presne tam, kde je panel uz
+    // prakticky plne kryci, ziadny viditelny rez. Pomer 160:360 = 1:2,25
+    // (~44 % sirky vidno) — stale bezpecne, NIE plna vyska/sirka ako
+    // 6b052be regresia (1:3,75, extremny zoom na tvar).
+    addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 360], focal, { x: 0.5, y: 0.5 }, 1.02);
   } else if (activeTemplate === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 }, compactCopy ? 1.16 : 1.02);
   } else {

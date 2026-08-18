@@ -2051,16 +2051,25 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     // system rule is broader: the extension follows the current KV colour.
     // A hard-coded blue panel is therefore wrong for the orange Investovanie
     // master and creates an unrelated second colour world.
-    // P0-18 (1a): panel predtym zacinal presne na hrane fotky (x=425) s
-    // prvym stopom uz na alfe 1,0 — tvrdy zvislý rez, nameraný priamo vo
-    // Figme. Panel teraz zacina skor (prekryva sa s fotkou) a plnu krycost
-    // dosahuje az za povodnou hranou — rovnaky princip ako nabeh
-    // sampledLowerPanelGradient (0,10 -> 0,48), len horizontalne.
-    const panelOverlap = 100;
-    const panelX = 425 - panelOverlap;
+    // P0-18 (1a, 17.8.): panel predtym zacinal presne na hrane fotky
+    // (x=425) s prvym stopom uz na alfe 1,0 — tvrdy zvisly rez. Rozsireny
+    // dolava s alfa nabehom, aby prechod prebehol CEZ fotku.
+    //
+    // Kolo 3, krok C: po kole 2/3 uz frame.fills nesie spravnu (kalibrovanu)
+    // kampanovu farbu (Krok A1/A2) a foto/panel seam uz nie je hlavny
+    // problem — vacsina toho, co predtym vyzeralo ako zly panel, bol v
+    // skutocnosti tmavnuci #76372D podklad POD nim (opravene v kroku 1).
+    // Panel zuzeny blizsie k Surdovej referencii (x=549, w=421 — teda uz
+    // sa VOBEC neprekryva s fotkou koncnou na 425, medzera medzi nimi je
+    // teraz jednotna frame.fills farba, takze ziadny seam nevznika) a max
+    // alfa znizena z 0,80 na 0,40. Farba brandEdgeColor(layout,"bottom")
+    // -> brandColor(layout) — rovnaky dovod ako krok B (Meta): edge-sampled
+    // farba pri tmavom oblecani vzorkuje z tienovej oblasti, nie z
+    // pozadia; brandColor(layout) je po kroku A2 bud explicitna kampanova
+    // farba, bud konzistentny AI odhad zdielany s frame.fills.
+    const panelX = 549;
     const panelW = 970 - panelX;
-    const boundaryStop = panelOverlap / panelW;
-    const edge = brandEdgeColor(layout, "bottom");
+    const edge = brandColor(layout);
     const panel = figma.createRectangle();
     panel.name = "Brand panel";
     panel.resize(panelW, 250);
@@ -2069,14 +2078,10 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     panel.fills = [{
       type: "GRADIENT_LINEAR",
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
-      // P0-18 (1b): namerany max 0,64 (opaque, nedarkened edge farba) este
-      // stale cital ako prilis tmavy oproti okolitej koralovej. Zdvihnute
-      // na 0,80 (stopy skalovane rovnakym pomerom), aby panel cital ako
-      // sytejsi odtien tej istej koralovej, nie ako tmava plocha.
       gradientStops: [
-        { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.12 } },
-        { position: boundaryStop, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.60 } },
-        { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.80 } }
+        { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
+        { position: 0.50, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.28 } },
+        { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.40 } }
       ]
     }];
     frame.appendChild(panel);

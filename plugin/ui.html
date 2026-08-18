@@ -100,6 +100,10 @@
   <label>Podnadpis (voliteľné)</label>
   <input type="text" id="subheadline" placeholder="Doplňujúca informácia pod headline">
 
+  <label>Kampaňová farba pozadia (voliteľné, hex)</label>
+  <input type="text" id="campaignColor" placeholder="napr. #C55E4D — bez zadania sa odhadne z fotky">
+  <div class="hint" style="margin-top:4px;">Surďova referencia používa jednu pevnú kampaňovú farbu, nie vzorku z fotky. Zadaj ju sem, ak ju poznáš — inak plugin farbu odhadne (menej presné, líši sa podľa fotky).</div>
+
   <label>Tabuľka rozmerov od mediálky (.xlsx, .xls, .csv) — voliteľné</label>
   <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" onchange="onExcelPicked(event)">
   <div class="hint" id="excelHint" style="margin-top:4px;">Ak nahráš tabuľku, formáty sa vezmú z nej. Bez tabuľky sa použijú typy výstupov vybrané nižšie.</div>
@@ -887,6 +891,20 @@
         return Array.from(new Uint8Array(b));
       }
 
+      // Kolo 3, krok A2: kampanova farba ako vstup namiesto vzorkovania z
+      // fotky (Surdo ma pevnu kampanovu farbu, nie odvodenu z KV). Vracia
+      // null pri prazdnom/neplatnom vstupe — code.js vtedy pouzije dnesny
+      // fallback (AI vzorkovanie z fotky).
+      function parseHexColor(hex) {
+        const s = String(hex || "").trim().replace(/^#/, "");
+        if (!/^[0-9a-fA-F]{6}$/.test(s)) return null;
+        return {
+          r: parseInt(s.slice(0, 2), 16) / 255,
+          g: parseInt(s.slice(2, 4), 16) / 255,
+          b: parseInt(s.slice(4, 6), 16) / 255
+        };
+      }
+
       // Plugin main-thread beží vo Figme vo vlastnom WASM sandboxe (jsvm-cpp),
       // NIE v normálnom prehliadači/Node — má pevný, obmedzený pamäťový heap.
       // Poslanie print-rozlíšenia mastera (napr. 7000×7000, 50+ MB) cez
@@ -991,6 +1009,8 @@
         landscape: preparedLandscape.cleanup
       };
 
+      const campaignColor = parseHexColor(document.getElementById("campaignColor").value);
+
       setStatus("Vytváram " + totalFormats + " frames vo Figme...", 60);
       parent.postMessage({ pluginMessage: { type: "create-frames", payload: {
         formats, headline, subheadline, adType, tagging,
@@ -999,7 +1019,7 @@
         imageBytes: kvSquareBytes,
         logoBytes, logoBytesWhite, kvBg, kvBgTop: kvEdges.top, kvBgBottom: kvEdges.bottom,
         kvBgVertical: kvEdges.vertical,
-        kvLumaBottom, kvInputCleanup,
+        kvLumaBottom, kvInputCleanup, campaignColor,
         visualRecipe, showGuides, aiGenerated
       } } }, "*");
 

@@ -217,6 +217,10 @@ let SUBHEAD = "";
 // Je AI disclosure zapnutá? (aby si text vyhradil miesto a neprekryl AI tag)
 let AI_ON = false;
 
+// Kolo 3, krok A2: volitelna pevna kampanova farba (hex vstup v ui.html),
+// null = fallback na dnesne AI-vzorkovanie z KV. Pozri brandColor().
+let CAMPAIGN_COLOR = null;
+
 // Rozmery aktuálne kresleného KV (nastaví sa v slučke cez getSizeAsync) —
 // slúžia na výpočet viditeľnej plochy pri CONTAIN, nech text/logo/AI sadnú
 // na obrázok a nie do brand pásu.
@@ -321,7 +325,11 @@ function noteContrastIfLow(layout, surface, textColor, minRatio, where) {
 }
 
 // Farba brand plochy = z analýzy vizuálu (nie natvrdo modrá); fallback brand blue
+// Kolo 3, krok A2: CAMPAIGN_COLOR (volitelny hex vstup) ma prednost pred
+// AI-vzorkovanou farbou — Surdo pouziva pevnu kampanovu farbu, nie farbu
+// odvodenu z konkretnej fotky (ktora sa fotku od fotky lisi).
 function brandColor(layout) {
+  if (CAMPAIGN_COLOR) return CAMPAIGN_COLOR;
   if (layout && typeof layout.bg_r === "number") {
     return { r: layout.bg_r, g: layout.bg_g, b: layout.bg_b };
   }
@@ -496,9 +504,13 @@ async function createAllFrames({
   formats, headline, subheadline, ctaText, legalText, badgeText, adType,
   imageBytes, kvSquareBytes, kvPortraitBytes, kvLandscapeBytes,
   logoBytes, logoBytesWhite, visualRecipe, tagging, showGuides, aiGenerated, kvBg, kvBgTop, kvBgBottom,
-  kvLumaBottom, kvInputCleanup, kvBgVertical
+  kvLumaBottom, kvInputCleanup, kvBgVertical, campaignColor
 }) {
   SUBHEAD = (subheadline || "").trim();
+  // Kolo 3, krok A2: kampanova farba ako vstup (Surdo ma pevnu kampanovu
+  // farbu, nie odvodenu z fotky). Ked je zadana, brandColor(layout) ju
+  // vracia priamo namiesto AI-vzorkovanej farby — pozri brandColor() nizsie.
+  CAMPAIGN_COLOR = (campaignColor && typeof campaignColor.r === "number") ? campaignColor : null;
 
   // Univerzálny (master_safe) layout je fallback pre formáty bez šablóny,
   // nie voľba používateľa — preto sa dedup jedného master vizuálu na
@@ -2858,13 +2870,19 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   //
   // Kolo 3, krok A1: namerane po tejto zmene — brandColor(layout) vratil
   // #F87B66 (svetly horny extrem KV), Surdova referencia ma #C55E4D na
-  // 52 z 52 pozadi. DOCASNA KALIBRACIA (nie definitivne riesenie — pozri
-  // krok A2, kampanova farba ma byt vstup, nie vzorkovana z KV): faktor
-  // 0,79 posuva #F87B66 na rgb(196,97,81), odchylka od referencie
-  // (-1,+3,+4). Faktor 0,79 je odvodeny z TOHOTO JEDNEHO KV — pri inom
-  // vizuale bude treba prekalibrovat, kym nepribudne A2 (kampanova farba
-  // ako vstup s fallbackom na vzorkovanie).
-  frame.fills = [{ type: "SOLID", color: shadedColor(brandColor(layout), 0.79) }];
+  // 52 z 52 pozadi. Faktor 0,79 posuva #F87B66 na rgb(196,97,81), odchylka
+  // od referencie (-1,+3,+4) — DOCASNA KALIBRACIA odvodena z TOHOTO
+  // JEDNEHO KV, pri inom vizuale bude nesediet.
+  //
+  // Krok A2: ked uzivatel zada CAMPAIGN_COLOR (hex pole v ui.html),
+  // brandColor(layout) ho uz vracia priamo, presne — kalibracny faktor by
+  // ho len znovu stmavil navyse, preto sa v tom pripade NEAPLIKUJE.
+  // Faktor 0,79 ostava len pre fallback (ziadna kampanova farba zadana,
+  // stale sa spolieha na AI-vzorkovanu farbu z fotky).
+  frame.fills = [{
+    type: "SOLID",
+    color: CAMPAIGN_COLOR ? brandColor(layout) : shadedColor(brandColor(layout), 0.79)
+  }];
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5

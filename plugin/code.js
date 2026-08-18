@@ -45,6 +45,15 @@ var TB = {
     var h = Math.max(36, Math.min(64, Math.round(0.055 * Math.sqrt(W * H))));
     return { height: h, width: Math.round(h * 2.9), fontSize: Math.max(12, Math.round(h * 0.36)),
              radius: Math.max(4, Math.round(h * 0.08)) };
+  },
+  // P2-6 (zúžené): len badge a cta — obe boli natvrdo zapísané opakovane na
+  // viacerých miestach s rovnakou hodnotou. Panelové farby (#30435C,
+  // #2E2828) sem zámerne NEPATRIA — kód sa vedome rozhodol neodvodzovať
+  // panel z PSD modrošedej, ale z KV (code.js, addAdformBackgroundTreatment);
+  // token pre farbu, ktorá sa nikde nepoužíva, by bol len mätúci.
+  color: {
+    badge: { r: 0.8588, g: 0.4824, b: 0.4039 }, // #DB7B67
+    cta: { r: 0, g: 0.278, b: 0.973 } // #0047F8
   }
 };
 
@@ -2359,7 +2368,7 @@ function addMasterCoreImage(parent, figmaImage, imageSize, zone, focal, showGuid
 
 function addMasterCta(frame, value, x, y, w, h) {
   if (!value) return;
-  const button = addSolidRect(frame, "CTA button", x, y, w, h, { r: 0, g: 0.278, b: 0.973 }, 1);
+  const button = addSolidRect(frame, "CTA button", x, y, w, h, TB.color.cta, 1);
   button.cornerRadius = Math.max(2, Math.round(h * 0.08));
   const labelSize = Math.max(12, Math.round(h * 0.36));
   addTemplateText(frame, "CTA text", value + "  ›", [x, y, w, h],
@@ -2900,7 +2909,7 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     // {0.86,0.36,0.29}) + natočenie ≈ −8° s mäkkým tieňom, ktoré tu úplne
     // chýbalo. "Badge outline" sivý rám pod prelepkou NEODSTRAŇUJEM — to je
     // samostatná, tu nezadaná zmena z lokálnej vetvy, mimo rozsahu Kroku 2d.
-    const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], { r: 0.8588, g: 0.4824, b: 0.4039 }, 1);
+    const badge = addSolidRect(frame, "Badge / prelepka", b[0], b[1], b[2], b[3], TB.color.badge, 1);
     badge.cornerRadius = Math.round(Math.min(b[2], b[3]) * 0.18);
     try { badge.rotation = -8; } catch (e) {}
     badge.effects = [{
@@ -2966,7 +2975,7 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
 
   if (content.ctaText && rules.cta) {
     const c = rules.cta;
-    const button = addSolidRect(frame, "CTA button", c[0], c[1], c[2], c[3], { r: 0, g: 0.278, b: 0.973 }, 1);
+    const button = addSolidRect(frame, "CTA button", c[0], c[1], c[2], c[3], TB.color.cta, 1);
     button.cornerRadius = Math.round(c[3] * 0.08);
     const ctaText = content.ctaText || STYLE.ctaText;
     addTemplateText(

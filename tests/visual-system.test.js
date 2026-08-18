@@ -36,7 +36,7 @@ assert(source.includes('imageBoundaryStop'), "wide color extension must become o
 assert(source.includes('headlineBottom - headlineNode.height'), "single-line headline must be optically anchored to subheadline");
 assert(source.includes('compactCopy ? 1.16 : 1.02'), "small Adform crops must remove technical KV borders and protect compact copy");
 assert(source.includes('PSD left readability treatment'), "300x250 must recreate the PSD dark copy zone for flat master KVs");
-assert(source.includes('brandEdgeColor(layout, "bottom"), 0.38'), "the 300x250 copy zone must follow the current KV colour");
+assert(source.includes('brandEdgeColor(layout, "bottom"), 0.58'), "the 300x250 copy zone must follow the current KV colour");
 assert(source.includes('function pickAdaptiveKV(format)'), "single-master inputs must use the adaptive orientation picker");
 assert(source.includes('function addProtectedImageFrame'), "single-master fallbacks must preserve the complete KV");
 assert(source.includes('Adaptive portrait content panel'), "portrait fallbacks must use a dedicated colour-extension panel");

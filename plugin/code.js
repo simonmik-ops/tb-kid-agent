@@ -2091,7 +2091,12 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
   // opaque part covers the full text column and feathers out before the bank
   // lockup/subject, so readability is deterministic rather than crop-dependent.
   if (activeTemplate === "adform_300x250") {
-    const sampled = shadedColor(brandEdgeColor(layout, "bottom"), 0.38);
+    // P0-18 (1c): namerane vo Figme: shadedColor faktor 0,38 (62 % stmavenie)
+    // + alfa 0,96 az po 0,52 sirky (viac nez polovica plochy prakticky
+    // nepriehladna) fotku prakticky pochovavali. Faktor 0,38 -> 0,58 (menej
+    // stmavenia RGB), alfa 0,96 -> 0,80 a 0,88-0,92 -> 0,72 (jedna hodnota,
+    // compactCopy rozlisenie tu uz nie je potrebne pri tejto miernejsej urovni).
+    const sampled = shadedColor(brandEdgeColor(layout, "bottom"), 0.58);
     const leftScrim = figma.createRectangle();
     leftScrim.name = "PSD left readability treatment";
     leftScrim.resize(format.width, format.height);
@@ -2101,8 +2106,8 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
       type: "GRADIENT_LINEAR",
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
       gradientStops: [
-        { position: 0.00, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.96 } },
-        { position: 0.52, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: rules.compactCopy ? 0.92 : 0.88 } },
+        { position: 0.00, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.80 } },
+        { position: 0.52, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.72 } },
         { position: 0.72, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.50 } },
         { position: 1.00, color: { r: sampled.r, g: sampled.g, b: sampled.b, a: 0.00 } }
       ]

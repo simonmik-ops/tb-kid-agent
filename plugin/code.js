@@ -2849,7 +2849,14 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   const compactCopy = String(content.headline || "").trim().length <= 22 &&
     !content.badgeText && !content.legalText;
 
-  frame.fills = [sampledBrandGradient(layout, 1)];
+  // Kolo 2, krok 1: buildMasterSafeLayout aj buildCleanImageLayout uz maju
+  // plochu brand farbu (12.8., 8623b0d/e687e25 — "pozadie je vzdy jedna
+  // plocha brand farba, nikdy vertikalne tmavnuci sampledBrandGradient"),
+  // do Adform vetvy sa to vtedy nedostalo. sampledBrandGradient(layout,1)
+  // rozthahoval spravnu KV farbu (frame.fills stop na 75% ~ #BC5C4C, takmer
+  // zhodne so Surdovou referencnou #C55E4D) na oboch stranach — hore
+  // presvetlil, dole stmavil na #76372D. Dorovnane na rovnaky plochy vzor.
+  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5

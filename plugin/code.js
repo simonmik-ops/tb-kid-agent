@@ -2855,7 +2855,16 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   // rozthahoval spravnu KV farbu (frame.fills stop na 75% ~ #BC5C4C, takmer
   // zhodne so Surdovou referencnou #C55E4D) na oboch stranach — hore
   // presvetlil, dole stmavil na #76372D. Dorovnane na rovnaky plochy vzor.
-  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+  //
+  // Kolo 3, krok A1: namerane po tejto zmene — brandColor(layout) vratil
+  // #F87B66 (svetly horny extrem KV), Surdova referencia ma #C55E4D na
+  // 52 z 52 pozadi. DOCASNA KALIBRACIA (nie definitivne riesenie — pozri
+  // krok A2, kampanova farba ma byt vstup, nie vzorkovana z KV): faktor
+  // 0,79 posuva #F87B66 na rgb(196,97,81), odchylka od referencie
+  // (-1,+3,+4). Faktor 0,79 je odvodeny z TOHOTO JEDNEHO KV — pri inom
+  // vizuale bude treba prekalibrovat, kym nepribudne A2 (kampanova farba
+  // ako vstup s fallbackom na vzorkovanie).
+  frame.fills = [{ type: "SOLID", color: shadedColor(brandColor(layout), 0.79) }];
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5

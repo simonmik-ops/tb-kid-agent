@@ -2903,7 +2903,16 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
       { r: 1, g: 1, b: 1 }, "Bold", "LEFT"
     );
     if (headlineNode && content.subheadline) {
-      const subY = Math.min(h[1] + h[3] - 14, headlineNode.y + headlineNode.height + 4);
+      // Bolo Math.min(...) — pri kratkom headline (1 riadok) to davalo
+      // spravny tesny vysledok (dynamicka hodnota je mensia, MIN ju vyberie),
+      // ale pri DLHSOM headline, co sa zalomi na 2 riadky a presiahne
+      // povodne planovanu vysku boxu h[3], MIN naopak VYBERIE tu MENSIU,
+      // uz prekonanu "nominalnu" poziciu namiesto skutocneho konca textu —
+      // subheadline sa tak vykreslila NAD spodok headline, prekryv
+      // (nahlasene: "Ziskajte az 50 eur." — dlhsi headline nez testovacie
+      // "Investujte"). Vzdy pouzit skutocnu vysku vykreslenej headline
+      // node — pre kratky headline je to uz aj tak tesnejsia hodnota.
+      const subY = headlineNode.y + headlineNode.height + 4;
       addTemplateText(
         frame,
         "Subheadline",

@@ -2049,10 +2049,14 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     panel.fills = [{
       type: "GRADIENT_LINEAR",
       gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      // P0-18 (1b): namerany max 0,64 (opaque, nedarkened edge farba) este
+      // stale cital ako prilis tmavy oproti okolitej koralovej. Zdvihnute
+      // na 0,80 (stopy skalovane rovnakym pomerom), aby panel cital ako
+      // sytejsi odtien tej istej koralovej, nie ako tmava plocha.
       gradientStops: [
-        { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
-        { position: boundaryStop, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.48 } },
-        { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.64 } }
+        { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.12 } },
+        { position: boundaryStop, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.60 } },
+        { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.80 } }
       ]
     }];
     frame.appendChild(panel);
@@ -2072,7 +2076,10 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     panel.resize(rules.panel[2], rules.panel[3]);
     panel.x = rules.panel[0];
     panel.y = rules.panel[1];
-    panel.fills = [sampledLowerPanelGradient(layout, 0.46)];
+    // P0-18 (1b): 0,46 davalo pri namerani prilis tmavy odtien pri spodnom
+    // okraji panelu (bahnista hneda). Zdvihnute na 0,60 — panel citelne
+    // sytejsi coral, nie hneda, kontrast s bielym textom stale dostatocny.
+    panel.fills = [sampledLowerPanelGradient(layout, 0.60)];
     frame.appendChild(panel);
     return;
   }

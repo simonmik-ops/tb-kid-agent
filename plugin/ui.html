@@ -929,6 +929,19 @@
         setStatus("Generujem " + totalFormats + " formátov z tabuľky...", 45);
       } else {
         // ── Kampaň cesta ── server (Claude) naplánuje layouty z katalógu.
+        // P2-11: táto cesta nemá (na rozdiel od Excel cesty) žiadny lokálny
+        // fallback plánovač — bez servera skončí buď surovým "Failed to
+        // fetch", alebo (server beží, ale chýba ANTHROPIC_API_KEY) 5xx
+        // chybou bez vysvetlenia. Zdravotný check pred generovaním +
+        // rozlíšenie chybových stavov, aby bolo hneď jasné, čo robiť —
+        // žiadny náhradný plánovač sa nepridáva.
+        setStatus("Kontrolujem dostupnosť servera...", 10);
+        try {
+          const healthRes = await fetch(`${serverUrl}/health`);
+          if (!healthRes.ok) throw new Error("unhealthy");
+        } catch (healthErr) {
+          throw new Error("Server neodpovedá. Kampaňová cesta ho potrebuje na naplánovanie layoutov. Skontroluj serverUrl alebo skús Excel cestu (tá server nepotrebuje).");
+        }
         const formData = new FormData();
         formData.append("visual", selectedFile);
         formData.append("headline", headline);
@@ -937,8 +950,20 @@
         formData.append("templateGroupIds", JSON.stringify(templateGroupIds));
         formData.append("visualRecipe", JSON.stringify(visualRecipe));
         setStatus("Claude plánuje layouty pre všetky formáty...", 20);
-        const res = await fetch(`${serverUrl}/analyze`, { method: "POST", body: formData });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Server error"); }
+        let res;
+        try {
+          res = await fetch(`${serverUrl}/analyze`, { method: "POST", body: formData });
+        } catch (fetchErr) {
+          throw new Error("Server neodpovedá (výpadok siete alebo servera medzi health-checkom a týmto requestom). Skús to znova o chvíľu.");
+        }
+        if (!res.ok) {
+          let msg = "Server error";
+          try { const e = await res.json(); msg = e.error || msg; } catch (parseErr) {}
+          if (res.status >= 500) {
+            throw new Error("Server zlyhal (" + res.status + "): " + msg + " — časté pri chýbajúcom/vyčerpanom ANTHROPIC_API_KEY na serveri (Railway → Variables).");
+          }
+          throw new Error(msg);
+        }
         const data = await res.json();
         if (!data.formats || !data.formats.length || !data.formats.every(item => item.format && item.format.templateGroup)) {
           throw new Error("Server nemá nasadený aktuálny katalóg šablón. Obnov nasadenie z hlavnej vetvy.");

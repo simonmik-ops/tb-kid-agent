@@ -2031,12 +2031,30 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     // system rule is broader: the extension follows the current KV colour.
     // A hard-coded blue panel is therefore wrong for the orange Investovanie
     // master and creates an unrelated second colour world.
+    // P0-18 (1a): panel predtym zacinal presne na hrane fotky (x=425) s
+    // prvym stopom uz na alfe 1,0 — tvrdy zvislý rez, nameraný priamo vo
+    // Figme. Panel teraz zacina skor (prekryva sa s fotkou) a plnu krycost
+    // dosahuje az za povodnou hranou — rovnaky princip ako nabeh
+    // sampledLowerPanelGradient (0,10 -> 0,48), len horizontalne.
+    const panelOverlap = 100;
+    const panelX = 425 - panelOverlap;
+    const panelW = 970 - panelX;
+    const boundaryStop = panelOverlap / panelW;
+    const edge = brandEdgeColor(layout, "bottom");
     const panel = figma.createRectangle();
     panel.name = "Brand panel";
-    panel.resize(545, 250);
-    panel.x = 425;
+    panel.resize(panelW, 250);
+    panel.x = panelX;
     panel.y = 0;
-    panel.fills = [sampledBrandGradient(layout, 0.64)];
+    panel.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
+        { position: boundaryStop, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.48 } },
+        { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.64 } }
+      ]
+    }];
     frame.appendChild(panel);
     return;
   }

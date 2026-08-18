@@ -336,6 +336,19 @@ function brandColor(layout) {
   return BRAND_COLOR;
 }
 
+// Kolo 4, uloha 1: jedna zdielana funkcia pre frame.fills naprieč vsetkymi
+// tromi buildermi (buildAdformPsdLayout, buildMasterSafeLayout,
+// buildCleanImageLayout) — predtym mal len Adform kalibraciu (shadedColor
+// faktor 0,79, kolo 3 krok A1), ostatne dva pouzivali holy brandColor(layout)
+// (#F87B66 — svetly horny extrem KV, WCAG 2,62:1 pre biely text, pod 3:1
+// prahom pre velky bold text). Rovnaka kampan sa tak renderovala v DVOCH
+// farbach podla kanala. Faktor 0,79 sa NEAPLIKUJE, ked je zadana explicitna
+// CAMPAIGN_COLOR (kolo 3 krok A2) — v tom pripade je uz presna, netreba
+// dodatocne kalibrovat. Ked pribudne A2 vsade, zmena je na jednom mieste.
+function campaignSurface(layout) {
+  return CAMPAIGN_COLOR ? brandColor(layout) : shadedColor(brandColor(layout), 0.79);
+}
+
 function brandEdgeColor(layout, edge) {
   const prefix = edge === "top" ? "bg_top_" : "bg_bottom_";
   if (layout && typeof layout[prefix + "r"] === "number") {
@@ -1443,8 +1456,13 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
   // alebo panel vždy prekrýva celý frame, takže zmena je tam neviditeľná/
   // bezpečná. Plochá farba tu odstraňuje nesúlad medzi flat pásom a
   // tmavnúcim chvostom gradientu za ním (zvyšný "pruh" na Clean assets 1200×628).
+  // Kolo 4, uloha 1: campaignSurface(layout) namiesto holeho brandColor v
+  // asset_fallback_kind vetve — zjednotene s Adform aj buildMasterSafeLayout.
+  // Nefallback vetva ({0.96,0.97,0.98}, takmer biela — RSA "Image asset"
+  // formaty) NEMENENA — to je otvorena otazka pre Simonu (zamer/prehliadnute),
+  // nie sucast tejto ulohy.
   frame.fills = layout.asset_fallback_kind
-    ? [{ type: "SOLID", color: brandColor(layout) }]
+    ? [{ type: "SOLID", color: campaignSurface(layout) }]
     : [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
   if (layout.asset_fallback_kind && figmaImage && CUR_IMG_W && CUR_IMG_H) {
     // Protected single-master rule applies to clean assets too. Preserve the
@@ -2470,7 +2488,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   // portrait predimenzovaným obrázkom (Krok 4c), wide "Wide content panel"
   // dosahuje plnú krycosť ešte pred okrajom frame — zmena je teda
   // neviditeľná, ide len o architektonický súlad so Surďovou referenciou.
-  frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+  // Kolo 4, uloha 1: campaignSurface(layout) namiesto holeho brandColor —
+  // zjednotene s Adform aj buildCleanImageLayout (predtym tu bolo #F87B66
+  // bez kalibracie, WCAG 2,62:1 pre biely text, pod 3:1 prahom).
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
 
   if (family === "wide") {
     const imageW = Math.round(format.width * 0.75);
@@ -2886,10 +2907,11 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
   // ho len znovu stmavil navyse, preto sa v tom pripade NEAPLIKUJE.
   // Faktor 0,79 ostava len pre fallback (ziadna kampanova farba zadana,
   // stale sa spolieha na AI-vzorkovanu farbu z fotky).
-  frame.fills = [{
-    type: "SOLID",
-    color: CAMPAIGN_COLOR ? brandColor(layout) : shadedColor(brandColor(layout), 0.79)
-  }];
+  //
+  // Kolo 4, uloha 1: presunute do zdielanej campaignSurface(layout), nech
+  // ju pouzivaju vsetky tri buildery rovnako (predtym mal len Adform tuto
+  // kalibraciu, buildMasterSafeLayout a buildCleanImageLayout nie).
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   const focal = {
     x: typeof layout.crop_anchor_x === "number" ? layout.crop_anchor_x : 0.5,
     y: typeof layout.crop_anchor_y === "number" ? layout.crop_anchor_y : 0.5

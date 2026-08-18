@@ -1420,9 +1420,16 @@ function addSolidRect(frame, name, x, y, w, h, color, opacity) {
 }
 
 function buildVideoPlaceholderLayout(frame, format, layout, headline, figmaImage, figmaLogo) {
-  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+  // Doplnok 18.8.: BRAND_COLOR (#002E8C, natvrdo zapisana tmavomodra) sa
+  // pouzivala v publisherskych/video builderoch bez ohladu na kampanovu
+  // farbu — tretí, doteraz neviditelny farebny system (len Adform a Meta/
+  // Google sa dosiaľ generovali v testovacich behoch). campaignSurface()
+  // pada spat na BRAND_COLOR, ked nie je k dispozicii ziadna kampanova
+  // ani AI-odhadnuta farba, takze fallback zostava zachovany. Krytia
+  // (0,34/0,62/0,88/0,46) NEMENENE — najprv farba, potom prípadne ladenie.
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   addImageRect(frame, figmaImage, "Thumbnail base - manual video needed", 0, 0, format.width, format.height, "FILL");
-  addSolidRect(frame, "Video dim overlay", 0, 0, format.width, format.height, BRAND_COLOR, 0.46);
+  addSolidRect(frame, "Video dim overlay", 0, 0, format.width, format.height, campaignSurface(layout), 0.46);
 
   const topSafe = (format.safeZones && format.safeZones.top) || 0;
   const bottomSafe = (format.safeZones && format.safeZones.bottom) || 0;
@@ -1588,7 +1595,9 @@ function buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage) {
   const isPortrait = format.height > format.width * 1.15;
   const boxH = Math.round(format.height * (isPortrait ? 0.24 : 0.34));
   const boxY = isPortrait ? format.height - boxH : Math.round(format.height * 0.12);
-  addSolidRect(frame, "Headline scrim", 0, boxY, format.width, boxH, BRAND_COLOR, 0.88);
+  // Doplnok 18.8.: BRAND_COLOR -> campaignSurface(layout), rovnaky dovod
+  // ako buildVideoPlaceholderLayout vyssie. Krytie 0,88 NEMENENE.
+  addSolidRect(frame, "Headline scrim", 0, boxY, format.width, boxH, campaignSurface(layout), 0.88);
 
   const fontSize = Math.round(clamp(format.height * (isPortrait ? 0.045 : 0.085), 20, 62));
   addText(frame, headline, pad, boxY + pad, format.width - pad * 2, boxH - pad * 2, fontSize, { r: 1, g: 1, b: 1 });
@@ -1596,9 +1605,12 @@ function buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage) {
 
 // Full page branding: keep central website content readable/empty.
 function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
-  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+  // Doplnok 18.8.: BRAND_COLOR (#002E8C natvrdo) -> campaignSurface(layout).
+  // Namerane: 34% krytie tmavomodrej cez koralovu fotku dava #A46173
+  // (zaprasena ruzovo-fialova), nie zamer. Krytie 0,34 NEMENENE.
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
-  addSolidRect(frame, "Dim brand background", 0, 0, format.width, format.height, BRAND_COLOR, 0.34);
+  addSolidRect(frame, "Dim brand background", 0, 0, format.width, format.height, campaignSurface(layout), 0.34);
 
   const topOffset = (format.safeZones && format.safeZones.topOffset) || 200;
   const centerW = (format.safeZones && format.safeZones.centerWidth) || 1000;
@@ -1658,7 +1670,10 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
 }
 
 function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
-  frame.fills = [{ type: "SOLID", color: BRAND_COLOR }];
+  // Doplnok 18.8.: BRAND_COLOR -> campaignSurface(layout). Namerane: 62%
+  // krytie tmavomodrej dava #5E4B7E (fialova) na 120x600. Krytie 0,62
+  // NEMENENE.
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   const sideTargetX = format.variantSide === "left" ? 0.72 : (format.variantSide === "right" ? 0.28 : 0.5);
   if (figmaImage && CUR_IMG_W && CUR_IMG_H) {
     addFocalImageFrame(
@@ -1672,7 +1687,7 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   } else {
     addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
   }
-  addSolidRect(frame, "Brand overlay", 0, 0, format.width, format.height, BRAND_COLOR, 0.62);
+  addSolidRect(frame, "Brand overlay", 0, 0, format.width, format.height, campaignSurface(layout), 0.62);
 
   // Bug (P0-9): čítalo layout.safe_content, čo sa nikde nenastavuje —
   // vždy padlo na default 160×600 bez ohľadu na skutočnú safe zónu
@@ -1739,12 +1754,18 @@ function getInterscrollerComposition(format) {
 }
 
 function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
-  frame.fills = [{ type: "SOLID", color: { r: layout.bg_r || 0.05, g: layout.bg_g || 0.07, b: layout.bg_b || 0.16 } }];
+  // Doplnok 18.8.: frame.fills tu bol samostatna rucna kopia
+  // layout.bg_r/g/b fallback logiky — vobec neprechadzala cez
+  // brandColor()/campaignSurface(), takze nikdy nezohladnovala
+  // CAMPAIGN_COLOR. Zjednotene na campaignSurface(layout), rovnako ako
+  // "Readable message panel" nizsie (BRAND_COLOR -> campaignSurface,
+  // namerane 88% krytie tmavomodrej — NEMENENE).
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   addImageRect(frame, figmaImage, "Image background", 0, 0, format.width, format.height, "FILL");
 
   const comp = getInterscrollerComposition(format);
   const safe = comp.safe;
-  addSolidRect(frame, "Readable message panel", comp.panelX, comp.panelY, comp.panelW, comp.panelH, BRAND_COLOR, 0.88);
+  addSolidRect(frame, "Readable message panel", comp.panelX, comp.panelY, comp.panelW, comp.panelH, campaignSurface(layout), 0.88);
 
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoH = Math.round(clamp(safe.h * 0.045, 34, 70));

@@ -342,13 +342,14 @@ const FORMATS = [
     id: "markiza_branding_leader",
     name: "Markíza branding 1000×200",
     channel: "Markíza",
+    role: "branding_side",
     width: 1000,
     height: 200,
     ratio: "5:1",
     type: ["awareness"],
     count: 1,
     safeZones: { safeInner: { width: 720, height: 200 } },
-    notes: "Hlavný odkaz max 140px od okraja (720px stred z 1000px šírky). Časť brandingu."
+    notes: "Hlavný odkaz max 140px od okraja (720px stred z 1000px šírky). Časť brandingu. P2-28: rola explicitná — bez nej inferRole vracal \"interscroller\" (šírka > 450), toto je leaderboardový pás, nie interscroller."
   },
   {
     id: "markiza_branding_side",
@@ -788,6 +789,11 @@ function inferRole(format) {
   if (id.indexOf("engerio") !== -1) return "native";
   if (channel.indexOf("e-mail") !== -1 || channel.indexOf("email") !== -1) return "email";
   if (format.safeZones && format.safeZones.safeInner) {
+    // P2-28: interscroller je vysoký (portrait) formát — nízky široký pás
+    // (napr. 1000×200 leaderboard) nesmie spadnúť na interscroller len
+    // preto, že safeInner šírka presiahne 450px. Pomer strán rozhoduje
+    // pred šírkou.
+    if (format.height <= format.width) return "branding_side";
     return format.width <= 450 ? "branding_side" : "interscroller";
   }
   if (format.safeZones && format.safeZones.centerWidth) return "branding_full";

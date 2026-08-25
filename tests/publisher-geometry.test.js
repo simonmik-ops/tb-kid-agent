@@ -29,4 +29,23 @@ const portrait = helpers.getInterscrollerComposition({ width: 300, height: 600, 
 assert(portrait.panelW > 0 && portrait.panelW <= 200);
 assert(portrait.panelX >= 50 && portrait.panelX + portrait.panelW <= 250);
 
+// P0-25 nadväzok: Vinted 970×250/300×600 aliasujú na Adform PSD šablónu
+// (ADFORM_PSD_ALIASES) — musí fungovať aj na Excel ceste, kde
+// materializeExcelFormat prepisuje format.id na syntetický tvar a pôvodné
+// katalógové id prežíva len v sourceFormatId.
+const adformStart = code.indexOf("const LOCAL_ADFORM_PSD_IDS");
+const adformEnd = code.indexOf("// Rozhoduje, ktoré prvky", adformStart);
+assert.ok(adformStart >= 0 && adformEnd > adformStart, "adformTemplateId + ADFORM_PSD_ALIASES must exist");
+const adformHelpers = new Function(code.slice(adformStart, adformEnd) + "; return { adformTemplateId };")();
+
+assert.strictEqual(adformHelpers.adformTemplateId({ id: "vinted_970x250", width: 970, height: 250 }), "adform_970x250");
+assert.strictEqual(adformHelpers.adformTemplateId({ id: "vinted_300x600", width: 300, height: 600 }), "adform_300x600");
+assert.strictEqual(
+  adformHelpers.adformTemplateId({ id: "xls_3_vinted_vinted_300x600", sourceFormatId: "vinted_300x600", width: 300, height: 600 }),
+  "adform_300x600",
+  "Excel-path synthetic id must still resolve the Vinted alias via sourceFormatId"
+);
+assert.strictEqual(adformHelpers.adformTemplateId({ id: "joj_interscroller_mobile", width: 300, height: 600 }), null,
+  "unrelated 300x600 formats must not pick up the Vinted alias");
+
 console.log("publisher geometry: ok");

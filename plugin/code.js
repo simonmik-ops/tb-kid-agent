@@ -97,8 +97,33 @@ const LOCAL_ADFORM_PSD_IDS = [
   "adform_970x250"
 ];
 
+// Vinted (potvrdené): 970×250 a 300×600 sú presne tie isté pixelové rozmery
+// ako overený Adform_dievca.psd banking layout. Nič v TP/materiáloch
+// nehovorí, že Vinted má vlastnú predlohu — toto je vedomá výnimka
+// (potvrdená v konverzácii), nie tichý predpoklad podľa zhody rozmerov.
+// P0-25 nadväzok (25.8.): tento mapping existoval na vetve zaloha-10-8
+// (commit v jej histórii, mimo integracia), ale nikdy sa nepreniesol na
+// aktuálnu vývojovú líniu (origin/master/integracia) po jej rozchode s
+// zaloha-10-8 pri 7b044e9 — Vinted 300×600/970×250 dovtedy padali na
+// generický master_safe namiesto presnej Adform PSD kompozície (objavené
+// pri vizuálnej QA kontrole schváleného exportu vs. skutočný výstup).
+const ADFORM_PSD_ALIASES = {
+  vinted_970x250: "adform_970x250",
+  vinted_300x600: "adform_300x600"
+};
+
 function adformTemplateId(format) {
   if (!format) return null;
+  // Excel cesta (materializeExcelFormat, plugin/ui.html) prepisuje format.id
+  // na syntetické xls_<index>_<placement>_<sourceId> — pôvodné katalógové id
+  // (napr. "vinted_300x600") prežíva len v sourceFormatId. Bez kontroly
+  // oboch polí by alias fungoval len na "Kampaň ceste" (priame katalógové
+  // formáty), nie na Excel ceste, ktorá je podľa zadania jediná reálne
+  // používaná.
+  if (ADFORM_PSD_ALIASES.hasOwnProperty(format.id)) return ADFORM_PSD_ALIASES[format.id];
+  if (format.sourceFormatId && ADFORM_PSD_ALIASES.hasOwnProperty(format.sourceFormatId)) {
+    return ADFORM_PSD_ALIASES[format.sourceFormatId];
+  }
   if (format.template && LOCAL_ADFORM_PSD_IDS.indexOf(format.template) !== -1) return format.template;
   const key = String(format.width) + "x" + String(format.height);
   const bySize = {

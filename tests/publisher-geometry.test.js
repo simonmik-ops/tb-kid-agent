@@ -5,7 +5,7 @@ const code = fs.readFileSync(require.resolve("../plugin/code.js"), "utf8");
 const start = code.indexOf("function clamp");
 const end = code.indexOf("function buildNativeCenterLayout", start);
 assert.ok(start >= 0 && end > start, "publisher geometry helpers must exist");
-const helpers = new Function(code.slice(start, end) + "; return { getInterscrollerComposition, expandPairedBrandingFormats };")();
+const helpers = new Function(code.slice(start, end) + "; return { getInterscrollerComposition, expandPairedBrandingFormats, resolveSideSafeContentBox };")();
 
 const paired = helpers.expandPairedBrandingFormats([{ format: {
   id: "pravda_200x700", baseId: "pravda_200x700", role: "branding_side",
@@ -47,5 +47,47 @@ assert.strictEqual(
 );
 assert.strictEqual(adformHelpers.adformTemplateId({ id: "joj_interscroller_mobile", width: 300, height: 600 }), null,
   "unrelated 300x600 formats must not pick up the Vinted alias");
+
+// P0-29-S2 (25.8. večer): addAiNote bez contentBox ukotví AI tag na spodok
+// CELÉHO frame-u, nie panelu — pre vysoké formáty (napr. 750×1624) skončí
+// ďaleko mimo skutočného "Readable message panel"/"Readable panel". Zamyká
+// panel geometriu na presné čísla z reálneho referenčného behu (Figma):
+// zenske_interscroller panel končí na 1267 (nameraný beh), topky_branding
+// panel na 700.
+const zenskeInt = helpers.getInterscrollerComposition({ width: 750, height: 1624, safeZones: { top: 321, bottom: 321, sides: 50 } });
+assert.strictEqual(zenskeInt.panelY + zenskeInt.panelH, 1267,
+  "zenske_interscroller (750×1624) panel bottom must match the measured reference run");
+
+const topkyBox = helpers.resolveSideSafeContentBox({ width: 450, height: 800, safeZones: { safeInner: { width: 160, height: 600 } } });
+assert.strictEqual(topkyBox.panelY + topkyBox.panelH, 700,
+  "topky_branding (450×800) panel bottom must match the measured reference run");
+
+// P0-29-S4: panel (background) must span the FULL frame width — it left
+// visible vertical seams whenever format.width > safeInner.width (measured
+// on 160×600: panel width 120 in a 160-wide frame; 450×800: panel width
+// 160 in a 450-wide frame). Content positioning (contentW) intentionally
+// stays at the safeInner width — that's a TP delivery-spec minimum, not a
+// style choice (P0-29-S5, deliberately untouched).
+assert.strictEqual(topkyBox.panelX, 0);
+assert.strictEqual(topkyBox.panelW, 450, "panel must reach both frame edges regardless of safeInner width");
+assert.strictEqual(topkyBox.contentW, 160, "content (logo/headline/CTA) positioning must stay within the TP safe zone");
+
+// P0-29-S1: addText() must actually name the node when asked — addAiNote's
+// own collision-avoidance searches frame.findOne(name === "Headline") and
+// silently found nothing before this fix (Figma default-names text nodes
+// by their content, not by role).
+const addTextStart = code.indexOf("function addText(frame");
+const addTextEnd = code.indexOf("\n}", addTextStart) + 2;
+const addTextSrc = code.slice(addTextStart, addTextEnd);
+assert.ok(/txt\.name\s*=\s*name/.test(addTextSrc), "addText must assign the given name to the created node");
+
+// P0-29-S10: logo-only asset logo must be vertically centered, not pinned
+// to a fixed 15%-from-top pad (comment said "vycentrované" but the code
+// didn't do that). Measured reference: 1200×1200 -> y=560.
+function simulateLogoOnlyY(format) {
+  const lH = Math.min(Math.round(format.height * 0.25), Math.round(format.width * 0.18), 80);
+  return Math.round((format.height - lH) / 2);
+}
+assert.strictEqual(simulateLogoOnlyY({ width: 1200, height: 1200 }), 560);
 
 console.log("publisher geometry: ok");

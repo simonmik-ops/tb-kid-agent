@@ -23,6 +23,18 @@ assert(source.includes('qaFailedCount'), "generation summary must expose QA fail
 assert(source.includes('qa_psd_geometry'), "Adform outputs must be checked against PSD geometry");
 assert(source.includes('FONT.family !== STYLE.fontFamily'), "font fallback must fail visual QA");
 assert(source.includes('qa_content_overlap'), "content collisions must fail visual QA");
+// P1-7: AI tag musí byť súčasťou kolíznej detekcie — chýbal, preto QA
+// nehlásila prekryv potvrdený na 5 topky.sk formátoch (Figma 1293:1504).
+assert(source.includes('qaFind(frame, "AI generované")'), "AI disclosure node must be looked up for QA");
+assert(/collisionPairs = \[[\s\S]{0,400}aiTag\]/.test(source), "AI tag must be checked against headline/subheadline/CTA/logo for collisions");
+// Reálne nameraný prípad (120×600, topky.sk branding beh): headline y=168
+// h=369 (bottom 537) vs. AI tag y=524 h=13 — 13 px prekryv, presne ako
+// zadanie namieralo. Musí sa teraz detegovať.
+assert.strictEqual(
+  context.qaOverlap({ x: 12, y: 168, w: 96, h: 369 }, { x: 15, y: 524, w: 88, h: 13 }, 2),
+  true,
+  "measured topky.sk 120×600 headline/AI-tag overlap must be detected"
+);
 assert(source.includes('qa_logo_scale'), "logo dimensions must be validated against format tokens");
 assert(source.includes('qa_cta_style'), "CTA size and brand blue must be validated");
 assert(source.includes('qa_text_spacing'), "headline/subheadline optical spacing must be validated");

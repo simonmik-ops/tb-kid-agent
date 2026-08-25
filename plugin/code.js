@@ -1150,12 +1150,18 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
   if (layoutType !== "clean_image" && layoutType !== "native_center" &&
       layout.show_logo !== false && content.hasLogo && !format.noLogo && !logo) add("qa_missing_logo");
 
-  const contentNodes = [headline, subheadline, cta, logo].filter(Boolean);
+  // P1-7 (zadané 19.8., dovtedy nezakomponované): AI tag chýbal v kolíznych
+  // párov aj v contentNodes, takže QA neohlásila prekryv s headlineom,
+  // ktorý sa potvrdil na piatich formátoch (120×600, 160×600, 450×800,
+  // 400×600, 320×480 — topky.sk/branding beh, Figma 1293:1504).
+  const aiTag = qaFind(frame, "AI generované");
+  const contentNodes = [headline, subheadline, cta, logo, aiTag].filter(Boolean);
   for (const node of contentNodes) {
     if (qaOutside(qaBox(node, frame), frame, 2)) add("qa_content_overflow");
   }
   const collisionPairs = [[headline, subheadline], [headline, cta], [headline, logo],
-    [subheadline, cta], [subheadline, logo], [cta, logo]];
+    [subheadline, cta], [subheadline, logo], [cta, logo],
+    [headline, aiTag], [subheadline, aiTag], [cta, aiTag], [logo, aiTag]];
   for (const pair of collisionPairs) {
     if (qaOverlap(qaBox(pair[0], frame), qaBox(pair[1], frame), 2)) add("qa_content_overlap");
   }

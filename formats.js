@@ -380,13 +380,14 @@ const FORMATS = [
     id: "markiza_interscroller",
     name: "Markíza interscroller 720×1280",
     channel: "Markíza",
+    role: "interscroller",
     width: 720,
     height: 1280,
     ratio: "9:16",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Max 300 kB jpg."
+    notes: "Max 300 kB jpg. P0-25/P0-26 doplnok: role explicitná — bez nej inferRole dá publisher_branding (plain top/bottom safeZones, žiadny safeInner/centerWidth), čo po P0-25 revízii prioritizácie ohrozovalo správne priradenú rolu z Excel textu."
   },
 
   // ─── JOJ ─────────────────────────────────────────────────────
@@ -406,25 +407,27 @@ const FORMATS = [
     id: "joj_interscroller_mobile",
     name: "JOJ interscroller 300×600",
     channel: "JOJ",
+    role: "interscroller",
     width: 300,
     height: 600,
     ratio: "1:2",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Mobile."
+    notes: "Mobile. P0-25/P0-26 doplnok: role explicitná (pozri markiza_interscroller vyššie)."
   },
   {
     id: "joj_interscroller_desktop",
     name: "JOJ interscroller 600×960",
     channel: "JOJ",
+    role: "interscroller",
     width: 600,
     height: 960,
     ratio: "5:8",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Desktop."
+    notes: "Desktop. P0-25/P0-26 doplnok: role explicitná (pozri markiza_interscroller vyššie)."
   },
 
   // ─── RINGIER ─────────────────────────────────────────────────
@@ -445,6 +448,7 @@ const FORMATS = [
     id: "ringier_interscroller",
     name: "Ringier interscroller 720×1280",
     channel: "Ringier",
+    role: "interscroller",
     width: 720,
     height: 1280,
     ratio: "9:16",
@@ -484,6 +488,7 @@ const FORMATS = [
     id: "zenske_interscroller",
     name: "Ženské weby interscroller 750×1624",
     channel: "Ženské weby",
+    role: "interscroller",
     width: 750,
     height: 1624,
     ratio: "~9:16",
@@ -510,6 +515,7 @@ const FORMATS = [
     id: "topky_interscroller",
     name: "Topky interscroller 400×600",
     channel: "Topky",
+    role: "interscroller",
     width: 400,
     height: 600,
     ratio: "2:3",

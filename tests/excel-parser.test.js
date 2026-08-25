@@ -59,22 +59,51 @@ assert.strictEqual(sameSizeA.format.channel, "Google Responsive Ads");
 assert.strictEqual(sameSizeB.format.channel, "Google Demand Gen");
 assert.notStrictEqual(sameSizeA.format.baseId, sameSizeB.format.baseId, "same dimensions from different placements must not deduplicate");
 
-// Regression: Meta 1200×628 môže rozmerovo trafiť Google clean asset.
-// Rola riadka z Excelu musí vyhrať aj nad skopírovanými pravidlami kandidáta.
-const metaWithWrongSizeCandidate = api.materializeExcelFormat({
+// P0-25 (revidované 25.8.): katalógová rola teraz vyhráva nad textovým
+// odhadom, keď formát matchol. Meta 1200×628 kedysi kolidoval rozmerovo s
+// Google clean asset a katalóg vtedy nemal žiadny Meta záznam na tom
+// rozmere — preto tu skôr vyhrával roleHint. Ten dátový problém je opravený
+// (meta_img_landscape pridaný do formats.js, commit cc4dfb1): scoreCandidate
+// teraz v reálnej katalógovej scéne správne vytriedi Meta kandidáta pred
+// Google, takže "matched" už nikdy nie je ten nesprávny Google záznam.
+// Simulujeme tu realistickú scénu (obaja kandidáti prítomní, Meta už
+// vyhral scoring) a overujeme, že katalógová rola z víťaza sa použije.
+const metaCorrectlyMatched = api.materializeExcelFormat({
   w: 1200, h: 628, placement: "Meta (Facebook & Instagram) - Automatic placements",
   assetType: "obrázok", roleHint: "meta_full",
-  candidates: [{
-    id: "tpl_clean_landscape", channel: "Clean assets", role: "clean_image",
-    width: 1200, height: 628,
-    rules: { noText: true, noLogo: true, headlineOnly: false, logoOnly: false }
-  }],
-  selectedId: "tpl_clean_landscape"
+  candidates: [
+    { id: "meta_img_landscape", channel: "Meta", role: "meta_full", width: 1200, height: 628 },
+    { id: "google_rsa_landscape", channel: "Google", role: "clean_image", width: 1200, height: 628 }
+  ],
+  selectedId: "meta_img_landscape"
 }, 2);
-assert.strictEqual(metaWithWrongSizeCandidate.format.role, "meta_full");
-assert.strictEqual(metaWithWrongSizeCandidate.format.rules.noText, false);
-assert.strictEqual(metaWithWrongSizeCandidate.format.rules.noLogo, false);
-assert.strictEqual(metaWithWrongSizeCandidate.format.rules.ctaBySystem, true);
+assert.strictEqual(metaCorrectlyMatched.format.role, "meta_full");
+assert.strictEqual(metaCorrectlyMatched.format.rules.noText, false);
+assert.strictEqual(metaCorrectlyMatched.format.rules.noLogo, false);
+assert.strictEqual(metaCorrectlyMatched.format.rules.ctaBySystem, true);
+
+// Fallback zachovaný: keď pre daný rozmer NEEXISTUJE žiadny katalógový
+// kandidát (matched je undefined), roleHint z textu riadka musí stále
+// určiť rolu — toto je jediný scenár, kde má odhad ešte zmysel.
+const noCatalogMatch = api.materializeExcelFormat({
+  w: 999, h: 999, placement: "Neznámy publisher", assetType: "obrázok",
+  roleHint: "headline_only", candidates: [], selectedId: null
+}, 2);
+assert.strictEqual(noCatalogMatch.format.role, "headline_only");
+
+// P0-25 regresia (Topky 450×800, zistené 25.8. večer): topky_branding je
+// JEDINÝ katalógový záznam na tento rozmer (jednoznačná zhoda) s rolou
+// branding_side — ale kombinovaný text "topky.sk branding/interscroller"
+// dá refineRole() v ui.html odhad "interscroller" pre tento riadok.
+// Katalógová rola (jednoznačná zhoda) musí vyhrať nad konfliktným odhadom.
+const topkyUnambiguousMatch = api.materializeExcelFormat({
+  w: 450, h: 800, placement: "topky.sk", assetType: "branding",
+  roleHint: "interscroller",
+  candidates: [{ id: "topky_branding", channel: "Topky", role: "branding_side", width: 450, height: 800 }],
+  selectedId: "topky_branding"
+}, 3);
+assert.strictEqual(topkyUnambiguousMatch.format.role, "branding_side",
+  "unambiguous single catalog match must win over a conflicting text-derived roleHint");
 
 const adform = api.materializeExcelFormat({
   w: 300, h: 250, placement: "Adform", assetType: "IAB banner", roleHint: "full_creative", candidates: []

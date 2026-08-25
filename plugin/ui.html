@@ -489,13 +489,19 @@
                 "160x600": "adform_160x600", "970x250": "adform_970x250" };
     var key = d.w + "x" + d.h;
     var placement = d.placement || (matched && matched.channel) || "Z tabuľky";
-    // P0-25: zadanie žiadalo otočiť poradie (katalóg > odhad), NEIMPLEMENTOVANÉ
-    // — pozri commit message. tests/excel-parser.test.js:62-77 chráni presne
-    // opačné poradie pre reálnu, aktuálnu kolíziu (Meta 1200×628 vs. Google
-    // clean/demandgen/pmax na tom istom rozmere — v katalógu dnes NIE JE
-    // žiadny Meta záznam na 1200×628, overené node -e). Odhad z textu
-    // riadka zostáva prvý; katalóg je fallback.
-    var role = d.roleHint || (matched && matched.role) || "publisher_branding";
+    // P0-25 (revidované 25.8. večer): katalógová rola vyhráva, keď formát
+    // matchol. Pôvodne (do commitu 5d1a4f9) tu vyhrával textový odhad
+    // (d.roleHint) — vtedy to bolo potrebné, lebo katalóg nemal žiadny Meta
+    // záznam na 1200×628 (kolízia s Google RSA/DemandGen/PMax na tom istom
+    // rozmere). Ten dátový problém je odvtedy opravený (meta_img_landscape,
+    // commit cc4dfb1). Otočenie teraz odhalilo opačný, rovnako reálny
+    // prípad: topky_branding (450×800) je JEDINÝ katalógový záznam na tento
+    // rozmer (jednoznačná zhoda), ale refineRole() v tomto súbore
+    // (kombinovaný text "branding/interscroller") ho nesprávne odhadol ako
+    // "interscroller" — overené na referenčnom behu (Figma 1293:1504,
+    // topky.sk). Katalóg je kurátorský zdroj; text je len fallback pre
+    // rozmery, ktoré katalóg nepozná.
+    var role = (matched && matched.role) || d.roleHint || "publisher_branding";
     var isAdform = /adform/i.test(placement);
     var sourceId = matched ? matched.id : (isAdform && PSD[key] ? PSD[key] : ("xls_" + key + "_" + role));
     // Každý riadok/placement mediálneho plánu musí ostať samostatný. Rovnaký

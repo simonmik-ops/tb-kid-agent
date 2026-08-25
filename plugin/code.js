@@ -891,7 +891,30 @@ async function createAllFrames({
         layoutType !== "logo_only" && layoutType !== "micro" && layoutType !== "clean_image" &&
         layoutType !== "adform_psd" && layoutType !== "master_safe"
       ) {
-        addAiNote(frame, format);
+        // P0-29-S2 (25.8. večer): bez contentBox addAiNote ukotví tag na
+        // spodok CELÉHO frame-u (default {0,0,w,h}) — pre side_safe/
+        // interscroller_safe je to ĎALEKO mimo skutočného panelu (napr.
+        // 750×1624: panel do 1267, tag skončil na 1544, 277 px mimo).
+        // Panel geometria sa tu prepočíta rovnakými čistými funkciami,
+        // aké používajú aj samotné buildery (resolveSideSafeContentBox,
+        // getInterscrollerComposition) — žiadna duplicitná logika, len
+        // opätovné použitie.
+        let aiBox = null;
+        if (layoutType === "side_safe") {
+          const b = resolveSideSafeContentBox(format);
+          aiBox = { x: b.panelX, y: b.panelY, w: b.panelW, h: b.panelH };
+        } else if (layoutType === "interscroller_safe") {
+          const comp = getInterscrollerComposition(format);
+          aiBox = { x: comp.panelX, y: comp.panelY, w: comp.panelW, h: comp.panelH };
+        } else if (layoutType === "email_layout") {
+          // P0-29-S2: addAiNote's "najväčší IMAGE-fill rect" heuristika
+          // nájde "Hero image" (hore) namiesto bieleho "Content area" —
+          // ukotví tag TESNE nad hero fotkou, teda ešte NA nej (namerané
+          // y=226 pri obsahu začínajúcom na 270, azet_dm 640×500).
+          const heroH = Math.round(format.height * 0.54);
+          aiBox = { x: 0, y: heroH, w: format.width, h: format.height - heroH };
+        }
+        addAiNote(frame, format, aiBox);
       }
 
       // Builders may refine the strategy (for example Adform protected
@@ -1439,8 +1462,15 @@ function addImageRect(frame, figmaImage, name, x, y, w, h, scaleMode) {
   return rect;
 }
 
-function addText(frame, headline, x, y, w, h, fontSize, color, align) {
+function addText(frame, headline, x, y, w, h, fontSize, color, align, name) {
   const txt = figma.createText();
+  // P0-29-S1 (25.8. večer): predtým sa .name nikdy nenastavovalo — Figma
+  // defaultne pomenuje textový uzol podľa jeho obsahu (napr. "Investujte"),
+  // nie "Headline". addAiNote()'s vlastná kolízna poistka (r. 524)
+  // hľadá presne frame.findOne(name === "Headline") — bez mena nikdy nič
+  // nenašla, takže sa nikdy nespustila. Volania kreslenia headlinu preto
+  // musia meno explicitne poslať.
+  txt.name = name || headline || "HEADLINE";
   txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
   txt.fontSize = fontSize;
@@ -1756,6 +1786,39 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   );
 }
 
+// P0-29-S2: čistá geometria bez kreslenia, aby ju vedela zavolať aj
+// orchestrácia (addAiNote potrebuje panel bounds, nie len builder).
+function resolveSideSafeContentBox(format) {
+  // Bug (P0-9): čítalo layout.safe_content, čo sa nikde nenastavuje —
+  // vždy padlo na default 160×600 bez ohľadu na skutočnú safe zónu
+  // formátu (napr. pravda 200×700 má safeInner 120×600, nie 160×600).
+  const safe = (format.safeZones && format.safeZones.safeInner) || {};
+  // contentW/x: kde sedí hlavný odkaz (logo/headline/CTA) — safeInner je TP
+  // požiadavka na minimálnu garantovanú viditeľnú plochu (napr. topky_branding
+  // poznámka: "Rozsah 120×600 až 450×800. Hlavný odkaz v safe zóne 160×600"),
+  // nie štylistická voľba — NEROZŠIRUJEME nad rámec safeInner (P0-29-S5,
+  // zámerne nedotknuté, riziko porušenia delivery-spec, čaká na potvrdenie).
+  const contentW = Math.min(format.width, safe.width || 160);
+  const contentH = Math.min(format.height, safe.height || 600);
+  const x = Math.round((format.width - contentW) / 2);
+  const y = Math.round((format.height - contentH) / 2);
+  const pad = Math.round(clamp(contentW * 0.1, 10, 18));
+  // P0-29-E1: panel pomer 0,483 podľa ADFORM_PSD_RULES.adform_160x600.panel
+  // (290/600).
+  const panelH = Math.round(contentH * 0.483);
+  const panelY = y + contentH - panelH;
+  // P0-29-S4 (25.8. večer): panel (čitateľné pozadie) DOSADÁ NA CELÝ RÁM —
+  // format.width JE šírka reálneho ad-unitu (side_safe je bočný skyscraper,
+  // rám sám osebe je alokovaný priestor, nie širší kontajner s mŕtvymi
+  // okrajmi). Predtým panel.width = contentW (safeInner šírka) nechával
+  // viditeľné zvislé hrany vždy, keď format.width > safeInner.width
+  // (namerané: 160×600 malo panel š.120 v ráme 160, 450×800 malo panel
+  // š.160 v ráme 450 — "pásik uprostred"). Toto je NEZÁVISLÉ od S5 (obsah
+  // v paneli zostáva v safeInner šírke, len samotné pozadie panelu je teraz
+  // vždy celoplošné).
+  return { x, y, contentW, contentH, pad, panelY, panelH, panelX: 0, panelW: format.width };
+}
+
 function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   // P0-29-E1 (25.8.): predošlý celoplošný "Brand overlay" (62 % krytie cez
   // CELÝ frame) je nahradený lokálnym panelom len pod textovým blokom —
@@ -1783,15 +1846,12 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
   }
 
-  // Bug (P0-9): čítalo layout.safe_content, čo sa nikde nenastavuje —
-  // vždy padlo na default 160×600 bez ohľadu na skutočnú safe zónu
-  // formátu (napr. pravda 200×700 má safeInner 120×600, nie 160×600).
-  const safe = (format.safeZones && format.safeZones.safeInner) || {};
-  const contentW = Math.min(format.width, safe.width || 160);
-  const contentH = Math.min(format.height, safe.height || 600);
-  const x = Math.round((format.width - contentW) / 2);
-  const y = Math.round((format.height - contentH) / 2);
-  const pad = Math.round(clamp(contentW * 0.1, 10, 18));
+  // P0-29-S2 (25.8. večer): geometria vytiahnutá do resolveSideSafeContentBox,
+  // aby ju vedela znovu použiť aj orchestrácia (addAiNote potrebuje panel,
+  // nie celý frame — inak sa AI tag ukotví na spodok CELÉHO frame-u a pri
+  // vysokých formátoch skončí ďaleko mimo panelu, P0-29-S2).
+  const box = resolveSideSafeContentBox(format);
+  const { x, y, contentW, contentH, pad, panelY, panelH, panelX, panelW } = box;
 
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoH = Math.round(clamp(contentH * 0.08, 28, 52));
@@ -1802,12 +1862,13 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   // P0-29-E1: lokálny panel (nie celoplošný) — pomer 0,483 podľa
   // ADFORM_PSD_RULES.adform_160x600.panel (290/600). Kreslí sa PRED CTA a
   // headline, nech sedia navrchu neho.
-  const panelH = Math.round(contentH * 0.483);
-  const panelY = y + contentH - panelH;
+  // P0-29-S4: panel.x/w = panelX/panelW (CELÝ rám), nie x/contentW
+  // (safeInner šírka) — inak zostávajú viditeľné zvislé hrany vždy, keď je
+  // format.width > safeInner.width (namerané na 160×600 aj 450×800).
   const panel = figma.createRectangle();
   panel.name = "Readable panel";
-  panel.resize(contentW, panelH);
-  panel.x = x;
+  panel.resize(panelW, panelH);
+  panel.x = panelX;
   panel.y = panelY;
   panel.fills = [sampledLowerPanelGradient(layout)];
   frame.appendChild(panel);
@@ -1832,7 +1893,7 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     // panelu, nech headline vždy sedí na čitateľnom pozadí bez ohľadu na to,
     // čo je v danom mieste fotky.
     const textY = panelY + pad;
-    addText(frame, headline, x + pad, textY, contentW - pad * 2, Math.max(20, ctaTop - textY), fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
+    addText(frame, headline, x + pad, textY, contentW - pad * 2, Math.max(20, ctaTop - textY), fontSize, { r: 1, g: 1, b: 1 }, "CENTER", "Headline");
   }
 }
 
@@ -2027,7 +2088,7 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
     // headline. Keď CTA zabral spodok, rovnaká medzera by headline
     // stlačila na pár px — s CTA použi menšiu, pevnú medzeru.
     const textY = heroH + pad + Math.round(showCta ? pad * 0.4 : format.width * 0.13);
-    addText(frame, headline, pad, textY, format.width - pad * 2, Math.max(20, contentBottom - textY), fontSize, BRAND_COLOR);
+    addText(frame, headline, pad, textY, format.width - pad * 2, Math.max(20, contentBottom - textY), fontSize, BRAND_COLOR, "LEFT", "Headline");
   }
 }
 

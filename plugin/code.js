@@ -1651,12 +1651,8 @@ function buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage) {
 
 // Full page branding: keep central website content readable/empty.
 function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
-  // Doplnok 18.8.: BRAND_COLOR (#002E8C natvrdo) -> campaignSurface(layout).
-  // Namerane: 34% krytie tmavomodrej cez koralovu fotku dava #A46173
-  // (zaprasena ruzovo-fialova), nie zamer. Krytie 0,34 NEMENENE.
   frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
-  addSolidRect(frame, "Dim brand background", 0, 0, format.width, format.height, campaignSurface(layout), 0.34);
 
   const topOffset = (format.safeZones && format.safeZones.topOffset) || 200;
   const centerW = (format.safeZones && format.safeZones.centerWidth) || 1000;
@@ -1667,6 +1663,10 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   // 1200×200 frame je iba horný pás; nesmie dostať vertikálny side-skin
   // layout, ktorý by umiestnil headline a CTA stovky pixelov pod frame.
   if (format.height <= topOffset || sideW <= pad * 2) {
+    // Tento pás nemá headline/CTA (len logá, viz nižšie) — celoplošné 34%
+    // krytie tu negatuje žiadny biely text, takže P0-29-E2 sa ho netýka
+    // (na rozdiel od vetvy nižšie). Ponechané pôvodné, nemenené.
+    addSolidRect(frame, "Dim brand background", 0, 0, format.width, format.height, campaignSurface(layout), 0.34);
     if (shouldShowLogo(format, layout, figmaLogo)) {
       const stripLogoW = Math.round(clamp(format.width * 0.10, 72, 140));
       const stripLogoH = Math.round(clamp(format.height * 0.32, 36, 64));
@@ -1676,6 +1676,47 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
     }
     return;
   }
+
+  // P0-29-E2 (25.8.): predošlé celoplošné 34% krytie namieralo WCAG fail
+  // (1,54:1 na svetlom podklade voči #C55E4D) presne tam, kde sedí biely
+  // headline/CTA (obe bočné stĺpce nižšie) — a navyše zbytočne tónovalo aj
+  // stredovú "website content area guide" zónu, ktorá má zostať čistá.
+  // Nahradené dvomi lokálnymi gradientovými panelmi (rovnaká technika ako
+  // sampledLowerPanelGradient — alfa 0,10→1,00 do 45 %), po jednom v
+  // každom bočnom stĺpci, plná krycosť pri vonkajšom okraji (kde sedí
+  // text), hladký prechod smerom k stredu.
+  const edge = campaignSurface(layout);
+  const leftPanel = figma.createRectangle();
+  leftPanel.name = "Dim brand background — left";
+  leftPanel.resize(sideW, format.height);
+  leftPanel.x = 0;
+  leftPanel.y = 0;
+  leftPanel.fills = [{
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[1, 0, 0], [0, 1, 0]],
+    gradientStops: [
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
+      { position: 0.55, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
+      { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } }
+    ]
+  }];
+  frame.appendChild(leftPanel);
+  const rightPanel = figma.createRectangle();
+  rightPanel.name = "Dim brand background — right";
+  rightPanel.resize(sideW, format.height);
+  rightPanel.x = format.width - sideW;
+  rightPanel.y = 0;
+  rightPanel.fills = [{
+    type: "GRADIENT_LINEAR",
+    gradientTransform: [[1, 0, 0], [0, 1, 0]],
+    gradientStops: [
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
+      { position: 0.45, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
+      { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } }
+    ]
+  }];
+  frame.appendChild(rightPanel);
+
   const logoH = 58;
   const logoW = Math.min(Math.round(logoH * 3.5), sideW - pad * 2);
 
@@ -1893,15 +1934,27 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
   // Doplnok 18.8.: frame.fills tu bol samostatna rucna kopia
   // layout.bg_r/g/b fallback logiky — vobec neprechadzala cez
   // brandColor()/campaignSurface(), takze nikdy nezohladnovala
-  // CAMPAIGN_COLOR. Zjednotene na campaignSurface(layout), rovnako ako
-  // "Readable message panel" nizsie (BRAND_COLOR -> campaignSurface,
-  // namerane 88% krytie tmavomodrej — NEMENENE).
+  // CAMPAIGN_COLOR. Zjednotene na campaignSurface(layout).
   frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   addImageRect(frame, figmaImage, "Image background", 0, 0, format.width, format.height, "FILL");
 
   const comp = getInterscrollerComposition(format);
   const safe = comp.safe;
-  addSolidRect(frame, "Readable message panel", comp.panelX, comp.panelY, comp.panelW, comp.panelH, campaignSurface(layout), 0.88);
+  // P0-29-E2 (25.8.): predošlé natvrdo 88% krytie plochou farbou
+  // nameraný namieral WCAG fail (2,34–3,43:1 na svetlom podklade voči
+  // #C55E4D — pod 4,5:1 aj pod 3:1 pri #F87B66) a navyše nechávalo tvrdý,
+  // viditeľný okraj panelu (fotka pod ním prekrytá, ale nie stmavená).
+  // Rovnaká gradientová technika ako "Dark lower panel" v Adform PSD a
+  // panel side_safe (sampledLowerPanelGradient — už zdieľaná, nie
+  // Adform-špecifická): alfa nabieha 0,10 → 1,00 do 45 % panelu, potom
+  // ostáva plná — hladký prechod, garantovaná plná krycosť v texte.
+  const panel = figma.createRectangle();
+  panel.name = "Readable message panel";
+  panel.resize(comp.panelW, comp.panelH);
+  panel.x = comp.panelX;
+  panel.y = comp.panelY;
+  panel.fills = [sampledLowerPanelGradient(layout)];
+  frame.appendChild(panel);
 
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoH = Math.round(clamp(safe.h * 0.045, 34, 70));

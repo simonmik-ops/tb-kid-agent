@@ -347,6 +347,18 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
         headline_position: "center", logo_position: "top",
         safe_content: format.safeZones?.safeInner || { width: Math.min(format.width, 160), height: Math.min(format.height, 600) } };
     }
+    // P0-25/P0-28: leaderboardové pásy — pozri plugin/code.js
+    // buildBrandingLeaderTextLayout / buildBrandingLeaderFullLayout pre
+    // zdôvodnenie (overené na schválených exportoch, nie odhad).
+    if (r === "branding_leader_text") {
+      return { ...base, layout_type: "branding_leader_text", image_fit: "none", photo_width_pct: 0,
+        headline_position: "center", logo_position: "none", show_logo: false, show_cta: false,
+        show_ai_disclosure: false };
+    }
+    if (r === "branding_leader_full") {
+      return { ...base, layout_type: "branding_leader_full", image_fit: "fill",
+        headline_position: "right", logo_position: "bottom-right" };
+    }
     if (r === "interscroller") {
       return { ...base, layout_type: "interscroller_safe", image_fit: "fill",
         headline_position: "safe-bottom", logo_position: "safe-top", safe_content: format.safeZones };

@@ -61,6 +61,22 @@ const CREATIVE_PROFILES = {
       headline: false, subheadline: false, cta: false,
       logo: false, legal: false, badge: false, aiDisclosure: false
     }
+  },
+  // P0-25/P0-28: leaderboardové pásy — pozri plugin/code.js buildBrandingLeaderTextLayout
+  // / buildBrandingLeaderFullLayout pre zdôvodnenie (overené na schválených exportoch).
+  branding_leader_text: {
+    layoutType: "branding_leader_text",
+    elements: {
+      headline: true, subheadline: false, cta: false,
+      logo: false, legal: false, badge: false, aiDisclosure: false
+    }
+  },
+  branding_leader_full: {
+    layoutType: "branding_leader_full",
+    elements: {
+      headline: true, subheadline: false, cta: true,
+      logo: true, legal: false, badge: false, aiDisclosure: true
+    }
   }
 };
 
@@ -77,6 +93,8 @@ function inferProfile(format) {
   if (role === "full_creative") return "full_creative";
   if (role === "headline_only") return "headline_only";
   if (role === "native") return "native_clean";
+  if (role === "branding_leader_text") return "branding_leader_text";
+  if (role === "branding_leader_full") return "branding_leader_full";
   if (id.indexOf("google_rsa") !== -1) return "clean_image";
   if (id.indexOf("google_logo") !== -1 || id.indexOf("demandgen_logo") !== -1) return "logo_only";
   if (id.indexOf("pmax") !== -1 || channel.indexOf("pmax") !== -1) return "headline_only";

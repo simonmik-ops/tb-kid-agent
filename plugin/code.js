@@ -137,6 +137,12 @@ function resolveCreativeRule(format) {
     // master_safe / publisher_branding fallback — nedropovať, čo tam bolo).
     branding_full: { layoutType: "branding_skin", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     branding_side: { layoutType: "side_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    // P0-25/P0-28: leaderboardové pásy — dva podtypy overené na schválených
+    // exportoch (viz builder komentáre). "text" = companion TOP kus bez
+    // foto/CTA/logo (tie nesú bočné branding_side sourozenci); "full" =
+    // standalone pás bez sourozencov, plná kompozícia.
+    branding_leader_text: { layoutType: "branding_leader_text", headline: true, subheadline: false, cta: false, logo: false, ai: false },
+    branding_leader_full: { layoutType: "branding_leader_full", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     interscroller: { layoutType: "interscroller_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     email: { layoutType: "email_layout", headline: true, subheadline: false, cta: true, logo: true, ai: true }
   };
@@ -161,6 +167,8 @@ function resolveCreativeRule(format) {
       native: "native_clean",
       branding_full: "branding_full",
       branding_side: "branding_side",
+      branding_leader_text: "branding_leader_text",
+      branding_leader_full: "branding_leader_full",
       interscroller: "interscroller",
       email: "email"
     };
@@ -758,6 +766,7 @@ async function createAllFrames({
         clean_image: "čistý vizuál", logo_only: "logo", meta_full: "Meta",
         full_creative: "kompletná kreatíva", headline_only: "iba headline",
         native: "native", branding_full: "branding", branding_side: "bočný branding",
+        branding_leader_text: "leaderboard (text)", branding_leader_full: "leaderboard (plný)",
         interscroller: "interscroller", email: "e-mail", publisher_branding: "publisher"
       };
       var formatDescriptor = String(format.width) + "×" + String(format.height) + " · " +
@@ -804,6 +813,10 @@ async function createAllFrames({
         buildBrandingSkinLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
       } else if (layoutType === "side_safe") {
         buildSideSafeLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
+      } else if (layoutType === "branding_leader_text") {
+        buildBrandingLeaderTextLayout(frame, format, layout, hl);
+      } else if (layoutType === "branding_leader_full") {
+        buildBrandingLeaderFullLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
       } else if (layoutType === "interscroller_safe") {
         buildInterscrollerSafeLayout(frame, format, layout, hl, ctaText, figmaImage, figmaLogo);
       } else if (layoutType === "native_center") {
@@ -1101,7 +1114,7 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
   const supportsCopy = noCopyLayouts.indexOf(layoutType) === -1;
   const supportsSubheadline = ["master_safe", "adform_psd", "full_bleed"].indexOf(layoutType) !== -1;
   const supportsCta = ["master_safe", "adform_psd", "branding_skin", "side_safe",
-    "interscroller_safe", "email_layout"].indexOf(layoutType) !== -1;
+    "branding_leader_full", "interscroller_safe", "email_layout"].indexOf(layoutType) !== -1;
 
   if (!frame.clipsContent) add("qa_unclipped_frame");
   if (FONT.family !== STYLE.fontFamily && (headline || subheadline || cta)) add("qa_font_fallback_inter");
@@ -1724,6 +1737,72 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));
     const textY = y + Math.round(contentH * 0.28);
     addText(frame, headline, x + pad, textY, contentW - pad * 2, Math.max(20, ctaTop - textY), fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
+  }
+}
+
+// P0-25/P0-28: leaderboardovy pas, ktory v realnej kampani beží ako TOP kus
+// vedla dvoch bocnych "sourozencov" (role branding_side), ktore uz nesu
+// foto/CTA/logo. Overene priamo na schvalenom exporte (Markiza-Branding
+// TOP/L/R, Cas pre zeny TOP 1200x200 — obe majú LEN centrovany headline na
+// brandovom pozadi, ziadne foto/CTA/logo). Duplikovat ich tu by bolo
+// vizualne aj obsahovo redundantne s tym, čo uz nesú L/R kusy.
+function buildBrandingLeaderTextLayout(frame, format, layout, headline) {
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
+  if (!shouldShowHeadline(layout, headline)) return;
+  const pad = Math.round(clamp(format.width * 0.06, 24, 90));
+  const fontSize = Math.round(clamp(format.height * 0.24, 20, 48));
+  const txt = figma.createText();
+  txt.fontName = FONT;
+  txt.characters = headline || "HEADLINE";
+  txt.fontSize = fontSize;
+  txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+  txt.textAlignHorizontal = "CENTER";
+  txt.textAutoResize = "NONE";
+  txt.resize(format.width - pad * 2, format.height);
+  txt.textAlignVertical = "CENTER";
+  txt.x = pad;
+  txt.y = 0;
+  txt.name = "Headline";
+  frame.appendChild(txt);
+}
+
+// P0-25/P0-28: standalone leaderboard bez bocnych "sourozencov" (napr.
+// Ringier 1200x400 — v exportoch nemá žiadny L/R companion). Overene na
+// schvalenom exporte (Leaderboard-1200x400_...jpg): foto vlavo ~35%, vpravo
+// brandova plocha s headlineom + CTA, logo vpravo dole. Pozn.: presné
+// pixelové pomery sú odhad z JEDNÉHO referenčného obrázka (nie z PSD/Figma
+// presných súradníc ako Adform) — po vygenerovaní vizuálne skontrolovať.
+function buildBrandingLeaderFullLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
+  const photoW = Math.round(format.width * 0.35);
+  addImageRect(frame, figmaImage, "Foto", 0, 0, photoW, format.height, "FILL");
+
+  const brandX = photoW;
+  const brandW = format.width - photoW;
+  const pad = Math.round(clamp(brandW * 0.08, 20, 56));
+
+  const logoH = Math.round(clamp(format.height * 0.16, 28, 56));
+  const logoW = Math.round(logoH * 3.5);
+  let logoTop = format.height;
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const ly = format.height - pad - logoH;
+    placeLogo(frame, figmaLogo, format.width - pad - logoW, ly, logoW, logoH);
+    logoTop = ly;
+  }
+
+  const showCta = layout.show_cta !== false && !!ctaText;
+  let ctaTop = logoTop - pad;
+  if (showCta) {
+    const btnH = Math.round(clamp(format.height * 0.16, 32, 54));
+    const btnW = Math.min(Math.round(brandW * 0.42), 220);
+    const btnY = logoTop - Math.round(pad * 0.6) - btnH;
+    addMasterCta(frame, ctaText, brandX + pad, btnY, btnW, btnH);
+    ctaTop = btnY - Math.round(pad * 0.5);
+  }
+
+  if (shouldShowHeadline(layout, headline)) {
+    const fontSize = Math.round(clamp(format.height * 0.14, 18, 32));
+    addText(frame, headline, brandX + pad, pad, brandW - pad * 2, Math.max(20, ctaTop - pad), fontSize, { r: 1, g: 1, b: 1 });
   }
 }
 

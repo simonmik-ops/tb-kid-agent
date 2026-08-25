@@ -489,6 +489,12 @@
                 "160x600": "adform_160x600", "970x250": "adform_970x250" };
     var key = d.w + "x" + d.h;
     var placement = d.placement || (matched && matched.channel) || "Z tabuľky";
+    // P0-25: zadanie žiadalo otočiť poradie (katalóg > odhad), NEIMPLEMENTOVANÉ
+    // — pozri commit message. tests/excel-parser.test.js:62-77 chráni presne
+    // opačné poradie pre reálnu, aktuálnu kolíziu (Meta 1200×628 vs. Google
+    // clean/demandgen/pmax na tom istom rozmere — v katalógu dnes NIE JE
+    // žiadny Meta záznam na 1200×628, overené node -e). Odhad z textu
+    // riadka zostáva prvý; katalóg je fallback.
     var role = d.roleHint || (matched && matched.role) || "publisher_branding";
     var isAdform = /adform/i.test(placement);
     var sourceId = matched ? matched.id : (isAdform && PSD[key] ? PSD[key] : ("xls_" + key + "_" + role));
@@ -507,6 +513,21 @@
       logoTop: !!(matched && matched.rules && matched.role === role && matched.rules.logoTop),
       ctaBySystem: role === "meta_full" || role === "headline_only"
     };
+    // P0-25: safeZonesFromContext (d.safeZones) vždy vráti aspoň
+    // { top: 0, bottom: 0 } — teda truthy pri každom riadku — takže
+    // "d.safeZones || matched.safeZones" nikdy nesiahol na katalógovú
+    // hodnotu, aj keď tabuľka nedetegovala žiadny reálny safe-zone signál.
+    // Katalóg (kurátorský) je teraz základ; z tabuľky sa doplnia len
+    // skutočne extrahované kľúče (sides/safeInner/centerWidth/topOffset —
+    // top/bottom z safeZonesFromContext sú vždy len 0/0 default, nie signál,
+    // preto sa neprenášajú). Tabuľka dopĺňa medzery v katalógu, neprepisuje
+    // ho.
+    var tableSafeExtras = {};
+    Object.keys(d.safeZones || {}).forEach(function (k) {
+      if (k === "top" || k === "bottom") return;
+      tableSafeExtras[k] = d.safeZones[k];
+    });
+    var mergedSafeZones = Object.assign({ top: 0, bottom: 0 }, tableSafeExtras, (matched && matched.safeZones) || {});
     var format = Object.assign({}, matched || {}, {
       id: uniqueId,
       baseId: uniqueId,
@@ -518,7 +539,10 @@
       role: role,
       count: d.count || 1,
       rules: rules,
-      safeZones: d.safeZones || (matched && matched.safeZones) || { top: 0, bottom: 0 },
+      safeZones: mergedSafeZones,
+      // limit/notes/finalOutput: skontrolované, NIE je tu ten istý bug —
+      // labeledValue()/specification vracajú skutočný "" (falsy) pri
+      // prázdnej bunke, takže "d.x || matched.x" tu funguje správne.
       limit: d.limit || (matched && matched.limit) || "",
       notes: d.specification || (matched && matched.notes) || "",
       finalOutput: d.finalOutput || "",

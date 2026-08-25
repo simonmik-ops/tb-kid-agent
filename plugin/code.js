@@ -1716,9 +1716,17 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
 }
 
 function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
-  // Doplnok 18.8.: BRAND_COLOR -> campaignSurface(layout). Namerane: 62%
-  // krytie tmavomodrej dava #5E4B7E (fialova) na 120x600. Krytie 0,62
-  // NEMENENE.
+  // P0-29-E1 (25.8.): predošlý celoplošný "Brand overlay" (62 % krytie cez
+  // CELÝ frame) je nahradený lokálnym panelom len pod textovým blokom —
+  // presne ako buildInterscrollerSafeLayout ("Readable message panel") a
+  // presne princíp, aký už ADFORM_PSD_RULES.adform_160x600.panel používa
+  // pre rovnaký typ formátu (úzky bočný skyscraper): panel pokrýva spodných
+  // ~48 % bezpečnej zóny (290/600 = 0,483 v PSD referencii), nie celý rám.
+  // Adform buildery/pravidlá samotné sa NEMENIA (P0-19 zmrazené) — použitá
+  // je len sampledLowerPanelGradient(), ktorá je už zdieľaná, nie
+  // Adform-špecifická (rovnaká funkcia kreslí aj "Dark lower panel" v
+  // buildAdformPsdLayout aj gradient v master_safe portrait vetve).
+  // frame.fills (letterbox pozadie) ostáva nezmenené.
   frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   const sideTargetX = format.variantSide === "left" ? 0.72 : (format.variantSide === "right" ? 0.28 : 0.5);
   if (figmaImage && CUR_IMG_W && CUR_IMG_H) {
@@ -1733,7 +1741,6 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   } else {
     addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
   }
-  addSolidRect(frame, "Brand overlay", 0, 0, format.width, format.height, campaignSurface(layout), 0.62);
 
   // Bug (P0-9): čítalo layout.safe_content, čo sa nikde nenastavuje —
   // vždy padlo na default 160×600 bez ohľadu na skutočnú safe zónu
@@ -1751,6 +1758,19 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     placeLogo(frame, figmaLogo, x + pad, y + pad, logoW, logoH);
   }
 
+  // P0-29-E1: lokálny panel (nie celoplošný) — pomer 0,483 podľa
+  // ADFORM_PSD_RULES.adform_160x600.panel (290/600). Kreslí sa PRED CTA a
+  // headline, nech sedia navrchu neho.
+  const panelH = Math.round(contentH * 0.483);
+  const panelY = y + contentH - panelH;
+  const panel = figma.createRectangle();
+  panel.name = "Readable panel";
+  panel.resize(contentW, panelH);
+  panel.x = x;
+  panel.y = panelY;
+  panel.fills = [sampledLowerPanelGradient(layout)];
+  frame.appendChild(panel);
+
   // CTA nad spodným okrajom safe zóny — rovnaký button ako master_safe/PSD
   // ("CTA above the bank lockup" v PSD referencii pre 160×600). Rezervuje
   // sa PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
@@ -1766,7 +1786,11 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));
-    const textY = y + Math.round(contentH * 0.28);
+    // P0-29-E1: presunuté z y = contentH*0,28 (na surovej fotke — kolidovalo
+    // s "50 €" lockupom v hornej časti KV, biele na bielom) na začiatok
+    // panelu, nech headline vždy sedí na čitateľnom pozadí bez ohľadu na to,
+    // čo je v danom mieste fotky.
+    const textY = panelY + pad;
     addText(frame, headline, x + pad, textY, contentW - pad * 2, Math.max(20, ctaTop - textY), fontSize, { r: 1, g: 1, b: 1 }, "CENTER");
   }
 }

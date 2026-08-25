@@ -36,4 +36,18 @@ for (const id of ["engerio_native", "kkv_engerio_native", "bsu_engerio_native"])
   assert.strictEqual(format.rules.noLogo, true, id + " must not bake a logo into the image");
 }
 
+// P2-28 regression lock: nízky široký formát so safeInner (leaderboardový
+// pás) nesmie nikdy dostať "interscroller" — inferRole muselo predtým
+// rozhodovať iba podľa šírky (>450 -> interscroller), čo pre
+// markiza_branding_leader (1000×200) bolo nesprávne. Zamknuté pre celý
+// katalóg, nielen jeden format.id, aby budúci safeInner záznam s rovnakým
+// tvarom (height <= width) nespadol do tej istej chyby.
+for (const format of FORMATS) {
+  if (format.safeZones && format.safeZones.safeInner && format.height <= format.width) {
+    assert.notStrictEqual(format.role, "interscroller",
+      format.id + " (" + format.width + "×" + format.height + ", safeInner) is wider than tall — must not resolve to interscroller");
+  }
+}
+assert.strictEqual(FORMATS.find((f) => f.id === "markiza_branding_leader").role, "branding_leader_text");
+
 console.log("format normalization: ok");

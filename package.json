@@ -4,7 +4,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node tests/campaign-rules.test.js && node tests/p0-9.test.js && node tests/universal-templates.test.js && node tests/format-normalization.test.js && node tests/excel-parser.test.js && node tests/publisher-geometry.test.js && node tests/visual-system.test.js && node tests/frame-visual-qa.test.js && node tests/contrast.test.js",
-    "visual:compare": "node scripts/visual-regression.js"
+    "visual:compare": "node scripts/visual-regression.js",
+    "catalog:build": "node scripts/generate-format-catalog.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

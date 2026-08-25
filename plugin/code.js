@@ -2937,6 +2937,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // referencii. Teraz je fitted+panel vždy default pre celú "portrait"
     // rodinu; scrim nižšie (riadok ~2634) sa preto vždy skryje.
     const adaptedPortrait = family === "portrait";
+    // P0-29-S8: hoistnuté mimo if-bloku nižšie, aby sa dal panel po
+    // výpočte headlineY (ďalej dole) retroaktívne skrátiť namiesto
+    // zbytočnej prázdnej plochy.
+    let adaptivePanel = null;
     if (adaptedPortrait) {
       const fittedMasterH = imageSize && imageSize.width
         ? Math.round(format.width * imageSize.height / imageSize.width)
@@ -2956,7 +2960,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         Math.round(format.height * 0.58),
         Math.round(portraitImageH * 0.78)
       );
-      const adaptivePanel = figma.createRectangle();
+      adaptivePanel = figma.createRectangle();
       adaptivePanel.name = "Adaptive portrait content panel";
       adaptivePanel.resize(format.width, format.height - panelY);
       adaptivePanel.x = 0;
@@ -3042,6 +3046,29 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
     cursorY -= headlineBoxH;
     const headlineY = cursorY;
+
+    // P0-29-S8 (25.8. večer): pôvodná panelY (vyššie, min(0,58×výška,
+    // 0,78×fotka)) je dolná hranica NEZÁVISLÁ od skutočnej výšky obsahu —
+    // pri krátkom headline/CTA nechávala 50–84 % plochy panelu prázdnej
+    // (namerané na 1080×1920 Meta, 960×1200 PMax/DemandGen, 1000×1500
+    // Httpool, 320×480 topky). Panel sa tu SKRACUJE (nikdy nerastie väčší,
+    // len menší) tesne nad skutočný začiatok obsahu, keď je ten kratší než
+    // pôvodná rezerva — gradient (sampledPortraitOverlayGradient) sa
+    // prepočíta nanovo, nech fade-in sedí na novú výšku panelu, nie na
+    // percentá zo starej.
+    if (adaptedPortrait && adaptivePanel) {
+      const contentTop = Math.max(0, headlineY - Math.round(pad * 1.2));
+      if (contentTop > adaptivePanel.y) {
+        // Nový panel začína (v týchto medzerových prípadoch) prakticky vždy
+        // až POD spodným okrajom fotky — pôvodný obrazovo-viazaný
+        // boundaryStop stráca zmysel, stačí krátky, pevný nábeh (rovnaký
+        // princíp ako sampledLowerPanelGradient — rýchly nábeh k plnej
+        // krycosti, nie viazaný na percento obrázka).
+        adaptivePanel.resize(format.width, format.height - contentTop);
+        adaptivePanel.y = contentTop;
+        adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, 0.12, 0.85, brandColor(layout))];
+      }
+    }
 
     // Kolo 3, krok B: namerane vo Figme (Meta) — tam, kde uz existuje
     // vlastny farebny panel ("Adaptive portrait content panel" na portraite,

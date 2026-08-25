@@ -44,4 +44,13 @@ assert(source.includes('tbGeneratedBy: "tb-kid-agent@" + TB_GENERATOR_VERSION'),
 assert(source.includes('tbVisualReview: "REQUIRED_FOR_NEW_CAMPAIGN"'), "runtime QA must not be presented as campaign-specific pixel approval");
 assert(source.includes('TB_QA_SCOPE = "runtime-geometry+material-rules; pixel-reference-required"'), "every format must declare that pixel review is a separate mandatory gate");
 
+// P0-29-S8 (25.8. večer): portrétový "Adaptive portrait content panel" bol
+// naviazaný len na percento formátu/obrázka, nezávisle od skutočnej výšky
+// obsahu — namerané 50–84 % prázdnej plochy na 5 formátoch (1080×1920 Meta,
+// 960×1200 PMax/DemandGen, 1000×1500 Httpool, 320×480 topky). Panel sa musí
+// po výpočte headlineY retroaktívne skrátiť, keď je pôvodná rezerva väčšia,
+// než obsah potrebuje — nikdy nerásť.
+assert(source.includes("contentTop > adaptivePanel.y"), "portrait content panel must shrink toward actual content, never grow past its original reservation");
+assert(source.includes("adaptivePanel.resize(format.width, format.height - contentTop)"), "shrunk portrait panel must still span full frame width");
+
 console.log("frame visual QA: ok");

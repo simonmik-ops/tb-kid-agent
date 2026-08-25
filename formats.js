@@ -81,6 +81,19 @@ const FORMATS = [
     notes: "Vizuál s headlineom a logom. CTA doťahuje systém."
   },
   {
+    id: "meta_img_landscape",
+    name: "Meta image 16:9",
+    channel: "Meta",
+    role: "meta_full",
+    width: 1200,
+    height: 628,
+    ratio: "1200:628",
+    type: ["awareness", "hardsell", "remarketing"],
+    count: 1,
+    safeZones: { top: 0, bottom: 0 },
+    notes: "P0-25 doplnok: overené vo Surďovej referenčnej Figme (sekcia META FB/IG, frame 1200×628) — headline + logo + AI disclosure, bez CTA (rieši systém Meta). Predtým katalóg nemal žiadny Meta záznam na tomto rozmere, čo kolidovalo s Google RSA/DemandGen/PMax na tom istom 1200×628."
+  },
+  {
     id: "meta_img_4x5",
     name: "Meta image 4:5",
     channel: "Meta",

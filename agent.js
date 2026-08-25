@@ -455,7 +455,10 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       ...base,
       layout_type: "pinterest_pin",
       headline_position: "bottom",
-      logo_position: "top",
+      // P0-26 doplnok: reálny schválený export (Pinterest_75eur-...jpg) má
+      // logo dole vpravo vedľa CTA, nie hore — pôvodné "top" nezodpovedalo
+      // dodanému kreatívu.
+      logo_position: "bottom",
       safe_content: { maxTextAreaPct: 30 }
     };
   }

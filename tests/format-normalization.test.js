@@ -2,7 +2,7 @@ const assert = require("assert");
 const FORMATS = require("../formats");
 const { getCreativeRule } = require("../campaign-rules");
 
-assert.strictEqual(FORMATS.length, 151, "catalog size must stay stable (143 + 7 MASS + 1 Topky HTML5)");
+assert.strictEqual(FORMATS.length, 152, "catalog size must stay stable (143 + 7 MASS + 1 Topky HTML5 + 1 meta_img_landscape P0-25)");
 
 for (const format of FORMATS) {
   assert.ok(format.role, format.id + " must have a role");

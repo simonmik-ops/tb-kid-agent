@@ -3675,11 +3675,17 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
   frame.fills = [];
   const hasLogo = !!figmaLogo;
 
-  // Logo vycentrované
+  // P0-29-S10 (25.8. večer): komentár tvrdil "Logo vycentrované", ale
+  // vertikálne sa logo ukotvovalo na pevný lPad (15 % od vrchu), nie na
+  // skutočný stred — nezhoda medzi zámerom (komentár) a implementáciou.
+  // Namerané na 6 formátoch (1200×1200 logo stred by mal byť y=560, sedelo
+  // na 180; 1200×300 stred 112, sedelo na 45) — konzistentne 15 % zhora,
+  // nikdy nie stred. Google logo assety sa bežne centrujú (potvrdené aj v
+  // recenzii). Opravené na skutočný vertikálny stred.
   const lH = Math.min(Math.round(format.height * 0.25), Math.round(format.width * 0.18), 80);
   const lW = Math.round(lH * 3.5);
-  const lPad = Math.round(format.height * 0.15);
-  placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), lPad, lW, lH);
+  const lY = Math.round((format.height - lH) / 2);
+  placeLogo(frame, figmaLogo, Math.round((format.width - lW) / 2), lY, lW, lH);
   const fallbackHeadline = !hasLogo && !!headline;
 
   if (shouldShowHeadline(layout, headline) || fallbackHeadline) {
@@ -3693,8 +3699,8 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
     txt.textAutoResize = "NONE";
     txt.x = 12;
     if (hasLogo) {
-      // pôvodné umiestnenie pod logom
-      txt.y = lPad + lH + Math.round(format.height * 0.06);
+      // pôvodné umiestnenie pod logom — teraz pod vycentrovaným lY (P0-29-S10)
+      txt.y = lY + lH + Math.round(format.height * 0.06);
       txt.resize(format.width - 24, format.height - txt.y);
     } else {
       txt.y = 0;

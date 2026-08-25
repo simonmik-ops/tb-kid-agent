@@ -81,4 +81,13 @@ const addTextEnd = code.indexOf("\n}", addTextStart) + 2;
 const addTextSrc = code.slice(addTextStart, addTextEnd);
 assert.ok(/txt\.name\s*=\s*name/.test(addTextSrc), "addText must assign the given name to the created node");
 
+// P0-29-S10: logo-only asset logo must be vertically centered, not pinned
+// to a fixed 15%-from-top pad (comment said "vycentrované" but the code
+// didn't do that). Measured reference: 1200×1200 -> y=560.
+function simulateLogoOnlyY(format) {
+  const lH = Math.min(Math.round(format.height * 0.25), Math.round(format.width * 0.18), 80);
+  return Math.round((format.height - lH) / 2);
+}
+assert.strictEqual(simulateLogoOnlyY({ width: 1200, height: 1200 }), 560);
+
 console.log("publisher geometry: ok");

@@ -308,7 +308,17 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   // ── ROLE branch ────────────────────────────────────────────────
   // Nové kampane (KK Visa, Hypotéka, BSU, Tiger) deklarujú správanie
   // explicitne cez format.role, aby nezáviseli od id-string matchingu.
-  // Existujúce KID formáty rolu nemajú → padnú do pôvodnej logiky nižšie.
+  // P0-26: tento komentár bol zastaraný — odkedy normalizeFormat/inferRole
+  // (formats.js) dopĺňa role KAŽDÉMU formátu (minimálne fallback
+  // "publisher_branding"), format.role je vždy truthy a táto vetva sa
+  // uplatní vždy, nielen pre nové kampane. Do pôvodnej logiky nižšie
+  // (id-based vetvy, r. 380+) sa dostanú len formáty, ktorých inferRole
+  // výsledok NIE JE clean_image/logo_only/branding_full/branding_side/
+  // interscroller/native/email/pinterest — v praxi hlavne role
+  // "publisher_branding" (a "full_creative", ktoré sa tu zámerne nerieši
+  // špeciálne, pozri komentár nižšie). Niektoré id-based vetvy nižšie sú
+  // preto stále živé — nie sú to všetko mŕtve duplicity (analýza P0-26 v
+  // commit message).
   if (format.role) {
     const r = format.role;
     if (r === "clean_image" || (creativeRule && creativeRule.layoutType === "clean_image")) {

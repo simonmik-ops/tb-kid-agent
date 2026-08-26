@@ -2066,9 +2066,16 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
   addSolidRect(frame, "Content area", 0, heroH, format.width, format.height - heroH, { r: 1, g: 1, b: 1 }, 1);
 
   const pad = Math.round(clamp(format.width * 0.07, 28, 56));
+  // Zadanie 26.8 blok D: logoBottom sledovane, ked sa logo naozaj kresli —
+  // textY nizsie z neho vychadza namiesto z rovnakeho kotviaceho bodu ako
+  // logo (heroH + pad), co spôsobovalo prekryv headlineu s logom pri malej
+  // CTA medzere (pad * 0.4). Bez loga zostava logoBottom == heroH + pad,
+  // teda spravanie bez loga je nezmenene.
+  let logoBottom = heroH + pad;
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoH = Math.round(clamp(format.width * 0.08, 38, 62));
     placeLogo(frame, figmaLogo, pad, heroH + pad, Math.round(logoH * 3.5), logoH);
+    logoBottom = heroH + pad + logoH;
   }
 
   // CTA v spodnej časti content area — rovnaký button ako master_safe/PSD.
@@ -2088,7 +2095,15 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
     // Pôvodná medzera (13 % šírky) rátala s celou content area voľnou pre
     // headline. Keď CTA zabral spodok, rovnaká medzera by headline
     // stlačila na pár px — s CTA použi menšiu, pevnú medzeru.
-    const textY = heroH + pad + Math.round(showCta ? pad * 0.4 : format.width * 0.13);
+    const gap = Math.round(showCta ? pad * 0.4 : format.width * 0.13);
+    // Zadanie 26.8 blok D / P0-?: textY sa predtym pocital z heroH + pad —
+    // rovnaky kotviaci bod ako logo, vysku loga vobec neberuc do uvahy.
+    // Pri malej CTA medzere (pad * 0.4 = 18px na 640×500) sa headline
+    // vysunul POD spodnu hranu loga (koniec 366) na y=333 — 33px prekryv,
+    // potvrdene na zivom vystupe (azet 640×500). max(...) chrani pripad
+    // bez CTA, kde povodna 13%-sirky medzera uz aj tak logo cistila —
+    // tam sa textY nemeni.
+    const textY = Math.max(logoBottom + gap, heroH + pad + gap);
     addText(frame, headline, pad, textY, format.width - pad * 2, Math.max(20, contentBottom - textY), fontSize, BRAND_COLOR, "LEFT", "Headline");
   }
 }

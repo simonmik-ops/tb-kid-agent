@@ -747,10 +747,26 @@ async function createAllFrames({
       // Zvyšné 4 (Meta, Meta REMARKETING, Demand Gen, PMax) sú skutočne
       // master_safe formáty s referenciou vo Figme — pre tie platí zvlášť
       // nahlásená oprava QA prahu (pozri report).
+      // K4 (26.8): rovnaky princip ako branding_leader_text/full vyssie —
+      // headline_only/strip/split/stacked/blurred_bg maju vlastne dedikovane
+      // buildery (r. ~854-879), ale chybali v tomto zozname. POZOR:
+      // creativeRule "headline_only" (obsahovy profil pre PMax — ktore
+      // elementy sa ukazu) ma vlastne layoutType:"master_safe" (r. 157) —
+      // to je in poriadku a zamerne, netyka sa tejto vynimky. Riziko tu je
+      // uzsie nez pri branding_leader_*: layoutType "headline_only" (dispatch
+      // na buildHeadlineOnlyLayout) aj strip/split/stacked/blurred_bg sa v
+      // aktualnom katalogu realne nastavia len cez layout.layout_type
+      // (server, alebo resolveLayoutLocal na Excel ceste pre formaty s
+      // profilom "publisher_branding" — layoutType: null tam necha
+      // backendLayoutType padnut na layout.layout_type). Ziadny KID format v
+      // tomto katalogu to dnes prakticky nespusti (Adform/Vinted-aliasovane
+      // su chranene cez hasLocalAdformTemplate uz skor), takze pridanie je tu
+      // defenzivne, nie oprava potvrdenej zivej chyby ako pri branding_leader_*.
       const masterExcludedLayouts = [
         "video_placeholder", "logo_only", "micro", "branding_skin", "side_safe",
         "interscroller_safe", "native_center", "email_layout", "pinterest_pin",
-        "clean_image", "branding_leader_text", "branding_leader_full"
+        "clean_image", "branding_leader_text", "branding_leader_full",
+        "headline_only", "strip", "split", "stacked", "blurred_bg"
       ];
       const masterEligible = masterExcludedLayouts.indexOf(backendLayoutType) === -1 &&
         format.height > 100 && !(format.width / format.height > 4.5 && format.height < 150);

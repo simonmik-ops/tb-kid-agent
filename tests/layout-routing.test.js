@@ -57,4 +57,28 @@ assert.strictEqual(
   "genuine master_safe formats must be unaffected by the branding_leader_* exclusion"
 );
 
-console.log("layout routing (branding_leader_* excluded from master_safe fallback): ok");
+// K4 (26.8): headline_only/strip/split/stacked/blurred_bg majú vlastné
+// dedikované buildery (r. ~854-879) rovnako ako branding_leader_*, ale
+// chýbali v masterExcludedLayouts — defenzívna oprava, žiadny potvrdený
+// živý dôkaz ako pri branding_leader_* (pozri komentár pri zozname).
+// POZOR: creativeRule profil "headline_only" (PMax obsahový profil) má
+// layoutType:"master_safe" priamo (r. 157) — to je zámerné a touto opravou
+// nedotknuté, testované osobitne nižšie.
+for (const lt of ["headline_only", "strip", "split", "stacked", "blurred_bg"]) {
+  assert.strictEqual(
+    resolveLayoutType(lt, { width: 970, height: 250 }, false),
+    lt,
+    lt + " must keep its own dedicated builder, not fall through to master_safe"
+  );
+}
+
+// PMax content profile ("headline_only" ako creativeRule.id, nie ako
+// layoutType) rozlišuje show_logo/show_cta=false, ale layoutType je
+// master_safe priamo — táto vetva to nesmie zmeniť.
+assert.strictEqual(
+  resolveLayoutType("master_safe", { width: 1200, height: 1200 }, false),
+  "master_safe",
+  "PMax's own layoutType (already 'master_safe' per its creativeRule) must be unaffected"
+);
+
+console.log("layout routing (branding_leader_*/headline_only/strip/split/stacked/blurred_bg excluded from master_safe fallback): ok");

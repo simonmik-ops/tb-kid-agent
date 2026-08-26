@@ -1582,6 +1582,22 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
     // kdekoľvek, niečo výrazné sa odreže. Nemáme skutočné meranie pre
     // clean_image wide (na rozdiel od buildMasterSafeLayout, kde je 0:21) —
     // vrátené na pôvodné, bezpečné CONTAIN zarovnanie.
+    //
+    // Zadanie 26.8 R1: skúmané, NEZMENENÉ. CONTAIN na wide s x:0 (vľavo)
+    // dáva na 1200×628 so štvorcovým zdrojom 628×628 na (0,0) — nameraná
+    // "fotka len v ľavých 52 %, zvislý rez". Skúšala som x:0 -> x:0.5
+    // (stred), aby sa prázdna plocha rozdelila na obe strany — ale presne
+    // TOTO už bolo vyskúšané a zamietnuté: tests/visual-system.test.js
+    // zamyká x:0 s dôvodom "namiesto centrovania dvoch farebných pásov"
+    // (t.j. centrovanie vyrobí DVA viditeľné pásy/hrany namiesto jedného,
+    // čo bolo vyhodnotené ako horšie). Vrátené na pôvodné x:0. SKUTOČNÉ
+    // predimenzovanie (žiadny viditeľný pás vôbec) NIE JE V TOMTO PR —
+    // KV_OVERSIZE_POINTS aj WIDE_KV_ZONE_MULTIPLIER sú namerané pre iné
+    // zóny (square/portrait celý frame, wide 75% zóna s panelom), nie pre
+    // "wide, celý frame, bez panelu". Použitie ktoréhokoľvek z nich by
+    // bolo hádanie — presne to, čo tu už raz zlyhalo a bolo revertnuté
+    // (komentár vyššie, "orezávalo hlavu"). Potrebuje vlastné meranie zo
+    // Surďovej referencie pre tento presný prípad — nahlásené, nedomyslené.
     addProtectedImageFrame(
       frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
       "Adapted clean master — full composition",
@@ -1792,16 +1808,28 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
     addMasterCta(frame, ctaText, format.width - sideW + pad, btnY, btnW, btnH);
   }
 
-  const isJoj = format.id === "joj_branding" || /joj\.sk/i.test(String(format.channel || ""));
+  // Zadanie 26.8 blok R4/P2-27: JOJ malo vlastný názov ("JOJ white website
+  // content area", bez slova "guide") a plnú krycosť (1) namiesto rovnakej
+  // 8% priehľadnej pomôcky, akú dostáva markíza a všetci ostatní ("Website
+  // content area guide"). Dva zložené dôsledky:
+  // 1. HELPER_PATTERNS (koniec súboru, isHelperLayer) hľadá regex
+  //    /content area guide/i — JOJ variant bez "guide" tomu nikdy
+  //    nezodpovedal, takže sa nikdy neskrýval/nemazal ani pri exporte.
+  // 2. Aj len vo Figme (pred exportom) plná biela prekrývala modelke tvár
+  //    (namerané: joj.sk 2000×1400, "JOJ white website content area"
+  //    cez stred rámu).
+  // Žiadny komentár ani dôvod pre JOJ-špecifickú vetvu nikde nebol — obe
+  // publisher-zostavy (markíza aj JOJ) používajú rovnaký "TOP + 2 boky"
+  // model, takže zjednotené na presne to isté, čo už markíza mala.
   addSolidRect(
     frame,
-    isJoj ? "JOJ white website content area" : "Website content area guide",
+    "Website content area guide",
     sideW,
     topOffset,
     centerW,
     format.height - topOffset,
     { r: 1, g: 1, b: 1 },
-    isJoj ? 1 : 0.08
+    0.08
   );
 }
 

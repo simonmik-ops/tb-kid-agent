@@ -1886,6 +1886,17 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     addMasterCta(frame, ctaText, x + pad, btnY, btnW, btnH);
     ctaTop = btnY - Math.round(pad * 0.6);
   }
+  // Zadanie 26.8 blok E: AI tag (addAiNote, orchestrácia, kreslí sa AŽ PO
+  // tomto builderi) sa ukotvuje na spodok tejto istej panel/content zóny
+  // (cb.y+cb.h == panelY+panelH == y+contentH) — doteraz sa preň nič
+  // nerezervovalo, takže headline box siahal až po ctaTop bez ohľadu naň.
+  // Namerané na živom výstupe (topky.sk 450×800/400×600/120×600/160×600):
+  // headline box preráža AI tag o ~10–13 px. Rovnaký vzor rezervy, aký už
+  // existuje pre master_safe (aiRezerva, r. ~2911) a full_bleed (AI_ON,
+  // r. ~3475) — aplikovaný tu prvýkrát na side_safe.
+  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
+    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
+  ctaTop -= aiRezerva;
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));
@@ -2035,6 +2046,14 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
     addMasterCta(frame, ctaText, btnX, btnY, comp.btnW, comp.btnH);
     ctaBudget = comp.btnH + Math.round(comp.inner * 0.55);
   }
+  // Zadanie 26.8 blok E: rovnaký problém a rovnaká oprava ako
+  // buildSideSafeLayout vyššie — AI tag sa ukotvuje na comp.panelY+comp.panelH
+  // (rovnaká zóna, akú tu používa headline), ale doteraz preň nebola žiadna
+  // rezerva, len pre CTA. Namerané na topky.sk 400×600: headline preráža AI
+  // tag o 12 px.
+  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
+    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
+  ctaBudget += aiRezerva;
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(comp.panelH * 0.16, 18, 46));

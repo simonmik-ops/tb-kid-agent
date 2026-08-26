@@ -729,10 +729,28 @@ async function createAllFrames({
         layout.creative_profile = creativeRule.id;
       }
       const backendLayoutType = (creativeRule && creativeRule.layoutType) || layout.layout_type || "full_bleed";
+      // Zadanie 26.8 blok G / P0-30 korekcia: branding_leader_text a
+      // branding_leader_full chýbali v tomto zozname, takže ich vlastný
+      // builder (bez akéhokoľvek KV crop, žiadne logo/CTA/AI podľa
+      // creativeRule) sa pri masterEligible=true nikdy nepoužil — master_safe
+      // ho ticho prebral. Namerané na živom výstupe: markiza_branding_leader
+      // (1000×200, branding_leader_text) skončil s "Key visual — protected
+      // full master" štvorcom 922,5×922,5 na (−172,−361) — modelke odrezaná
+      // hlava — a headline boxom 295×18 px (master_safe-ova TB.headline()
+      // škála pre 1000×200, nie buildBrandingLeaderTextLayout-ov vlastný
+      // format.height*0,24 vzorec). Rovnaký mechanizmus vysvetľuje aj
+      // Ringier (branding_leader_full, 1200×400) a Ženské weby TOP
+      // (branding_leader_text, 1200×200) v P0-21 zozname 7 falošných/
+      // nerozlíšených qa_unsafe_single_master_crop hlásení — tieto tri sa
+      // do master_safe vôbec nemali dostať, takže tam ani nie je čo
+      // "rozlišovať": po tejto oprave už cez master_safe nepôjdu vôbec.
+      // Zvyšné 4 (Meta, Meta REMARKETING, Demand Gen, PMax) sú skutočne
+      // master_safe formáty s referenciou vo Figme — pre tie platí zvlášť
+      // nahlásená oprava QA prahu (pozri report).
       const masterExcludedLayouts = [
         "video_placeholder", "logo_only", "micro", "branding_skin", "side_safe",
         "interscroller_safe", "native_center", "email_layout", "pinterest_pin",
-        "clean_image"
+        "clean_image", "branding_leader_text", "branding_leader_full"
       ];
       const masterEligible = masterExcludedLayouts.indexOf(backendLayoutType) === -1 &&
         format.height > 100 && !(format.width / format.height > 4.5 && format.height < 150);

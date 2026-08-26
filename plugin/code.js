@@ -369,17 +369,18 @@ function brandColor(layout) {
   return BRAND_COLOR;
 }
 
-// Kolo 4, uloha 1: jedna zdielana funkcia pre frame.fills naprieč vsetkymi
-// tromi buildermi (buildAdformPsdLayout, buildMasterSafeLayout,
-// buildCleanImageLayout) — predtym mal len Adform kalibraciu (shadedColor
-// faktor 0,79, kolo 3 krok A1), ostatne dva pouzivali holy brandColor(layout)
-// (#F87B66 — svetly horny extrem KV, WCAG 2,62:1 pre biely text, pod 3:1
-// prahom pre velky bold text). Rovnaka kampan sa tak renderovala v DVOCH
-// farbach podla kanala. Faktor 0,79 sa NEAPLIKUJE, ked je zadana explicitna
-// CAMPAIGN_COLOR (kolo 3 krok A2) — v tom pripade je uz presna, netreba
-// dodatocne kalibrovat. Ked pribudne A2 vsade, zmena je na jednom mieste.
+// Kolo 4, uloha 1 + zadanie 26.8 krok A2: jedna zdielana funkcia pre
+// frame.fills naprieč vsetkymi buildermi. Faktor 0,79 (kolo 3 krok A1) bol
+// empiricka naplast na zle vzorkovanie z ui.html (kvBackgroundColor bral
+// dva najsvetlejsie horne rohy KV) — nafitovana na jeden KV, preto sa ta
+// ista kampan renderovala v dvoch farbach podla kanala (Adform stmaveny
+// 0,79x, ostatne holy brandColor). Teraz, ked kvBackgroundColor vzorkuje
+// sirokym orezanym medianom (pozri komentar pri nej v ui.html), brandColor
+// uz je priamo spravna plocha — dalsie stmavovanie by ju len znovu
+// posunulo mimo Surdovej referencie (#C55E4D). CAMPAIGN_COLOR (explicitny
+// hex vstup) bol uz aj predtym pouzity presne, bez kalibracie.
 function campaignSurface(layout) {
-  return CAMPAIGN_COLOR ? brandColor(layout) : shadedColor(brandColor(layout), 0.79);
+  return brandColor(layout);
 }
 
 function brandEdgeColor(layout, edge) {
@@ -1588,7 +1589,7 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
       const wideImageRightEdge = Math.round(CUR_IMG_W * wideScale);
       if (wideImageRightEdge < format.width - 1) {
         const overlapStart = Math.round(wideImageRightEdge * 0.78);
-        const stripColor = brandColor(layout);
+        const stripColor = campaignSurface(layout);
         const boundaryStop = (wideImageRightEdge - overlapStart) /
           Math.max(1, format.width - overlapStart);
         const strip = figma.createRectangle();
@@ -1634,7 +1635,7 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
         extension.y = extensionY;
         const cleanBoundaryStop = (cleanImageH - extensionY) /
           Math.max(1, format.height - extensionY);
-        extension.fills = [sampledPortraitOverlayGradient(layout, cleanBoundaryStop, 1, brandColor(layout))];
+        extension.fills = [sampledPortraitOverlayGradient(layout, cleanBoundaryStop, 1, campaignSurface(layout))];
         frame.appendChild(extension);
       }
     }
@@ -2787,7 +2788,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // tu shadedColor(...,0.64), teda 64 % pôvodného jasu, čo z koralovej
     // robí bahnistú hnedú (viditeľné na 1200×628). Biela CTA/text majú na
     // čistej brandColor dosť kontrastu pre veľký Bold text (WCAG 3 : 1).
-    const brand = brandColor(layout);
+    const brand = campaignSurface(layout);
     noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 4.5, "wide_panel_small_text");
     const panelAlpha = scrimAlphaFor(layout);
     const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
@@ -2973,7 +2974,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // vynúti čistú, jednotnú brand farbu bez stmavovania (pravidlo 2).
       // Druhé volanie tejto funkcie (buildCleanImageLayout, riadok ~1365) je
       // mimo Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
-      const portraitPanelColor = brandColor(layout);
+      const portraitPanelColor = campaignSurface(layout);
       noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
       // bottomShade 0.85, nie 1: priamo zmeraný Surďov panel (0:7 v
       // d51uxTh8YqPdHujzi1Plt6) je rgb(197,94,77) ≈ (0.77,0.37,0.30) — teda
@@ -3066,7 +3067,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         // krycosti, nie viazaný na percento obrázka).
         adaptivePanel.resize(format.width, format.height - contentTop);
         adaptivePanel.y = contentTop;
-        adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, 0.12, 0.85, brandColor(layout))];
+        adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, 0.12, 0.85, campaignSurface(layout))];
       }
     }
 
@@ -3095,7 +3096,7 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // krok A2 je to bud explicitna kampanova farba (CAMPAIGN_COLOR), bud
       // ten isty AI odhad, aky pouziva frame.fills — konzistentna farba
       // podkladu, nie samostatny (a chybny) vzorok z dolneho okraja.
-      const scrimBrand = brandColor(layout);
+      const scrimBrand = campaignSurface(layout);
       noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 4.5, "scrim_small_text");
       const scrim = figma.createRectangle();
       scrim.name = "Bottom readability gradient";
@@ -3392,13 +3393,13 @@ function buildFullBleedLayout(frame, format, layout, headline, figmaImage, figma
     const s = Math.min(format.width / iw, format.height / ih);
     const dw = Math.round(iw * s), dh = Math.round(ih * s);
     const dx = Math.round((format.width - dw) / 2), dy = Math.round((format.height - dh) / 2);
-    frame.fills = [{ type: "SOLID", color: brandColor(layout) }];
+    frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
     addImageRect(frame, figmaImage, "KV (contain)", dx, dy, dw, dh, "FILL");
     cTop = dy; cBottom = dy + dh; cLeft = dx; cRight = dx + dw;
   } else {
     frame.fills = figmaImage
       ? [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }]
-      : [{ type: "SOLID", color: brandColor(layout) }];
+      : [{ type: "SOLID", color: campaignSurface(layout) }];
   }
 
   const pad = Math.round(clamp(Math.min(format.width, format.height) * STYLE.paddingPct, 10, 60));

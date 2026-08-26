@@ -881,6 +881,21 @@
         }
       }
 
+      // Krok A2 (zadanie 26.8): pôvodná verzia brala medián z dvoch horných
+      // rohov (12x12 blok, y=0..11) — najsvetlejšie miesto KV, odtiaľ
+      // #F87B66 na referenčnom KID KV oproti skutočnej kampaňovej ploche
+      // #C55E4D (Surďova Figma, VIZUAL-BACKGROUND 0:203). Nová verzia
+      // vzorkuje široký okrajový pás (mimo stredovej plochy, kde zvyčajne
+      // stojí subjekt) a z neho robí orezaný medián namiesto surového
+      // priemeru dvoch rohov:
+      // - zahodí najtmavší decil (rohový tieň) a najsvetlejšiu tretinu
+      //   (nasvietená stena/highlight — vo fotke s bočným svetlom pokrýva
+      //   spravidla väčšiu plochu než tieň, preto sa orezáva viac)
+      // - z toho, čo zostane, vezme medián po kanáloch
+      // Overené na referenčnom KID KV (04-kv-retargeting_04.png) skriptom
+      // mimo tohto repa: ΔE76 voči #C55E4D ~1.1–1.9 naprieč okrajovým
+      // pásom 10–20 % a stabilné v širokom okolí orezových pomerov — nie
+      // bodová zhoda vyladená na jeden obrázok.
       async function kvBackgroundColor(file) {
         if (!file) return null;
         try {
@@ -891,22 +906,30 @@
           const ctx = canvas.getContext("2d");
           ctx.drawImage(bitmap, 0, 0, 64, 64);
           const data = ctx.getImageData(0, 0, 64, 64).data;
-          const rs = [], gs = [], bs = [];
-          const blok = 12;
-          for (let y = 0; y < blok; y++) {
-            for (let x = 0; x < blok; x++) {
-              [x, 63 - x].forEach(function (xx) {
-                const i = (y * 64 + xx) * 4;
-                rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2]);
-              });
+          const marginPx = Math.round(64 * 0.15);
+          const pixels = [];
+          for (let y = 0; y < 64; y++) {
+            for (let x = 0; x < 64; x++) {
+              if (x >= marginPx && x < 64 - marginPx && y >= marginPx && y < 64 - marginPx) continue;
+              const i = (y * 64 + x) * 4;
+              const r = data[i], g = data[i + 1], b = data[i + 2];
+              pixels.push({ r: r, g: g, b: b, luma: 0.2126 * r + 0.7152 * g + 0.0722 * b });
             }
           }
+          if (!pixels.length) return null;
+          pixels.sort(function (a, b) { return a.luma - b.luma; });
+          const dropDark = Math.floor(pixels.length * 0.10);
+          const dropLight = Math.floor(pixels.length * 0.30);
+          const kept = pixels.slice(dropDark, pixels.length - dropLight);
+          if (!kept.length) return null;
           function median(arr) {
             const sorted = arr.slice().sort(function (a, b) { return a - b; });
             const mid = Math.floor(sorted.length / 2);
             return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
           }
-          const r = median(rs), g = median(gs), b = median(bs);
+          const r = median(kept.map(function (p) { return p.r; }));
+          const g = median(kept.map(function (p) { return p.g; }));
+          const b = median(kept.map(function (p) { return p.b; }));
           const jas = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
           if (jas < 0.12 || jas > 0.95) return null;
           return { r: r / 255, g: g / 255, b: b / 255 };

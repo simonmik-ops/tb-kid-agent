@@ -1085,7 +1085,7 @@ function createValidationReport(formats, headline, adType, renderedQaRows) {
 
   const frame = figma.createFrame();
   frame.name = "Validation report - " + adType.toUpperCase();
-  frame.resize(1100, Math.max(620, 180 + rows.length * 72));
+  frame.resize(1100, 620);
   frame.x = 0;
   frame.y = 0;
   frame.fills = [{ type: "SOLID", color: { r: 0.97, g: 0.98, b: 1 } }];
@@ -1099,13 +1099,39 @@ function createValidationReport(formats, headline, adType, renderedQaRows) {
     return;
   }
 
+  // Zadanie 26.8, K8/P2-21: riadok mal pevnú výšku 58 px (medzera do
+  // ďalšieho riadku 72 px) bez ohľadu na obsah. Dlhé názvy kanálov (napr.
+  // "casprezeny.sk + dobrejedlo.sk + ... / Ženské weby interscroller
+  // 750×1624") sa lámu do štyroch riadkov textu — addText necháva
+  // textAutoResize "HEIGHT", takže samotný text node porastie, ale pevná
+  // 58 px pozadia a 72 px odstup do ďalšieho riadku nie — text pretiekol
+  // do nasledujúceho riadku, report bol na tom mieste nečitateľný.
+  // Riešenie: text sa vysadí NAJPRV (bez podkladu), skutočná výška sa
+  // zmeria (node.height, po textAutoResize), podklad aj odstup do ďalšieho
+  // riadku sa odvodia z nej — nikdy menej než pôvodných 58/72, len viac,
+  // keď treba.
+  const rowPadY = 10;
+  const rowGap = 14;
+  const minRowH = 58;
   let y = 160;
   for (const row of rows) {
-    addSolidRect(frame, "Warning row", 40, y - 10, 1020, 58, { r: 1, g: 1, b: 1 }, 1);
-    addText(frame, row.channel + " / " + row.name, 56, y, 320, 30, 15, BRAND_COLOR);
-    addText(frame, humanizeWarnings(row.warnings), 390, y, 640, 42, 13, { r: 0.32, g: 0.23, b: 0.08 });
-    y += 72;
+    // bg sa kreslí PRED textom (addSolidRect appendChild-uje ako posledné
+    // dieťa v tom momente), takže je v z-order pod ním — presne v poradí,
+    // v akom to bolo aj pri pôvodnej pevnej výške, len teraz sa dorozmerí
+    // AŽ PO tom, čo sa zmeria skutočná výška textu.
+    const bg = addSolidRect(frame, "Warning row", 40, y - rowPadY, 1020, minRowH, { r: 1, g: 1, b: 1 }, 1);
+    const nameNode = addText(frame, row.channel + " / " + row.name, 56, y, 320, 30, 15, BRAND_COLOR);
+    const warningsNode = addText(frame, humanizeWarnings(row.warnings), 390, y, 640, 42, 13, { r: 0.32, g: 0.23, b: 0.08 });
+    const contentH = Math.max(
+      minRowH - rowPadY * 2,
+      (nameNode && nameNode.height) || 0,
+      (warningsNode && warningsNode.height) || 0
+    );
+    const rowH = contentH + rowPadY * 2;
+    bg.resize(1020, rowH);
+    y += rowH + rowGap;
   }
+  frame.resize(1100, Math.max(620, y + 40));
 }
 
 function humanizeWarnings(warnings) {

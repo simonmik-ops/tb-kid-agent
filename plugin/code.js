@@ -3235,8 +3235,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // niekedy dosla inou cestou.
     const hasDedicatedPanel = adaptedPortrait || !!qaFind(frame, "Wide content panel");
     if (!hasDedicatedPanel) {
+      // Zadanie 26.8 blok F2: percentom formátu (0,62/0,52) dávalo na
+      // 1200×1200 scrim 744 px (62 % plochy) za jediný riadok textu dole.
+      // Surďova referencia (d51uxTh8YqPdHujzi1Plt6, 8 zvislých frame-ov)
+      // má prechod prakticky konštantný — 496 px na väčšine, 515 px na
+      // 900×1600 — nie percento výšky formátu. REFERENCE_SCRIM_H nahrádza
+      // percentuálny základ; format.height-headlineY floor a format.height
+      // ceiling ostávajú nedotknuté (bezpečnostná poistka — scrim nikdy
+      // nesmie byť kratší, než čo headline reálne potrebuje, ani vyšší
+      // než samotný frame).
+      const REFERENCE_SCRIM_H = 500;
       const scrimH = Math.min(format.height, Math.max(
-        Math.round(format.height * (family === "portrait" ? 0.52 : 0.62)),
+        REFERENCE_SCRIM_H,
         format.height - headlineY
       ));
       const scrimAlpha = scrimAlphaFor(layout);

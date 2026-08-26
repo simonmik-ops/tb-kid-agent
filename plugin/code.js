@@ -1874,6 +1874,24 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   panel.fills = [sampledLowerPanelGradient(layout)];
   frame.appendChild(panel);
 
+  // Zadanie 26.8 blok F: panel koncil na panelY+panelH == y+contentH (spodok
+  // CENTROVANEHO safeInner boxu v ramci formatu), nie na skutocnom spodku
+  // ramu — pod nim ostavala hola fotka (namerane: topky 450×800, 100 px
+  // medzera, viditelny vodorovny sev). Panel uz na svojom spodku ma plnu
+  // krycost (gradient rampa 0->0.45 v sampledLowerPanelGradient davno
+  // dosiahla alfu 1,00), takze staci pokryt medzeru rovnakou plnou farbou —
+  // bez zasahu do gradientu samotneho (panelH/panelY, a teda aj CTA/headline
+  // vypocty z nich odvodene, ostavaju presne take, ake boli).
+  if (panelY + panelH < format.height) {
+    const panelExtension = figma.createRectangle();
+    panelExtension.name = "Readable panel extension";
+    panelExtension.resize(panelW, format.height - (panelY + panelH));
+    panelExtension.x = panelX;
+    panelExtension.y = panelY + panelH;
+    panelExtension.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
+    frame.appendChild(panelExtension);
+  }
+
   // CTA nad spodným okrajom safe zóny — rovnaký button ako master_safe/PSD
   // ("CTA above the bank lockup" v PSD referencii pre 160×600). Rezervuje
   // sa PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
@@ -2028,6 +2046,73 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
   panel.y = comp.panelY;
   panel.fills = [sampledLowerPanelGradient(layout)];
   frame.appendChild(panel);
+
+  // Zadanie 26.8 blok F: rovnaky problem ako buildSideSafeLayout vyssie —
+  // panelY+panelH koncil pred spodkom bezpecnej zony o cely "pad" (namerane:
+  // joj 600×960, panel 697->927, ram 960 — 33 px hola fotka pod panelom).
+  // Rovnake riesenie: samostatny "extension" obdlznik plnou koncovou farbou
+  // panelu, ziadny zasah do comp.panelH/panelY (tie pouziva aj CTA/headline
+  // vyssie aj addAiNote() v orchestracii — menit by to posunulo viac, nez je
+  // tu ciel).
+  if (comp.panelY + comp.panelH < format.height) {
+    const panelExtension = figma.createRectangle();
+    panelExtension.name = "Readable message panel extension";
+    panelExtension.resize(comp.panelW, format.height - (comp.panelY + comp.panelH));
+    panelExtension.x = comp.panelX;
+    panelExtension.y = comp.panelY + comp.panelH;
+    panelExtension.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
+    frame.appendChild(panelExtension);
+  }
+
+  // Panel je zamerne uzsi nez bezpecna zona (nie celoplosny ako side_safe —
+  // "message card", nie skyscraper ad-unit). Na tychto lavych/pravych
+  // hranach ale vznikal tvrdy zvisly rez cez fotku (namerane vsetky netmave
+  // interscroller formaty v zadani — joj 600×960, topky 400×600, markiza
+  // 720×1280). Mäkký vodorovný nábeh namiesto tvrdého rezu: dva úzke pásy
+  // (šírka comp.pad) tesne mimo panelu, s vodorovným alfa nábehom 0 (pri
+  // fotke) -> plná (pri panelovom okraji), rovnaká technika ako "PSD left
+  // readability treatment" (Adform 300×250) a "Wide content panel" (master_safe).
+  // Len pre "úzku" (nie wide) vetvu — wide panel je zámerne floating card,
+  // mimo rozsahu tohto zadania.
+  if (!comp.wide) {
+    const featherH = format.height - comp.panelY;
+    const leftFeatherW = Math.min(comp.pad, comp.panelX - safe.x);
+    if (leftFeatherW > 0) {
+      const leftFeather = figma.createRectangle();
+      leftFeather.name = "Readable message panel — left feather";
+      leftFeather.resize(leftFeatherW, featherH);
+      leftFeather.x = comp.panelX - leftFeatherW;
+      leftFeather.y = comp.panelY;
+      const edge = campaignSurface(layout);
+      leftFeather.fills = [{
+        type: "GRADIENT_LINEAR",
+        gradientTransform: [[1, 0, 0], [0, 1, 0]],
+        gradientStops: [
+          { position: 0, color: { r: edge.r, g: edge.g, b: edge.b, a: 0 } },
+          { position: 1, color: { r: edge.r, g: edge.g, b: edge.b, a: 1 } }
+        ]
+      }];
+      frame.appendChild(leftFeather);
+    }
+    const rightFeatherW = Math.min(comp.pad, (safe.x + safe.w) - (comp.panelX + comp.panelW));
+    if (rightFeatherW > 0) {
+      const rightFeather = figma.createRectangle();
+      rightFeather.name = "Readable message panel — right feather";
+      rightFeather.resize(rightFeatherW, featherH);
+      rightFeather.x = comp.panelX + comp.panelW;
+      rightFeather.y = comp.panelY;
+      const edge = campaignSurface(layout);
+      rightFeather.fills = [{
+        type: "GRADIENT_LINEAR",
+        gradientTransform: [[1, 0, 0], [0, 1, 0]],
+        gradientStops: [
+          { position: 0, color: { r: edge.r, g: edge.g, b: edge.b, a: 1 } },
+          { position: 1, color: { r: edge.r, g: edge.g, b: edge.b, a: 0 } }
+        ]
+      }];
+      frame.appendChild(rightFeather);
+    }
+  }
 
   if (shouldShowLogo(format, layout, figmaLogo)) {
     const logoH = Math.round(clamp(safe.h * 0.045, 34, 70));

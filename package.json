@@ -3,7 +3,7 @@
   "version": "1.6.0",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/campaign-rules.test.js && node tests/p0-9.test.js && node tests/universal-templates.test.js && node tests/format-normalization.test.js && node tests/excel-parser.test.js && node tests/publisher-geometry.test.js && node tests/visual-system.test.js && node tests/frame-visual-qa.test.js && node tests/contrast.test.js && node tests/kv-background-color.test.js && node tests/email-layout-geometry.test.js && node tests/ai-tag-headline-reserve.test.js && node tests/panel-edge-coverage.test.js && node tests/layout-routing.test.js && node tests/bottom-scrim-height.test.js && node tests/joj-branding-helper.test.js",
+    "test": "node tests/campaign-rules.test.js && node tests/p0-9.test.js && node tests/universal-templates.test.js && node tests/format-normalization.test.js && node tests/excel-parser.test.js && node tests/publisher-geometry.test.js && node tests/visual-system.test.js && node tests/frame-visual-qa.test.js && node tests/contrast.test.js && node tests/kv-background-color.test.js && node tests/email-layout-geometry.test.js && node tests/ai-tag-headline-reserve.test.js && node tests/panel-edge-coverage.test.js && node tests/layout-routing.test.js && node tests/bottom-scrim-height.test.js && node tests/joj-branding-helper.test.js && node tests/qa-oversize-threshold.test.js",
     "visual:compare": "node scripts/visual-regression.js",
     "catalog:build": "node scripts/generate-format-catalog.js"
   },

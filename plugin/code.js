@@ -1300,12 +1300,25 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
       // WIDE_KV_ZONE_MULTIPLIER (1,23×) na wide, KV_OVERSIZE_POINTS max
       // 1,561× na square/portrait. Pôvodná kontrola "> parent + 1" pochádza
       // ešte spred Kroku 4c a hlásila tento zámerný presah ako falošný
-      // pozitív (Performance/Headline assets landscape). Tolerancia 1,7×
-      // necháva rezervu nad reálne použité multiplikátory a stále odchytí
-      // skutočne rozbitý prípad (zle dosadená zóna a pod.).
+      // pozitív (Performance/Headline assets landscape).
+      //
+      // K8/P0-21 (26.8): porovnávanie width vs. parent.width A height vs.
+      // parent.height NEZÁVISLE bolo samo o sebe chybné pre nesquare zóny.
+      // protectedMaster je (v každom overenom prípade) približne štvorec —
+      // jeden scale faktor aplikovaný na štvorcový master. Keď taký štvorec
+      // pokrýva nesquare zónu (napr. wide 900×628), jeho oversize voči
+      // KRATŠIEMU rozmeru zóny (628) je matematicky vždy väčší než voči
+      // DLHŠIEMU (900) — o presne pomer strán zóny navyše. Namerané: KID
+      // referenčný wide beh (900×628 zóna, WIDE_KV_ZONE_MULTIPLIER=1,23)
+      // dáva width-oversize 1107/900=1,23 (pod 1,7 ✅), ale height-oversize
+      // 1107/628=1,763 (nad 1,7 ❌) — na TOM ISTOM, Surďovou referenciou
+      // pixel-presne overenom orezu. Porovnanie musí byť voči DLHŠIEMU
+      // rozmeru zóny (tomu, ktorý skutočne určuje, aký veľký štvorec ju
+      // musí pokryť), nie voči každému rozmeru zvlášť.
       const maxOversize = 1.7;
-      if (protectedMaster.width > protectedMaster.parent.width * maxOversize + 1 ||
-          protectedMaster.height > protectedMaster.parent.height * maxOversize + 1) {
+      const zoneCoverDim = Math.max(protectedMaster.parent.width, protectedMaster.parent.height);
+      const renderedDim = Math.max(protectedMaster.width, protectedMaster.height);
+      if (renderedDim > zoneCoverDim * maxOversize + 1) {
         add("qa_unsafe_single_master_crop");
       }
     }

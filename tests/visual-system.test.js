@@ -46,7 +46,9 @@ assert(source.includes('Clean portrait colour extension'), "clean portrait asset
 assert(source.includes('[0, 0, imageW, format.height], { x: 0, y: 0.5 }'), "wide creative masters must keep the focal visual on the left as in the Surd reference");
 assert(source.includes('ratio >= 1.25 ? "wide" : (ratio <= 0.8 ? "portrait" : "square")'), "4:5 and other orientation boundaries must match the KV picker exactly");
 assert(source.includes('const edge = campaignSurface(layout);\n    const panel = figma.createRectangle();\n    panel.name = "Brand panel";'), "970x250 must derive its panel from the shared campaign colour instead of hard-coded navy");
-assert(source.includes('const panelX = 549;'), "970x250 panel must sit near the Surd reference geometry (x=549)");
+assert(source.includes('const panelX = (rules.panel && rules.panel[0]) || 549;'),
+  "970x250 panel must take its x from ADFORM_PSD_RULES.adform_970x250.panel (measured on the PSD baseline, same source as the headline coordinates), not the hard-coded Figma-derived 549 — P0-22 (zadanie 26.8 blok B)");
+assert(source.includes('panel: [450, 0, 520, 250]'), "adform_970x250 PSD rule must carry the panel geometry measured on tests/visual-baselines/adform_970x250.png");
 assert(source.includes('const runYOffset = page.children.length'), "a new generation must not overlap an older run");
 assert(uiSource.includes('async function normalizeKvFile(file)'), "uploaded KV edges must be normalized before rendering");
 assert(uiSource.includes('transparent-or-selection-edge'), "Figma selection/padding cleanup must be recorded in metadata");

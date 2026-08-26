@@ -2189,7 +2189,16 @@ const ADFORM_PSD_RULES = {
     bankLogo: [853, 139, 88, 86],
     legal: [618, 203, 137, 22],
     legalSize: 7,
-    ai: [30, 208, 100, 19]
+    ai: [30, 208, 100, 19],
+    // Zadanie 26.8 blok B / P0-22: predtym chybal panel zaznam, takze
+    // addAdformBackgroundTreatment() bral panelX=549 zo Surdovej Figmy
+    // (VIZUAL-BACKGROUND 0:188), zatial co headline.x=460 je z tohto PSD
+    // pravidla — dva rozne zdroje sucasne, 89px textu na fotke namiesto
+    // v paneli. x=450 zmerane priamo na tests/visual-baselines/
+    // adform_970x250.png (median prveho stlpca s farbou panelu ~#39475e
+    // v pase y=5..35, node+sharp mimo repa; rozptyl naprieč riadkami
+    // 445-455, panel ma mierne sikmu lavu hranu z fotky pod nou).
+    panel: [450, 0, 520, 250]
   }
 };
 
@@ -2362,8 +2371,16 @@ function addAdformBackgroundTreatment(frame, format, rules, templateId, layout) 
     // campaignSurface(layout) a max alfa 0,40 -> 1,00, rovnaky vzor ako
     // "Wide content panel" (Meta 1200x628) — plna krycost fotku naozaj
     // zakryje, panel nezavisi na tom, co je pod nim.
-    const panelX = 549;
-    const panelW = 970 - panelX;
+    //
+    // Zadanie 26.8 blok B / P0-22: x=549 tu bol zo Surdovej Figmy
+    // (VIZUAL-BACKGROUND 0:188), ale headline (rules.headline, o riadok
+    // nizsie vo funkcii, ktora addTemplateText vola s tymto rules) je z
+    // PSD na x=460 — dva rozne zdroje pravdy naraz, text 89px na fotke
+    // namiesto v paneli. Teraz berie panelX z rules.panel (ADFORM_PSD_RULES.
+    // adform_970x250.panel, zmerane priamo na PSD baseline), rovnaky zdroj
+    // ako headline.
+    const panelX = (rules.panel && rules.panel[0]) || 549;
+    const panelW = format.width - panelX;
     const edge = campaignSurface(layout);
     const panel = figma.createRectangle();
     panel.name = "Brand panel";

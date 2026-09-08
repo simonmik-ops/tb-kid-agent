@@ -1,7 +1,7 @@
 // Regresia 8.9.2026: "modré tabuľky" na branding_full (2000×1400,
-// markíza/tvnoviny/joj) — brandColor() vždy skončil na natvrdo modrej.
+// markíza/tvnoviny/joj) — dva NEZÁVISLÉ zdroje toho istého vizuálneho bugu.
 //
-// Príčina bola v agent.js: `bg_r: visualAnalysis.bg_r || 0.1` (a rovnako
+// Bug #1 — agent.js: `bg_r: visualAnalysis.bg_r || 0.1` (a rovnako
 // bg_g/bg_b) VŽDY vrátilo číslo — či už reálnu AI-vzorkovanú hodnotu, alebo
 // natvrdo (0.1, 0.1, 0.18), teda tmavú navy. Toto číslo (aj ten fallback)
 // sa poslalo do plugin/code.js ako layout.bg_r. Tam ale platí:
@@ -11,9 +11,18 @@
 // serverovej ceste (agent.js), lebo layout.bg_r už bolo číslo. branding_full
 // je jediná rola, kde je brandColor() vidieť na celej ploche, preto tam bol
 // bug najviditeľnejší — inde ho prekryla fotka.
-//
 // Oprava: agent.js už bg_r/bg_g/bg_b vôbec nenastavuje (žiadny natvrdý
 // fallback), takže sa vždy použije presnejší klientsky kvBg vzorok.
+//
+// Bug #2 — plugin/code.js, buildBrandingSkinLayout (2000×1400): "Readability
+// panel" (podložka za headline v oboch bočných stĺpcoch) mal natvrdo
+// `BRAND_COLOR` (vždy navy), hoci pár riadkov vyššie v TEJ ISTEJ funkcii je
+// už správne vypočítané `const edge = campaignSurface(layout);` a použité
+// pre "Dim brand background". Namerané priamo na živom Figma výstupe
+// (L6yFpLkKcHe9flUk3i11T1, node 32:2395): pozadie aj okraje korálové,
+// "Readability panel" boxy (32:2401/32:2402) sýto navy — nesúlad v tej istej
+// ploche. Oprava: `BRAND_COLOR` → `edge` (žiadna nová logika, len použitie
+// premennej, čo už bola v scope).
 const assert = require("assert");
 const fs = require("fs");
 
@@ -62,5 +71,20 @@ if (kvBg && typeof serverLayoutBeforeFix.bg_r !== "number") {
 const oldBuggyColor = brandColor(serverLayoutBeforeFix, null);
 assert.notDeepStrictEqual(oldBuggyColor, kvBg,
   "kontrola predpokladu: pred opravou kvBg guard skutočne nikdy nezasiahol");
+
+// ── Bug #2 regresia: buildBrandingSkinLayout musí "Readability panel"
+// kresliť farbou campaignSurface(layout) (premenná `edge`), nie natvrdo
+// BRAND_COLOR ────────────────────────────────────────────────────────────
+const skinStart = codeSrc.indexOf("function buildBrandingSkinLayout");
+const skinEnd = codeSrc.indexOf("\nfunction ", skinStart + 1);
+assert(skinStart >= 0 && skinEnd > skinStart, "buildBrandingSkinLayout musí existovať v code.js");
+const skinSrc = codeSrc.slice(skinStart, skinEnd);
+assert(/const edge = campaignSurface\(layout\)/.test(skinSrc),
+  "buildBrandingSkinLayout musí mať campaignSurface(layout) v premennej edge");
+const readabilityPanelCall = skinSrc.slice(skinSrc.indexOf('"Readability panel"'));
+assert(!/BRAND_COLOR/.test(readabilityPanelCall.slice(0, 200)),
+  "Readability panel nesmie použiť natvrdo BRAND_COLOR — musí použiť edge (campaignSurface), rovnako ako Dim brand background v tej istej funkcii");
+assert(/,\s*edge,\s*0\.82/.test(readabilityPanelCall.slice(0, 200)),
+  "Readability panel musí byť vykreslený farbou edge (campaignSurface), nie natvrdou hodnotou");
 
 console.log("campaign color fallback (branding_full navy box regression): ok");

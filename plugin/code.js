@@ -2137,7 +2137,7 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
     [pad, format.width - sideW + pad].forEach(function (stlpecX) {
       addSolidRect(
         frame, "Readability panel", stlpecX - Math.round(pad * 0.5), headlineY - Math.round(pad * 0.7),
-        sideW - pad, blokH + pad, BRAND_COLOR, 0.82
+        sideW - pad, blokH + pad, edge, 0.82
       );
     });
     addTemplateText(frame, "Headline", headline,

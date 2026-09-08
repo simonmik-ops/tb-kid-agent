@@ -1395,7 +1395,21 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
   const resolvedAdformRules = layoutType === "adform_psd"
     ? resolveAdformPsdRules(templateId, content, layout) : null;
 
-  if (headline && headline.type === "TEXT") {
+  // 8.9. dodatok: TB.headline(W,H) je vzorec pre master_safe (jediné reálne
+  // volajúce miesta sú v buildMasterSafeLayout) — adform_psd má vlastný
+  // cez resolvedAdformRules.headlineSize. Táto kontrola predtým bežala pre
+  // KAŽDÝ layoutType s headlineom, hoci branding_leader_text/branding_skin/
+  // side_safe/interscroller_safe/... majú svoje vlastné, zámerne odlišné
+  // vzorce veľkosti (napr. format.height*0,24 pre branding_leader_text).
+  // Namerané vo Validation reporte: ~10 formátov naprieč viacerými
+  // publishermi nahlásených ako "typografia mimo tolerancie" bez toho, aby
+  // bol vo výstupe reálny problém — falošný poplach z porovnania proti
+  // nesprávnemu vzorcu. Kontrola pod subheadline/logo/CTA nižšie je už
+  // správne obmedzená na `layoutType === "master_safe"` — headline kontrola
+  // dostala rovnaké obmedzenie, len s výnimkou pre adform_psd (ten má svoj
+  // vlastný, zmysluplný vzorec cez resolvedAdformRules).
+  if ((layoutType === "master_safe" || layoutType === "adform_psd") &&
+      headline && headline.type === "TEXT") {
     const expected = resolvedAdformRules
       ? resolvedAdformRules.headlineSize
       : TB.headline(format.width, format.height);

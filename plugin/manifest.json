@@ -6,7 +6,7 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["*"],
+    "allowedDomains": ["https://tb-kid-agent-production.up.railway.app", "https://cdnjs.cloudflare.com"],
     "reasoning": "Plugin komunikuje s Railway serverom pre AI analýzu vizuálu cez Claude API."
   }
 }

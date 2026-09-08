@@ -6,6 +6,7 @@ const FORMATS = [
   // ─── SOCIAL VIDEO ───────────────────────────────────────────
   {
     id: "tiktok_video",
+    campaign: "kid",
     name: "TikTok video",
     channel: "Social",
     width: 1080,
@@ -18,6 +19,7 @@ const FORMATS = [
   },
   {
     id: "ig_reels",
+    campaign: "kid",
     name: "Instagram Reels",
     channel: "Social",
     width: 1080,
@@ -31,6 +33,7 @@ const FORMATS = [
   },
   {
     id: "meta_video_1x1",
+    campaign: "kid",
     name: "Meta video 1:1",
     channel: "Social",
     width: 1200,
@@ -43,6 +46,7 @@ const FORMATS = [
   },
   {
     id: "meta_video_4x5",
+    campaign: "kid",
     name: "Meta video 4:5",
     channel: "Social",
     width: 1200,
@@ -55,6 +59,7 @@ const FORMATS = [
   },
   {
     id: "meta_video_9x16",
+    campaign: "kid",
     name: "Meta video 9:16",
     channel: "Social",
     width: 1080,
@@ -69,6 +74,7 @@ const FORMATS = [
   // ─── META IMAGE ──────────────────────────────────────────────
   {
     id: "meta_img_1x1",
+    campaign: "kid",
     name: "Meta image 1:1",
     channel: "Meta",
     role: "meta_full",
@@ -81,7 +87,22 @@ const FORMATS = [
     notes: "Vizuál s headlineom a logom. CTA doťahuje systém."
   },
   {
+    id: "meta_img_landscape",
+    campaign: "kid",
+    name: "Meta image 16:9",
+    channel: "Meta",
+    role: "meta_full",
+    width: 1200,
+    height: 628,
+    ratio: "1200:628",
+    type: ["awareness", "hardsell", "remarketing"],
+    count: 1,
+    safeZones: { top: 0, bottom: 0 },
+    notes: "P0-25 doplnok: overené vo Surďovej referenčnej Figme (sekcia META FB/IG, frame 1200×628) — headline + logo + AI disclosure, bez CTA (rieši systém Meta). Predtým katalóg nemal žiadny Meta záznam na tomto rozmere, čo kolidovalo s Google RSA/DemandGen/PMax na tom istom 1200×628."
+  },
+  {
     id: "meta_img_4x5",
+    campaign: "kid",
     name: "Meta image 4:5",
     channel: "Meta",
     role: "meta_full",
@@ -95,6 +116,7 @@ const FORMATS = [
   },
   {
     id: "meta_img_9x16",
+    campaign: "kid",
     name: "Meta image 9:16",
     channel: "Meta",
     role: "meta_full",
@@ -110,6 +132,7 @@ const FORMATS = [
   // ─── PINTEREST ───────────────────────────────────────────────
   {
     id: "pinterest_pin",
+    campaign: "kid",
     name: "Pinterest Pin Ads",
     channel: "Pinterest",
     width: 1000,
@@ -125,6 +148,7 @@ const FORMATS = [
   // ─── GOOGLE RESPONSIVE ADS ──────────────────────────────────
   {
     id: "google_rsa_landscape",
+    campaign: "kid",
     name: "Google RSA 1200×628",
     channel: "Google",
     // Konflikt medzi Surďovou referenčnou Figmou (headline prítomný) a
@@ -143,6 +167,7 @@ const FORMATS = [
   },
   {
     id: "google_rsa_square",
+    campaign: "kid",
     name: "Google RSA 1200×1200",
     channel: "Google",
     role: "clean_image",
@@ -156,6 +181,7 @@ const FORMATS = [
   },
   {
     id: "google_rsa_story",
+    campaign: "kid",
     name: "Google RSA 900×1600 (story)",
     channel: "Google",
     role: "clean_image",
@@ -169,6 +195,7 @@ const FORMATS = [
   },
   {
     id: "google_logo_square",
+    campaign: "kid",
     name: "Google Logo 1200×1200",
     channel: "Google",
     role: "logo_only",
@@ -182,6 +209,7 @@ const FORMATS = [
   },
   {
     id: "google_logo_wide",
+    campaign: "kid",
     name: "Google Logo 1200×300",
     channel: "Google",
     role: "logo_only",
@@ -197,6 +225,7 @@ const FORMATS = [
   // ─── GOOGLE DEMAND GEN ───────────────────────────────────────
   {
     id: "demandgen_landscape",
+    campaign: "kid",
     name: "Demand Gen 1200×628",
     channel: "Google DemandGen",
     role: "full_creative",
@@ -210,6 +239,7 @@ const FORMATS = [
   },
   {
     id: "demandgen_square",
+    campaign: "kid",
     name: "Demand Gen 1200×1200",
     channel: "Google DemandGen",
     role: "full_creative",
@@ -223,6 +253,7 @@ const FORMATS = [
   },
   {
     id: "demandgen_portrait",
+    campaign: "kid",
     name: "Demand Gen 960×1200",
     channel: "Google DemandGen",
     role: "full_creative",
@@ -238,6 +269,7 @@ const FORMATS = [
   // ─── GOOGLE PERFORMANCE MAX ──────────────────────────────────
   {
     id: "pmax_landscape",
+    campaign: "kid",
     name: "PMax 1200×628",
     channel: "Google PMax",
     role: "headline_only",
@@ -251,6 +283,7 @@ const FORMATS = [
   },
   {
     id: "pmax_square",
+    campaign: "kid",
     name: "PMax 1200×1200",
     channel: "Google PMax",
     role: "headline_only",
@@ -264,6 +297,7 @@ const FORMATS = [
   },
   {
     id: "pmax_portrait",
+    campaign: "kid",
     name: "PMax 960×1200",
     channel: "Google PMax",
     role: "headline_only",
@@ -279,6 +313,7 @@ const FORMATS = [
   // ─── ADFORM IAB ──────────────────────────────────────────────
   {
     id: "adform_300x250",
+    campaign: "kid",
     name: "Adform 300×250",
     channel: "Adform",
     template: "adform_psd_reference",
@@ -292,6 +327,7 @@ const FORMATS = [
   },
   {
     id: "adform_300x600",
+    campaign: "kid",
     name: "Adform 300×600",
     channel: "Adform",
     template: "adform_psd_reference",
@@ -305,6 +341,7 @@ const FORMATS = [
   },
   {
     id: "adform_160x600",
+    campaign: "kid",
     name: "Adform 160×600",
     channel: "Adform",
     template: "adform_psd_reference",
@@ -318,6 +355,7 @@ const FORMATS = [
   },
   {
     id: "adform_970x250",
+    campaign: "kid",
     name: "Adform 970×250",
     channel: "Adform",
     template: "adform_psd_reference",
@@ -333,6 +371,7 @@ const FORMATS = [
   // ─── MARKÍZA ─────────────────────────────────────────────────
   {
     id: "markiza_branding_full",
+    campaign: "kid",
     name: "Markíza branding 2000×1400",
     channel: "Markíza",
     width: 2000,
@@ -341,22 +380,27 @@ const FORMATS = [
     type: ["awareness"],
     count: 1,
     safeZones: { centerWidth: 1000, topOffset: 200 },
-    notes: "Full page branding. Safe zóna: 1000px stred, 200px od vrchu. Hlavný odkaz max 140px od okraja."
+    limit: 400,
+    notes: "Full page branding. Safe zóna: 1000px stred, 200px od vrchu. Hlavný odkaz max 140px od okraja. Max 400 kB (.jpg) — TP: alternatíva k branding_leader/branding_side sade (bg image 2000×1400 namiesto 1000×200+2×120×600)."
   },
   {
     id: "markiza_branding_leader",
+    campaign: "kid",
     name: "Markíza branding 1000×200",
     channel: "Markíza",
+    role: "branding_leader_text",
     width: 1000,
     height: 200,
     ratio: "5:1",
     type: ["awareness"],
     count: 1,
     safeZones: { safeInner: { width: 720, height: 200 } },
-    notes: "Hlavný odkaz max 140px od okraja (720px stred z 1000px šírky). Časť brandingu."
+    limit: 60,
+    notes: "Hlavný odkaz max 140px od okraja (720px stred z 1000px šírky). Časť brandingu — TOP kus vedla L/R bočných branding_side kusov (tie nesú foto/CTA/logo). P2-28: pôvodne role \"interscroller\" (bug, opravené na \"branding_side\"), P0-28: overené na schválenom exporte (Markiza-Branding TOP/L/R) — TOP je len centrovaný headline, preklopené na branding_leader_text. TP: 3× 60 kB (jpg) spolu za sadu (TOP + 2 boky), max 200 kB (HTML5)."
   },
   {
     id: "markiza_branding_side",
+    campaign: "kid",
     name: "Markíza branding 120×600",
     channel: "Markíza",
     width: 120,
@@ -365,24 +409,28 @@ const FORMATS = [
     type: ["awareness"],
     count: 2,
     safeZones: { top: 0, bottom: 0 },
-    notes: "2× bočné bannery (ľavý + pravý)."
+    limit: 60,
+    notes: "2× bočné bannery (ľavý + pravý). TP: 3× 60 kB (jpg) spolu za sadu (TOP + 2 boky), max 200 kB (HTML5)."
   },
   {
     id: "markiza_interscroller",
+    campaign: "kid",
     name: "Markíza interscroller 720×1280",
     channel: "Markíza",
+    role: "interscroller",
     width: 720,
     height: 1280,
     ratio: "9:16",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Max 300 kB jpg."
+    notes: "Max 300 kB jpg. P0-25/P0-26 doplnok: role explicitná — bez nej inferRole dá publisher_branding (plain top/bottom safeZones, žiadny safeInner/centerWidth), čo po P0-25 revízii prioritizácie ohrozovalo správne priradenú rolu z Excel textu."
   },
 
   // ─── JOJ ─────────────────────────────────────────────────────
   {
     id: "joj_branding",
+    campaign: "kid",
     name: "JOJ branding 2000×1400",
     channel: "JOJ",
     width: 2000,
@@ -391,50 +439,61 @@ const FORMATS = [
     type: ["awareness"],
     count: 1,
     safeZones: { centerWidth: 1000, topOffset: 200 },
-    notes: "Biela plocha pod obsahom. 1000px v strede pod leaderboardom, 200px od vrchu. HTML5 vopred schváliť."
+    limit: 300,
+    notes: "Biela plocha pod obsahom. 1000px v strede pod leaderboardom, 200px od vrchu. HTML5 vopred schváliť. Max 300 kB (.jpg), max 450 kB (HTML5)."
   },
   {
     id: "joj_interscroller_mobile",
+    campaign: "kid",
     name: "JOJ interscroller 300×600",
     channel: "JOJ",
+    role: "interscroller",
     width: 300,
     height: 600,
     ratio: "1:2",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Mobile."
+    limit: 200,
+    notes: "Mobile. P0-25/P0-26 doplnok: role explicitná (pozri markiza_interscroller vyššie). Max 200 kB."
   },
   {
     id: "joj_interscroller_desktop",
+    campaign: "kid",
     name: "JOJ interscroller 600×960",
     channel: "JOJ",
+    role: "interscroller",
     width: 600,
     height: 960,
     ratio: "5:8",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Desktop."
+    limit: 200,
+    notes: "Desktop. P0-25/P0-26 doplnok: role explicitná (pozri markiza_interscroller vyššie). Max 200 kB."
   },
 
   // ─── RINGIER ─────────────────────────────────────────────────
   {
     id: "ringier_leaderboard",
+    campaign: "kid",
     name: "Ringier leaderboard 1200×400",
     channel: "Ringier",
+    role: "branding_leader_full",
     width: 1200,
     height: 400,
     ratio: "3:1",
     type: ["awareness"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Cielenie: návštevníci najmama.sk. Max 150 kB."
+    notes: "Cielenie: návštevníci najmama.sk. Max 150 kB. P0-28: overené priamo na schválenom exporte (Leaderboard-1200x400) — standalone pás bez L/R sourozencov, plná kompozícia foto+headline+CTA+logo."
   },
   {
     id: "ringier_interscroller",
+    campaign: "kid",
     name: "Ringier interscroller 720×1280",
     channel: "Ringier",
+    role: "interscroller",
     width: 720,
     height: 1280,
     ratio: "9:16",
@@ -447,18 +506,22 @@ const FORMATS = [
   // ─── ŽENSKÉ WEBY ─────────────────────────────────────────────
   {
     id: "zenske_branding_top",
+    campaign: "kid",
     name: "Ženské weby TOP 1200×200",
     channel: "Ženské weby",
+    role: "branding_leader_text",
     width: 1200,
     height: 200,
     ratio: "6:1",
     type: ["awareness"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "casprezeny, dobrejedlo, emma, eva, izdravie, sarm, zena."
+    limit: 250,
+    notes: "casprezeny, dobrejedlo, emma, eva, izdravie, sarm, zena. P0-28: overené priamo na schválenom exporte (Cas pre zeny TOP 1200x200) — len centrovaný headline, žiadne foto/CTA/logo (tie nesie zenske_branding_side). TP: 250 kB spolu za sadu (TOP + 2 boky)."
   },
   {
     id: "zenske_branding_side",
+    campaign: "kid",
     name: "Ženské weby SIDE 160×600",
     channel: "Ženské weby",
     width: 160,
@@ -467,24 +530,29 @@ const FORMATS = [
     type: ["awareness"],
     count: 2,
     safeZones: { safeInner: { width: 120, height: 600 } },
-    notes: "Message, logo a text v 120×600. Zvyšok — pozadie."
+    limit: 250,
+    notes: "Message, logo a text v 120×600. Zvyšok — pozadie. TP: 250 kB spolu za sadu (TOP + 2 boky)."
   },
   {
     id: "zenske_interscroller",
+    campaign: "kid",
     name: "Ženské weby interscroller 750×1624",
     channel: "Ženské weby",
+    role: "interscroller",
     width: 750,
     height: 1624,
     ratio: "~9:16",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 321, bottom: 321, sides: 50 },
-    notes: "Safe zóna 750×982 (stred). Ochranná zóna na krajoch 50px."
+    limit: 250,
+    notes: "Safe zóna 750×982 (stred). Ochranná zóna na krajoch 50px. Max 250 kB."
   },
 
   // ─── TOPKY ───────────────────────────────────────────────────
   {
     id: "topky_branding",
+    campaign: "kid",
     name: "Topky branding 120×600",
     channel: "Topky",
     width: 450,
@@ -493,27 +561,31 @@ const FORMATS = [
     type: ["awareness"],
     count: 2,
     safeZones: { safeInner: { width: 160, height: 600 } },
-    notes: "Rozsah 120×600 až 450×800. Hlavný odkaz v safe zóne 160×600. 2× boky."
+    limit: 250,
+    notes: "Rozsah 120×600 až 450×800. Hlavný odkaz v safe zóne 160×600. 2× boky. TP: spolu 250 kB za sadu."
   },
   {
     id: "topky_interscroller",
+    campaign: "kid",
     name: "Topky interscroller 400×600",
     channel: "Topky",
+    role: "interscroller",
     width: 400,
     height: 600,
     ratio: "2:3",
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 30 },
-    notes: "Statický variant. Bez textu/dôležitých prvkov v horných 30px. HTML5 musí byť responzívne."
+    limit: 200,
+    notes: "Statický variant. Bez textu/dôležitých prvkov v horných 30px. HTML5 musí byť responzívne. Max 200 kB (bez videa), max 1 MB (s videom) — rovnaké TP ako topky_html5_320x480."
   },
   {
-    // P0-14: chýbajúci HTML5 variant interscrolleru — TP (UPDATE_TP_Online_TB_INT_KID
-    // 06-09-2026_v2_vinted.xlsx, hárok "Direct", riadok Zoznam/topky.sk):
-    // "Interscroller: if static - 400x600 if HTML5 - 320x480". Limit "max 200kB
-    // (without video), max 1 MB (with video)" je spoločný pre oba varianty v TP,
-    // rovnako safeZones (top 30px zhora, rovnaká formulácia ako pri statickom).
+    // P0-14 (prenesené z master, commit 68cdb0f): chýbajúci HTML5 variant
+    // interscrolleru — TP (UPDATE_TP_Online_TB_INT_KID 06-09-2026_v2_vinted.xlsx,
+    // hárok "Direct", riadok Zoznam/topky.sk): "Interscroller: if static -
+    // 400x600 if HTML5 - 320x480". Limit aj safeZones spoločné pre oba varianty.
     id: "topky_html5_320x480",
+    campaign: "kid",
     name: "Topky interscroller HTML5 320×480",
     channel: "Topky",
     width: 320,
@@ -528,12 +600,13 @@ const FORMATS = [
   // ─── ENGERIO NATIVE ──────────────────────────────────────────
   {
     id: "engerio_native",
-    name: "Engerio native 4:3",
+    campaign: "kid",
+    name: "Engerio native 3:2",
     channel: "Native",
     role: "native",
-    width: 800,
-    height: 600,
-    ratio: "4:3",
+    width: 600,
+    height: 400,
+    ratio: "3:2",
     type: ["awareness", "hardsell"],
     count: 3,
     noLogo: true,
@@ -544,6 +617,7 @@ const FORMATS = [
   // ─── E-MAIL & DM ─────────────────────────────────────────────
   {
     id: "modrykonik_email",
+    campaign: "kid",
     name: "Modrý koník e-mail 730×1000",
     channel: "E-mail",
     width: 730,
@@ -552,10 +626,12 @@ const FORMATS = [
     type: ["awareness"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Fixná šírka 730px. Cielenie: maminy s deťmi 7–15r. Odosielateľ 32zn., predmet 32zn."
+    limit: 350,
+    notes: "Fixná šírka 730px. Cielenie: maminy s deťmi 7–15r. Odosielateľ 32zn., predmet 32zn. Max 350 kB."
   },
   {
     id: "azet_dm",
+    campaign: "kid",
     name: "Azet DM 640×500",
     channel: "E-mail",
     width: 640,
@@ -564,10 +640,12 @@ const FORMATS = [
     type: ["awareness"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Max šírka 640px, min výška 500px. Cielenie: ženy 30–50r. Predmet 80zn., odosielateľ 25zn."
+    limit: 100,
+    notes: "Max šírka 640px, min výška 500px. Cielenie: ženy 30–50r. Predmet 80zn., odosielateľ 25zn. Max 100 kB."
   },
   {
     id: "nmh_dm",
+    campaign: "kid",
     name: "NMH DM 500×800",
     channel: "E-mail",
     width: 500,
@@ -576,12 +654,14 @@ const FORMATS = [
     type: ["awareness"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Max šírka 500px, max výška 800px. Predmet 45zn. bez diakritiky. Cielenie: ženy 30–50r."
+    limit: 50,
+    notes: "Max šírka 500px, max výška 800px. Predmet 45zn. bez diakritiky. Cielenie: ženy 30–50r. Max 50 kB."
   },
 
   // ─── VINTED ──────────────────────────────────────────────────
   {
     id: "vinted_300x250",
+    campaign: "kid",
     name: "Vinted 300×250",
     channel: "Vinted",
     width: 300,
@@ -590,10 +670,12 @@ const FORMATS = [
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "App banner. Cielenie: 25–54r., rodičia s deťmi do 15r."
+    limit: 150,
+    notes: "App banner. Cielenie: 25–54r., rodičia s deťmi do 15r. TP: odporúčané (nie tvrdý max) 150 kB, tvrdý strop 9 MB."
   },
   {
     id: "vinted_320x50",
+    campaign: "kid",
     name: "Vinted 320×50",
     channel: "Vinted",
     width: 320,
@@ -602,10 +684,12 @@ const FORMATS = [
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "App mobile banner."
+    limit: 150,
+    notes: "App mobile banner. TP: odporúčané (nie tvrdý max) 150 kB, tvrdý strop 9 MB."
   },
   {
     id: "vinted_300x600",
+    campaign: "kid",
     name: "Vinted 300×600",
     channel: "Vinted",
     width: 300,
@@ -614,10 +698,12 @@ const FORMATS = [
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Desktop half page."
+    limit: 150,
+    notes: "Desktop half page. TP: odporúčané (nie tvrdý max) 150 kB, tvrdý strop 9 MB."
   },
   {
     id: "vinted_970x250",
+    campaign: "kid",
     name: "Vinted 970×250",
     channel: "Vinted",
     width: 970,
@@ -626,10 +712,12 @@ const FORMATS = [
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Desktop billboard."
+    limit: 150,
+    notes: "Desktop billboard. TP: odporúčané (nie tvrdý max) 150 kB, tvrdý strop 9 MB."
   },
   {
     id: "vinted_728x90",
+    campaign: "kid",
     name: "Vinted 728×90",
     channel: "Vinted",
     width: 728,
@@ -638,7 +726,8 @@ const FORMATS = [
     type: ["awareness", "hardsell"],
     count: 1,
     safeZones: { top: 0, bottom: 0 },
-    notes: "Leaderboard."
+    limit: 150,
+    notes: "Leaderboard. TP: odporúčané (nie tvrdý max) 150 kB, tvrdý strop 9 MB."
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -662,17 +751,17 @@ const FORMATS = [
   { id: "kkv_pmax_square", name: "PMax 1200×1200", channel: "Google PMax", campaign: "kkvisa", role: "headline_only", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Iba headline." },
   { id: "kkv_pmax_portrait", name: "PMax 960×1200", channel: "Google PMax", campaign: "kkvisa", role: "headline_only", width: 960, height: 1200, ratio: "4:5", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Iba headline." },
   { id: "kkv_markiza_branding_full", name: "Markíza branding 2000×1400", channel: "Markíza", campaign: "kkvisa", role: "branding_full", width: 2000, height: 1400, ratio: "10:7", type: ["hardsell"], count: 1, safeZones: { centerWidth: 1000, topOffset: 200 }, notes: "1 vizuál pre všetky karty. PSD template publishera." },
-  { id: "kkv_markiza_branding_leader", name: "Markíza branding 1000×200", channel: "Markíza", campaign: "kkvisa", width: 1000, height: 200, ratio: "5:1", type: ["hardsell"], count: 1, safeZones: { left: 140, right: 140 }, notes: "Odkaz max 140px od okraja." },
+  { id: "kkv_markiza_branding_leader", name: "Markíza branding 1000×200", channel: "Markíza", campaign: "kkvisa", role: "branding_leader_text", width: 1000, height: 200, ratio: "5:1", type: ["hardsell"], count: 1, safeZones: { left: 140, right: 140 }, notes: "Odkaz max 140px od okraja. P0-28: TOP kus vedla kkv_markiza_branding_side, overené na exporte." },
   { id: "kkv_markiza_branding_side", name: "Markíza branding 120×600", channel: "Markíza", campaign: "kkvisa", role: "branding_side", width: 120, height: 600, ratio: "1:5", type: ["hardsell"], count: 2, safeZones: { safeInner: { width: 120, height: 600 } }, notes: "2× boky." },
   { id: "kkv_joj_branding", name: "JOJ branding 2000×1400", channel: "JOJ", campaign: "kkvisa", role: "branding_full", width: 2000, height: 1400, ratio: "10:7", type: ["hardsell"], count: 1, safeZones: { centerWidth: 1000, topOffset: 200 }, notes: "Biela plocha v strede, 200px od vrchu." },
-  { id: "kkv_nmh_branding_leader", name: "NMH branding 1240×200", channel: "NMH", campaign: "kkvisa", width: 1240, height: 200, ratio: "6.2:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "cas/plus7dni/pluska/zivot." },
+  { id: "kkv_nmh_branding_leader", name: "NMH branding 1240×200", channel: "NMH", campaign: "kkvisa", role: "branding_leader_text", width: 1240, height: 200, ratio: "6.2:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "cas/plus7dni/pluska/zivot. P0-28: TOP kus vedla kkv_nmh_branding_side (analógia s Markíza/Ženské weby vzorom, nie priamo overené na exporte)." },
   { id: "kkv_nmh_branding_side", name: "NMH branding 160×600", channel: "NMH", campaign: "kkvisa", role: "branding_side", width: 160, height: 600, ratio: "4:15", type: ["hardsell"], count: 2, safeZones: { safeInner: { width: 120, height: 600 } }, notes: "Safe zóna 120×600. 2× boky." },
-  { id: "kkv_hnonline_branding_leader", name: "hnonline branding 1275×250", channel: "hnonline", campaign: "kkvisa", width: 1275, height: 250, ratio: "5.1:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "K HTML5 dodať .jpg backup." },
+  { id: "kkv_hnonline_branding_leader", name: "hnonline branding 1275×250", channel: "hnonline", campaign: "kkvisa", role: "branding_leader_text", width: 1275, height: 250, ratio: "5.1:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "K HTML5 dodať .jpg backup. P0-28: TOP kus vedla kkv_hnonline_branding_side (analógia, nie priamo overené na exporte)." },
   { id: "kkv_hnonline_branding_side", name: "hnonline branding 160×600", channel: "hnonline", campaign: "kkvisa", role: "branding_side", width: 160, height: 600, ratio: "4:15", type: ["hardsell"], count: 2, safeZones: { safeInner: { width: 120, height: 600 } }, notes: "2× boky." },
-  { id: "kkv_sme_branding_leader_a", name: "sme branding 1000×200", channel: "sme", campaign: "kkvisa", width: 1000, height: 200, ratio: "5:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top A — dodať oba topy." },
-  { id: "kkv_sme_branding_leader_b", name: "sme branding 1200×200", channel: "sme", campaign: "kkvisa", width: 1200, height: 200, ratio: "6:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top B — dodať oba topy." },
+  { id: "kkv_sme_branding_leader_a", name: "sme branding 1000×200", channel: "sme", campaign: "kkvisa", role: "branding_leader_text", width: 1000, height: 200, ratio: "5:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top A — dodať oba topy. P0-28: TOP kus vedla kkv_sme_branding_side (analógia, nie priamo overené na exporte)." },
+  { id: "kkv_sme_branding_leader_b", name: "sme branding 1200×200", channel: "sme", campaign: "kkvisa", role: "branding_leader_text", width: 1200, height: 200, ratio: "6:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top B — dodať oba topy. P0-28: TOP kus vedla kkv_sme_branding_side (analógia, nie priamo overené na exporte)." },
   { id: "kkv_sme_branding_side", name: "sme branding 160×600", channel: "sme", campaign: "kkvisa", role: "branding_side", width: 160, height: 600, ratio: "4:15", type: ["hardsell"], count: 2, safeZones: { safeInner: { width: 120, height: 600 } }, notes: "Iba statika. 2× boky." },
-  { id: "kkv_pravda_branding_leader", name: "pravda branding 1200×200", channel: "pravda", campaign: "kkvisa", width: 1200, height: 200, ratio: "6:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top." },
+  { id: "kkv_pravda_branding_leader", name: "pravda branding 1200×200", channel: "pravda", campaign: "kkvisa", role: "branding_leader_text", width: 1200, height: 200, ratio: "6:1", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top. P0-28: TOP kus vedla kkv_pravda_branding_side (analógia, nie priamo overené na exporte)." },
   { id: "kkv_pravda_branding_side", name: "pravda branding 200×700", channel: "pravda", campaign: "kkvisa", role: "branding_side", width: 200, height: 700, ratio: "2:7", type: ["hardsell"], count: 2, safeZones: { safeInner: { width: 120, height: 600 } }, notes: "2× boky." },
   { id: "kkv_int_markiza", name: "Markíza interscroller 720×1280", channel: "Markíza", campaign: "kkvisa", role: "interscroller", width: 720, height: 1280, ratio: "9:16", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "3 vizuály — každá karta zvlášť." },
   { id: "kkv_int_joj_mobile", name: "JOJ interscroller 300×600", channel: "JOJ", campaign: "kkvisa", role: "interscroller", width: 300, height: 600, ratio: "1:2", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Mobile. Adform template." },
@@ -682,7 +771,7 @@ const FORMATS = [
   { id: "kkv_int_sme", name: "sme interscroller 320×600", channel: "sme", campaign: "kkvisa", role: "interscroller", width: 320, height: 600, ratio: "8:15", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 50 kB jpg." },
   { id: "kkv_int_pravda", name: "pravda interscroller 300×600", channel: "pravda", campaign: "kkvisa", role: "interscroller", width: 300, height: 600, ratio: "1:2", type: ["hardsell"], count: 1, safeZones: { sides: 50 }, notes: "Ochranná zóna 50px z bokov." },
   { id: "kkv_int_refresher", name: "Refresher double square 300×600", channel: "Refresher", campaign: "kkvisa", role: "interscroller", width: 300, height: 600, ratio: "1:2", type: ["hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "3 vizuály — každá karta zvlášť." },
-  { id: "kkv_engerio_native", name: "Engerio native 4:3", channel: "Native", campaign: "kkvisa", role: "native", width: 1200, height: 900, ratio: "4:3", type: ["hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga, bez textu, centrovaný. Min 375×250." },
+  { id: "kkv_engerio_native", name: "Engerio native 3:2", channel: "Native", campaign: "kkvisa", role: "native", width: 600, height: 400, ratio: "3:2", type: ["hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga a textu. JPG, max 100 kB; odporúčané minimum 600×400." },
 
   // ═══════════════════════════════════════════════════════════════
   //  DIGITÁLNA HYPOTÉKA (hypo-052025)
@@ -726,14 +815,14 @@ const FORMATS = [
   { id: "bsu_meta_pplad", name: "Meta page post link ad 1:1", channel: "Meta", campaign: "bsu", width: 1200, height: 1200, ratio: "1:1", type: ["hardsell","remarketing"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Single image, s headlineom a logom." },
   { id: "bsu_joj_branding", name: "JOJ branding 2000×1400", channel: "JOJ", campaign: "bsu", role: "branding_full", width: 2000, height: 1400, ratio: "10:7", type: ["awareness"], count: 1, safeZones: { centerWidth: 1000, topOffset: 200 }, notes: "Biela plocha v strede, 200px od vrchu." },
   { id: "bsu_int_joj_mobile", name: "JOJ interscroller 300×600", channel: "JOJ", campaign: "bsu", role: "interscroller", width: 300, height: 600, ratio: "1:2", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Iba mobile v tomto TP. Adform template." },
-  { id: "bsu_pravda_branding_leader", name: "pravda branding 1200×200", channel: "pravda", campaign: "bsu", width: 1200, height: 200, ratio: "6:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top." },
+  { id: "bsu_pravda_branding_leader", name: "pravda branding 1200×200", channel: "pravda", campaign: "bsu", role: "branding_leader_text", width: 1200, height: 200, ratio: "6:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Top. P0-28: TOP kus vedla bsu_pravda_branding_side (analógia, nie priamo overené na exporte)." },
   { id: "bsu_pravda_branding_side", name: "pravda branding 200×700", channel: "pravda", campaign: "bsu", role: "branding_side", width: 200, height: 700, ratio: "2:7", type: ["awareness"], count: 2, safeZones: { safeInner: { width: 120, height: 600 } }, notes: "2× boky." },
   { id: "bsu_int_pravda", name: "pravda interscroller 300×600", channel: "pravda", campaign: "bsu", role: "interscroller", width: 300, height: 600, ratio: "1:2", type: ["awareness"], count: 1, safeZones: { sides: 50 }, notes: "Ochranná zóna 50px z bokov." },
-  { id: "bsu_ringier_leaderboard", name: "Ringier leaderboard 1200×400", channel: "Ringier", campaign: "bsu", width: 1200, height: 400, ratio: "3:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "aktuality/sport/azet/diva. Max 150 kB." },
+  { id: "bsu_ringier_leaderboard", name: "Ringier leaderboard 1200×400", channel: "Ringier", campaign: "bsu", role: "branding_leader_full", width: 1200, height: 400, ratio: "3:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "aktuality/sport/azet/diva. Max 150 kB. P0-28: standalone pás (žiadny L/R sourozenec), rovnaká kompozícia ako ringier_leaderboard." },
   { id: "bsu_ringier_interscroller", name: "Ringier interscroller 720×1280", channel: "Ringier", campaign: "bsu", role: "interscroller", width: 720, height: 1280, ratio: "9:16", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 250 kB." },
   { id: "bsu_hnonline_megasticker", name: "hnonline mobile mega sticker 300×250", channel: "hnonline", campaign: "bsu", width: 300, height: 250, ratio: "6:5", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB jpg." },
   { id: "bsu_azet_dm", name: "Azet DM 640×500", channel: "E-mail", campaign: "bsu", role: "email", width: 640, height: 500, ratio: "~4:3", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Predmet 80 zn., odosielateľ 25 zn. HTML bez externého CSS." },
-  { id: "bsu_engerio_native", name: "Engerio native 4:3", channel: "Native", campaign: "bsu", role: "native", width: 1200, height: 900, ratio: "4:3", type: ["awareness","hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga, bez textu, centrovaný. Viac variant pre A/B." },
+  { id: "bsu_engerio_native", name: "Engerio native 3:2", channel: "Native", campaign: "bsu", role: "native", width: 600, height: 400, ratio: "3:2", type: ["awareness","hardsell"], count: 1, noLogo: true, safeZones: { top: 0, bottom: 0 }, notes: "Bez loga a textu. JPG, max 100 kB; odporúčané minimum 600×400. Viac variantov pre A/B." },
 
   // ═══════════════════════════════════════════════════════════════
   //  TIGER — Aura 2026 (tiger-aura-2026), CZ + SK
@@ -760,26 +849,135 @@ const FORMATS = [
   { id: "tig_heyfomo_landscape", name: "Hey FOMO 16:9", channel: "Hey FOMO", campaign: "tiger", width: 1920, height: 1080, ratio: "16:9", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 16:9 — px odvodené." },
   { id: "tig_heyfomo_portrait", name: "Hey FOMO 9:16", channel: "Hey FOMO", campaign: "tiger", width: 1080, height: 1920, ratio: "9:16", type: ["awareness","hardsell"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza len pomer 9:16 — px odvodené." },
 
-  // ─── MASS — Účet #premodruplanetu, JAR 2026 ──────────────────
-  // Zdroj: TP MASS 2026 JAR DISPLAY / 150EUR PPC / 3 roky PPC (7. 4. 2026).
-  // Tu sú LEN rozmery, ktoré katalóg doteraz nemal. Zvyšok MASS sady sa
-  // geometricky kryje s existujúcimi formátmi — logika KV a layoutov sa
-  // nemení, mení sa len obsah (2 benefity × 8 kreatívnych variantov).
+  // ═══════════════════════════════════════════════════════════════
+  //  MASS — Účet #premodruplanetu, JAR 2026 (mass-jar-2026)
+  //  Zdroj: TP MASS 2026 JAR DISPLAY / 150EUR PPC / 3 roky PPC (7. 4. 2026).
+  //  Prenesené z lokálnej vetvy (master, commit fd7b220) — rozmery, ktoré
+  //  katalóg predtým nemal. role/rules sa tu nezadávajú ručne (na rozdiel
+  //  od pôvodného zdroja), origin ich odvodí cez inferRole/normalizeFormat
+  //  nižšie, okrem mass_dennikn_podcast_logo, kde role: "logo_only" musí
+  //  byť explicitné (bez neho by výška ≤120 spadla na iný layout).
+  // ═══════════════════════════════════════════════════════════════
   { id: "mass_minuta_320x100", name: "Minúta po minúte banner 320×100", channel: "Minúta po minúte", campaign: "mass", width: 320, height: 100, ratio: "16:5", type: ["awareness"], count: 3, safeZones: { top: 0, bottom: 0 }, notes: "Max 250 kB jpg/gif. 3× kreatíva (typo bledá/čierna/hnedá). Výška ≤120 → micro layout." },
   { id: "mass_dv360_companion_640x640", name: "DV360 audio companion 640×640", channel: "Google DV360", campaign: "mass", width: 640, height: 640, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Companion banner k 20 s audio spotu." },
   { id: "mass_valetin_preroll_video", name: "Valetin preroll/midroll 1280×720", channel: "Valetin", campaign: "mass", width: 1280, height: 720, ratio: "16:9", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Iba video placeholder. HD 1280×720, alternatíva Full HD 1920×1080." },
-  { id: "mass_dennikn_podcast_logo", name: "Denník N podcast logo 63×63", channel: "Denník N", campaign: "mass", role: "logo_only", rules: { logoOnly: true }, width: 63, height: 63, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Sponsoring Hlavného podcastu: spot max 30 s + logo 63×63 + krátky text. rules.logoOnly je nutné — bez neho by výška ≤120 spadla na micro layout s headlineom." },
+  { id: "mass_dennikn_podcast_logo", name: "Denník N podcast logo 63×63", channel: "Denník N", campaign: "mass", role: "logo_only", width: 63, height: 63, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "Sponsoring Hlavného podcastu: spot max 30 s + logo 63×63 + krátky text. role: \"logo_only\" je nutné — bez neho by výška ≤120 spadla na micro layout s headlineom." },
   { id: "mass_startitup_interscroller", name: "startitup.sk interscroller 500×800", channel: "startitup", campaign: "mass", role: "interscroller", width: 500, height: 800, ratio: "5:8", type: ["awareness","hardsell"], count: 4, safeZones: { top: 0, bottom: 0 }, notes: "Max 100 kB gif/jpg/html5. Max 4× na obdobie." },
   { id: "mass_cp_square_300x300", name: "cp.sk square 300×300", channel: "cp.sk", campaign: "mass", width: 300, height: 300, ratio: "1:1", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza 300×300 aj 300×250." },
   { id: "mass_cp_square_300x250", name: "cp.sk square 300×250", channel: "cp.sk", campaign: "mass", width: 300, height: 250, ratio: "6:5", type: ["awareness"], count: 1, safeZones: { top: 0, bottom: 0 }, notes: "TP uvádza 300×300 aj 300×250." }
 ];
 
-// Metadáta kampaní — tagging pre pomenovanie frameov + label do UI.
-// legalText: P0-11 — predvyplnené znenie právneho textu pre plugin/ui.html
-// (legalText input mal doteraz len placeholder, takže bez ručného prepisu
-// bol vstup prázdny). Znenie potvrdzuje Simona/legal; kde nie je, nechaj "" —
-// ui.html vypíše do konzoly zoznam kampaní bez znenia. RPSN pre úverové
-// kampane (kkvisa) je otvorený bloker, zámerne prázdne, nevymýšľaj placeholder.
+// Jednotný produkčný tvar formátu. Staršie záznamy vznikali z viacerých
+// mediálnych plánov a používajú niekoľko tvarov safeZones a implicitné
+// pravidlá v id/poznámkach. Normalizácia drží kompatibilitu so starými
+// dátami, ale zvyšok aplikácie už môže čítať jeden spoľahlivý kontrakt.
+function inferRole(format) {
+  if (format.role) return format.role;
+  const id = String(format.id || "").toLowerCase();
+  const channel = String(format.channel || "").toLowerCase();
+  if (id.indexOf("google_logo") !== -1 || id.indexOf("demandgen_logo") !== -1) return "logo_only";
+  if (id.indexOf("google_rsa") !== -1) return "clean_image";
+  if (id.indexOf("pmax") !== -1 || channel.indexOf("pmax") !== -1) return "headline_only";
+  if (id.indexOf("meta_img") !== -1 || channel === "meta") return "meta_full";
+  if (id.indexOf("demandgen") !== -1 || channel.indexOf("demandgen") !== -1) return "full_creative";
+  if (id.indexOf("engerio") !== -1) return "native";
+  if (channel.indexOf("e-mail") !== -1 || channel.indexOf("email") !== -1) return "email";
+  if (format.safeZones && format.safeZones.safeInner) {
+    // P2-28: interscroller je vysoký (portrait) formát — nízky široký pás
+    // (napr. 1000×200 leaderboard) nesmie spadnúť na interscroller len
+    // preto, že safeInner šírka presiahne 450px. Pomer strán rozhoduje
+    // pred šírkou.
+    if (format.height <= format.width) return "branding_side";
+    return format.width <= 450 ? "branding_side" : "interscroller";
+  }
+  if (format.safeZones && format.safeZones.centerWidth) return "branding_full";
+  return "publisher_branding";
+}
+
+function normalizeSafeGeometry(format) {
+  const W = format.width;
+  const H = format.height;
+  const legacy = format.safeZones || {};
+  const safeBox = { top: 0, right: 0, bottom: 0, left: 0 };
+  const deadZones = [];
+
+  if (legacy.safeInner) {
+    safeBox.left = Math.max(0, Math.round((W - legacy.safeInner.width) / 2));
+    safeBox.right = safeBox.left;
+    safeBox.top = Math.max(0, Math.round((H - legacy.safeInner.height) / 2));
+    safeBox.bottom = safeBox.top;
+  } else {
+    safeBox.top = Math.max(0, Number(legacy.top) || 0);
+    safeBox.bottom = Math.max(0, Number(legacy.bottom) || 0);
+    safeBox.left = Math.max(0, (Number(legacy.left) || 0) + (Number(legacy.sides) || 0));
+    safeBox.right = Math.max(0, (Number(legacy.right) || 0) + (Number(legacy.sides) || 0));
+  }
+
+  // centerWidth/topOffset je plocha webu alebo prehrávača, do ktorej
+  // brandingový obsah nesmie zasiahnuť.
+  if (legacy.centerWidth) {
+    deadZones.push({
+      x: Math.max(0, Math.round((W - legacy.centerWidth) / 2)),
+      y: Math.max(0, Number(legacy.topOffset) || 0),
+      w: Math.min(W, Number(legacy.centerWidth) || 0),
+      h: Math.max(0, H - (Number(legacy.topOffset) || 0))
+    });
+  }
+  return { safeBox: safeBox, deadZones: deadZones };
+}
+
+function inferLimit(notes) {
+  const matches = String(notes || "").match(/(?:max\.?\s*)?(\d{2,4})\s*kB/i);
+  return matches ? Number(matches[1]) : null;
+}
+
+function normalizeFormat(format) {
+  const normalized = Object.assign({}, format);
+  // Mediálny plán uvádza pre statický Meta 4:5 rozmer 1200×1628.
+  // Video 4:5 zostáva 1200×1500.
+  if (/meta_img_4x5$/.test(normalized.id || "")) {
+    normalized.width = 1200;
+    normalized.height = 1628;
+    normalized.ratio = "4:5";
+  }
+  if (normalized.id === "topky_branding") {
+    normalized.name = "Topky branding 450×800";
+  }
+  normalized.role = inferRole(normalized);
+  const geometry = normalizeSafeGeometry(normalized);
+  normalized.safeBox = geometry.safeBox;
+  normalized.deadZones = geometry.deadZones;
+  normalized.rules = {
+    headlineOnly: normalized.role === "headline_only",
+    noText: normalized.role === "clean_image" || normalized.role === "native",
+    noLogo: normalized.noLogo === true || normalized.role === "clean_image" || normalized.role === "native" || normalized.role === "headline_only",
+    logoOnly: normalized.role === "logo_only",
+    logoTop: normalized.logoPosition === "top",
+    ctaBySystem: normalized.role === "meta_full" || normalized.role === "headline_only"
+  };
+  normalized.limit = normalized.limit || inferLimit(normalized.notes);
+  const adformTemplates = {
+    "300x250": "adform_300x250",
+    "300x600": "adform_300x600",
+    "160x600": "adform_160x600",
+    "970x250": "adform_970x250"
+  };
+  const dimensionKey = normalized.width + "x" + normalized.height;
+  const isAdform = String(normalized.id || "").toLowerCase().indexOf("adform") !== -1 ||
+    String(normalized.channel || "").toLowerCase() === "adform";
+  normalized.template = isAdform ? (adformTemplates[dimensionKey] || null) : null;
+  return normalized;
+}
+
+const NORMALIZED_FORMATS = FORMATS.map(normalizeFormat);
+
+// Metadáta kampaní — tagging pre pomenovanie frameov + label do UI
+// legalText (prenesené z master, commit 268b782 — P0-11): predvyplnené
+// znenie právneho textu per kampaň. Origin túto hodnotu zatiaľ nikde
+// nečíta (legalText sa mu posiela ako parameter generovania, nie z tohto
+// presetu) — je to len dáta, prefill/UI napojenie je mimo tohto kroku
+// (Krok 2, len dátové položky). Znenie potvrdzuje Simona/legal; kkvisa RPSN
+// je otvorený bloker, zámerne prázdne.
 const CAMPAIGNS = {
   kid:    { tagging: "kid-062026",      label: "TB KID 2026",
             legalText: "Marketingové oznámenie. S investovaním sú spojené riziká." },
@@ -790,5 +988,6 @@ const CAMPAIGNS = {
   mass:   { tagging: "mass-jar-2026",   label: "MASS — Účet #premodruplanetu JAR 2026", legalText: "" }
 };
 
-module.exports = FORMATS;
+module.exports = NORMALIZED_FORMATS;
 module.exports.campaigns = CAMPAIGNS;
+module.exports.normalizeFormat = normalizeFormat;

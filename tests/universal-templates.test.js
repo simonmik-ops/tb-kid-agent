@@ -50,6 +50,7 @@ for (const item of inspect("full_creative")) {
   assert.strictEqual(item.layout.show_logo, true);
   assert.strictEqual(item.layout.show_legal, true);
   assert.strictEqual(item.layout.show_badge, true);
+  assert.deepStrictEqual(item.layout.risk_flags, [], "Master-safe production formats must not be flagged as broken");
 }
 
 for (const item of inspect("headline_only")) {
@@ -69,5 +70,12 @@ for (const item of inspect("native_clean")) {
 const chosen = getRequestedFormats(["meta_full", "native_clean"]);
 assert.strictEqual(chosen.length, 4);
 assert(chosen.every(item => !item.campaign), "Universal formats must not belong to historical campaigns");
+
+const meta45 = getRequestedFormats(["meta_full"]).find((f) => f.id === "tpl_meta_4x5");
+assert.deepStrictEqual([meta45.width, meta45.height], [1200, 1628]);
+const rsaStory = getRequestedFormats(["clean_image"]).find((f) => f.id === "tpl_clean_portrait");
+assert.deepStrictEqual([rsaStory.width, rsaStory.height], [900, 1600]);
+const native = getRequestedFormats(["native_clean"])[0];
+assert.deepStrictEqual([native.width, native.height, native.ratio], [600, 400, "3:2"]);
 
 console.log("universal templates: ok");

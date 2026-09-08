@@ -183,7 +183,7 @@ async function analyzeVisual(imageBase64, mediaType) {
   "recommended_focal_x": 0.5,
   "recommended_focal_y": 0.5
 }
-bg_r/g/b sú hodnoty 0.0–1.0 dominantnej farby pozadia. is_complex_visual je true ak je vizuál príliš detailný/rušný na použitie v malom priestore (napr. veľa postáv, rušné pozadie). has_text je true ak je v obrázku už vypálený (natívny) text/headline. has_logo je true ak je v obrázku už viditeľné akékoľvek logo alebo brand mark (napr. VISA, značka produktu) — nepočíta sa Tatra banka logo, ktoré dopĺňa nástroj.`
+bg_r/g/b sú hodnoty 0.0–1.0 farby pozadia — NIE priemer ani najsvetlejšie/najvýraznejšie miesto celej plochy. Vzorkuj konkrétne z tmavšej, tieňovanej časti steny za objektom (typicky dolná alebo bočná časť pozadia, mimo hlavného svetla/glow efektu okolo objektu), ale ešte nie z najtmavšieho rohového tieňa. Overené na referenčnom vizuáli: jasná horná časť steny je cca (0.97, 0.48, 0.40), samotný rohový tieň cca (0.55, 0.25, 0.21), a správna vzorkovaná hodnota (0.77, 0.37, 0.30) leží medzi nimi, bližšie k tieňu. is_complex_visual je true ak je vizuál príliš detailný/rušný na použitie v malom priestore (napr. veľa postáv, rušné pozadie). has_text je true ak je v obrázku už vypálený (natívny) text/headline. has_logo je true ak je v obrázku už viditeľné akékoľvek logo alebo brand mark (napr. VISA, značka produktu) — nepočíta sa Tatra banka logo, ktoré dopĺňa nástroj.`
         }
       ]
     }]
@@ -308,7 +308,17 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
   // ── ROLE branch ────────────────────────────────────────────────
   // Nové kampane (KK Visa, Hypotéka, BSU, Tiger) deklarujú správanie
   // explicitne cez format.role, aby nezáviseli od id-string matchingu.
-  // Existujúce KID formáty rolu nemajú → padnú do pôvodnej logiky nižšie.
+  // P0-26: tento komentár bol zastaraný — odkedy normalizeFormat/inferRole
+  // (formats.js) dopĺňa role KAŽDÉMU formátu (minimálne fallback
+  // "publisher_branding"), format.role je vždy truthy a táto vetva sa
+  // uplatní vždy, nielen pre nové kampane. Do pôvodnej logiky nižšie
+  // (id-based vetvy, r. 380+) sa dostanú len formáty, ktorých inferRole
+  // výsledok NIE JE clean_image/logo_only/branding_full/branding_side/
+  // interscroller/native/email/pinterest — v praxi hlavne role
+  // "publisher_branding" (a "full_creative", ktoré sa tu zámerne nerieši
+  // špeciálne, pozri komentár nižšie). Niektoré id-based vetvy nižšie sú
+  // preto stále živé — nie sú to všetko mŕtve duplicity (analýza P0-26 v
+  // commit message).
   if (format.role) {
     const r = format.role;
     if (r === "clean_image" || (creativeRule && creativeRule.layoutType === "clean_image")) {
@@ -336,6 +346,18 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
         image_fit: recipe.smallFormatMode === "detail" ? "fill" : "contain",
         headline_position: "center", logo_position: "top",
         safe_content: format.safeZones?.safeInner || { width: Math.min(format.width, 160), height: Math.min(format.height, 600) } };
+    }
+    // P0-25/P0-28: leaderboardové pásy — pozri plugin/code.js
+    // buildBrandingLeaderTextLayout / buildBrandingLeaderFullLayout pre
+    // zdôvodnenie (overené na schválených exportoch, nie odhad).
+    if (r === "branding_leader_text") {
+      return { ...base, layout_type: "branding_leader_text", image_fit: "none", photo_width_pct: 0,
+        headline_position: "center", logo_position: "none", show_logo: false, show_cta: false,
+        show_ai_disclosure: false };
+    }
+    if (r === "branding_leader_full") {
+      return { ...base, layout_type: "branding_leader_full", image_fit: "fill",
+        headline_position: "right", logo_position: "bottom-right" };
     }
     if (r === "interscroller") {
       return { ...base, layout_type: "interscroller_safe", image_fit: "fill",
@@ -445,7 +467,10 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       ...base,
       layout_type: "pinterest_pin",
       headline_position: "bottom",
-      logo_position: "top",
+      // P0-26 doplnok: reálny schválený export (Pinterest_75eur-...jpg) má
+      // logo dole vpravo vedľa CTA, nie hore — pôvodné "top" nezodpovedalo
+      // dodanému kreatívu.
+      logo_position: "bottom",
       safe_content: { maxTextAreaPct: 30 }
     };
   }
@@ -502,7 +527,9 @@ function getLayoutStrategy(format, visualAnalysis, visualRecipe) {
       logo_position: "bottom-right",
       show_logo: base.show_logo,
       show_cta: base.show_cta,
-      risk_flags: ["master_core_50pct_check"]
+      // Master-safe je štandardný produkčný layout, nie chyba. Zachovávame
+      // iba skutočné neistoty z analýzy vstupu (napr. detegovaný baked-in text).
+      risk_flags: riskFlags
     };
   }
 
@@ -592,8 +619,6 @@ function buildValidationWarnings(format, layout, visualAnalysis, headline) {
   if (layout.image_fit === "contain" && !format.id.startsWith("google_logo_")) warnings.push("image_uses_fit_check_background_edges");
   if (ratio > 4.5 || format.height <= 100) warnings.push("small_or_wide_format_check_readability");
   if (hasMeaningfulSafeZone) warnings.push("safe_zone_overlay_present_check_final_export");
-  if (layout.master_safe_zone) warnings.push("master_core_50pct_check");
-
   return [...new Set(warnings)];
 }
 

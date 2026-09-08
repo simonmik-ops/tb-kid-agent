@@ -3,3 +3,5 @@ node_modules/
 uploads/
 .DS_Store
 SpustiServer.command
+tests/visual-actual/
+artifacts/visual-diff/

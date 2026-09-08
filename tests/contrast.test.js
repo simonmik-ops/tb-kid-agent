@@ -1,10 +1,15 @@
-// P0-16: kontrastný modul (WCAG 2.1).
+// P0-16 / Krok 2e: kontrastný modul (WCAG 2.1).
 //
 // plugin/code.js beží v Figma plugin sandboxe (globálny `figma`), takže sa
 // nedá priamo require-núť v Node. Funkcie nižšie (srgbToLinear,
-// relativeLuminance, contrastRatio, ensureReadableSurface, scrimAlphaFor)
-// sú čisté (žiadne volanie figma.*) a sú tu zrkadlené 1:1 z plugin/code.js —
-// pri zmene jednej strany treba zmeniť aj druhú.
+// relativeLuminance, contrastRatio, ensureReadableSurface, pickTextColor,
+// scrimAlphaFor) sú čisté (žiadne volanie figma.*) a sú tu zrkadlené 1:1 z
+// plugin/code.js — pri zmene jednej strany treba zmeniť aj druhú.
+//
+// Tento súbor testuje LEN samotné funkcie ako čistú matematiku. Testy na to,
+// AKO sa majú (ne)používať pri renderovaní (biela na brandovej ploche vždy,
+// bez automatického stmavovania — Krok 3 pravidlo 2) patria ku Kroku 3,
+// kde sa tá logika skutočne zapája do buildMasterSafeLayout a pod.
 
 const assert = require("assert");
 
@@ -76,14 +81,12 @@ PASTELS.forEach((h) => {
 PASTELS.forEach((h) => {
   const surface = hex(h);
   const fixed = ensureReadableSurface(surface, WHITE, 4.5);
-  // Pomer R:G by mal ostať približne rovnaký (v rámci zaokrúhľovania).
   const ratioBefore = surface.r / surface.g;
   const ratioAfter = fixed.r / fixed.g;
   assert.ok(Math.abs(ratioBefore - ratioAfter) < 0.01, h + " hue drifted: " + ratioBefore + " -> " + ratioAfter);
 });
 
-// ── tmavý KV: panel sa zbytočne nestmavuje (surface ostáva prakticky rovnaká,
-// prípadne sa mierne upraví, ale nie na takmer čiernu) ──────────────────────
+// ── tmavý KV: plocha sa zbytočne nestmavuje, keď už prah spĺňa ──────────────
 const DARK = { r: 0.06, g: 0.08, b: 0.18 };
 const darkFixed = ensureReadableSurface(DARK, WHITE, 4.5);
 assert.ok(contrastRatio(DARK, WHITE) >= 4.5, "dark KV must already pass 4.5:1 against white");
@@ -174,5 +177,11 @@ BRAND_COLORS_LIGHT_AND_DARK.forEach(({ name, color }) => {
   const farbaTextu = WHITE;
   assert.deepStrictEqual(farbaTextu, WHITE, name + ": text na brandovej ploche musí byť vždy biely");
 });
+
+// ── pickTextColor: vyberá stranu s vyšším kontrastom (funkcia v code.js
+// ostáva definovaná ako čistá utilita, aj keď sa na brandColor plochu
+// nepoužíva — pozri pravidlo vyššie) ────────────────────────────────────────
+assert.deepStrictEqual(pickTextColor({ r: 0.05, g: 0.05, b: 0.05 }), WHITE, "dark surface must pick white text");
+assert.deepStrictEqual(pickTextColor({ r: 0.95, g: 0.95, b: 0.95 }), { r: 0, g: 0, b: 0 }, "light surface must pick black text");
 
 console.log("contrast: ok");

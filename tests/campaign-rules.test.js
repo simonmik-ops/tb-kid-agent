@@ -48,7 +48,9 @@ expectProfile("kkv_engerio_native", "native_clean", {
   headline: false, cta: false, logo: false
 });
 
-assert.strictEqual(getCreativeRule(format("meta_img_1x1")), null);
+expectProfile("meta_img_1x1", "meta_full", {
+  headline: true, cta: false, logo: true
+});
 
 function expectLayout(id, expected) {
   const layout = getLayoutStrategy(format(id), VISUAL, RECIPE);

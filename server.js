@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
+const sharp = require("sharp");
 const { processAllFormats } = require("./agent");
 const FORMATS = require("./formats");
 const CAMPAIGNS = FORMATS.campaigns || {};
@@ -13,6 +14,16 @@ const upload = multer({ dest: "uploads/" });
 
 app.use(express.json());
 
+// CORS musí byť pred endpointmi; inak /formats a /health síce odpovedajú,
+// ale Figma UI ich v prehliadačovom sandboxe nesmie prečítať.
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
 app.get("/template-groups", (req, res) => {
   res.json({ groups: TEMPLATE_GROUPS.map(({ formats, ...group }) => ({
     ...group,
@@ -20,13 +31,12 @@ app.get("/template-groups", (req, res) => {
   })) });
 });
 
-// CORS — plugin beží na figma.com doméne, potrebuje prístup k serveru
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
+app.get("/health", (req, res) => {
+  res.json({ ok: true, service: "tb-kid-agent", version: require("./package.json").version });
+});
+
+app.get("/formats", (req, res) => {
+  res.json({ formats: FORMATS });
 });
 
 // Hlavný endpoint — Claude analýza a plánovanie layoutov
@@ -42,8 +52,7 @@ app.post("/analyze", upload.single("visual"), async (req, res) => {
     if (!file) return res.status(400).json({ error: "Chýba vizuál" });
 
     const imageData = fs.readFileSync(file.path);
-    const base64 = imageData.toString("base64");
-    const mediaType = file.mimetype;
+    const { base64, mediaType } = await prepareImageForAnalysis(imageData, file.mimetype);
 
     console.log(`Analyzujem: "${headline}" | Kampaň: ${campaign} | Typ: ${adType} | Recipe: ${visualRecipe.visualType}`);
 
@@ -72,6 +81,22 @@ app.post("/analyze", upload.single("visual"), async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Claude vision request má tvrdý limit veľkosti (Anthropic 413
+// request_too_large) — master vizuály od klienta bývajú print-rozlíšenie
+// (napr. 7000x7000 px, 50+ MB PNG), čo v base64 ľahko prekročí limit.
+// Do Figmy sa pritom vkladá originál v plnej kvalite priamo z pluginu
+// (mimo tohto servera) — toto zmenšenie ovplyvňuje LEN to, čo vidí Claude
+// pri analýze (pozícia objektu, farby, komplexnosť), nie výsledný vizuál.
+const CLAUDE_VISION_MAX_EDGE = 1568; // Anthropic odporúčaný long-edge pre optimálnu analýzu
+async function prepareImageForAnalysis(buffer, mediaType) {
+  if (buffer.length <= 4 * 1024 * 1024) return { base64: buffer.toString("base64"), mediaType };
+  const resized = await sharp(buffer)
+    .resize({ width: CLAUDE_VISION_MAX_EDGE, height: CLAUDE_VISION_MAX_EDGE, fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  return { base64: resized.toString("base64"), mediaType: "image/jpeg" };
+}
 
 function parseJsonArray(raw) {
   if (!raw) return [];

@@ -87,4 +87,27 @@ assert(!/BRAND_COLOR/.test(readabilityPanelCall.slice(0, 200)),
 assert(/,\s*edge,\s*0\.82/.test(readabilityPanelCall.slice(0, 200)),
   "Readability panel musí byť vykreslený farbou edge (campaignSurface), nie natvrdou hodnotou");
 
+// ── Bug #3 regresia (8.9.): "Dim brand background — left/right" v
+// buildBrandingSkinLayout mali na vnútornom okraji (najbližšie k fotke)
+// alfu 0,10, nie 0 — posledný pixel panelu niesol ešte 10% farby, hneď za
+// hranicou obdĺžnika (kde panel vôbec neexistuje) bola alfa 0. Tento skok
+// 0,10→0,00 presne na hranici bol viditeľná ostrá hrana, namerané na
+// živom Figma výstupe (L6yFpLkKcHe9flUk3i11T1, node 33:3267). Oprava:
+// gradient sa dotiahne na skutočnú 0 alfu presne na hranici obdĺžnika,
+// nie maskovanie (to bolo raz vyskúšané — "c5b762a" — a v Figme sa
+// vôbec nevykreslilo, viď komentár v code.js pri clean_image wide) ───────
+const leftPanelSrc = skinSrc.slice(
+  skinSrc.indexOf('"Dim brand background — left"'),
+  skinSrc.indexOf('"Dim brand background — right"')
+);
+const rightPanelSrc = skinSrc.slice(skinSrc.indexOf('"Dim brand background — right"'));
+const leftInnerEdgeAlpha = leftPanelSrc.match(/position:\s*1\.00,\s*color:\s*\{[^}]*a:\s*([\d.]+)/);
+const rightInnerEdgeAlpha = rightPanelSrc.match(/position:\s*0\.00,\s*color:\s*\{[^}]*a:\s*([\d.]+)/);
+assert(leftInnerEdgeAlpha, "Dim brand background — left musí mať gradient stop na position 1.00");
+assert(rightInnerEdgeAlpha, "Dim brand background — right musí mať gradient stop na position 0.00");
+assert.strictEqual(Number(leftInnerEdgeAlpha[1]), 0,
+  "Dim brand background — left: alfa na vnútornom okraji (position 1.00, najbližšie k fotke) musí byť presne 0, inak vzniká skok na hranici panelu, got " + leftInnerEdgeAlpha[1]);
+assert.strictEqual(Number(rightInnerEdgeAlpha[1]), 0,
+  "Dim brand background — right: alfa na vnútornom okraji (position 0.00, najbližšie k fotke) musí byť presne 0, inak vzniká skok na hranici panelu, got " + rightInnerEdgeAlpha[1]);
+
 console.log("campaign color fallback (branding_full navy box regression): ok");

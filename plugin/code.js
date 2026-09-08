@@ -184,7 +184,7 @@ function resolveCreativeRule(format) {
     // exportoch (viz builder komentáre). "text" = companion TOP kus bez
     // foto/CTA/logo (tie nesú bočné branding_side sourozenci); "full" =
     // standalone pás bez sourozencov, plná kompozícia.
-    branding_leader_text: { layoutType: "branding_leader_text", headline: true, subheadline: false, cta: false, logo: false, ai: false },
+    branding_leader_text: { layoutType: "branding_leader_text", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     branding_leader_full: { layoutType: "branding_leader_full", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     interscroller: { layoutType: "interscroller_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     email: { layoutType: "email_layout", headline: true, subheadline: false, cta: true, logo: true, ai: true }
@@ -2333,6 +2333,22 @@ function buildBrandingLeaderTextLayout(frame, format, layout, headline) {
   if (!shouldShowHeadline(layout, headline)) return;
   const pad = Math.round(clamp(format.width * 0.06, 24, 90));
   const fontSize = Math.round(clamp(format.height * 0.24, 20, 48));
+  // P0-31: safeInner (katalóg) obmedzuje šírku, nikdy ju nerozširuje — box
+  // sa preto vycentruje na format.width, nie prilepí k pad-u.
+  const safeInner = (format.safeZones && format.safeZones.safeInner) || null;
+  const boxW = safeInner && safeInner.width
+    ? Math.min(format.width - pad * 2, safeInner.width)
+    : format.width - pad * 2;
+  const boxX = Math.round((format.width - boxW) / 2);
+  // P0-35: rovnaký vzor ako buildSideSafeLayout/buildInterscrollerSafeLayout
+  // (AI_ON && layout.show_ai_disclosure !== false) — globálny AI_ON sa tu
+  // číta priamo, rovnako ako v tých dvoch builderoch, namiesto zavádzania
+  // nového spôsobu, ako sem doniesť `content.aiGenerated` (žiaden z ostatných
+  // volajúcich builderov nedostáva `content` ako parameter, všetky čítajú
+  // AI_ON). Skráti sa len výška boxu, nie pozícia — headline ostáva
+  // vertikálne centrovaný v zvyšnom priestore nad AI tagom.
+  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
+    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
   const txt = figma.createText();
   txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
@@ -2340,9 +2356,9 @@ function buildBrandingLeaderTextLayout(frame, format, layout, headline) {
   txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   txt.textAlignHorizontal = "CENTER";
   txt.textAutoResize = "NONE";
-  txt.resize(format.width - pad * 2, format.height);
+  txt.resize(boxW, format.height - aiRezerva);
   txt.textAlignVertical = "CENTER";
-  txt.x = pad;
+  txt.x = boxX;
   txt.y = 0;
   txt.name = "Headline";
   frame.appendChild(txt);

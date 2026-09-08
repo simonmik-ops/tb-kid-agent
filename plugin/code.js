@@ -512,18 +512,31 @@ function sampledLowerPanelGradient(layout) {
   // viditelnosti (tvrdy rez, nie plynuly prechod). Vzor "Wide content
   // panel" (Meta 1200x628, funguje spravne) nedarkuje farbu vobec — len
   // alfa nabeh k plnej krycosti. Rovnaky princip aj tu: edge (bez
-  // shadedColor stmavenia) a rampa 0->0,45 dosahuje alfu 1,00, potom
-  // ostava plna. campaignSurface(layout) namiesto brandEdgeColor(...,
-  // "bottom") — pri alfe 1,00 by chybne vzorkovana farba (tmave oblecenie
-  // namiesto pozadia, rovnaky problem ako Meta scrim v kole 3) bola teraz
-  // plne viditelna, nie len ciastocne pretonovana.
+  // shadedColor stmavenia) a rampa dosahuje alfu 1,00, potom ostava plna.
+  // campaignSurface(layout) namiesto brandEdgeColor(..., "bottom") — pri
+  // alfe 1,00 by chybne vzorkovana farba (tmave oblecenie namiesto
+  // pozadia, rovnaky problem ako Meta scrim v kole 3) bola teraz plne
+  // viditelna, nie len ciastocne pretonovana.
+  //
+  // 8.9. dodatok: rampa 0->0,45 bola príliš pomalá voči tomu, kde volajúci
+  // (buildInterscrollerSafeLayout aj buildSideSafeLayout) v skutočnosti
+  // kladú headline — hneď pri comp.inner/pad od vrchu panelu (namerané:
+  // 720×1280 interscroller, panelY=933/panelH=307, headline začína na
+  // y=964, teda pozícii ~0,10 v paneli). Pri rampe 0,45 tam bola alfa len
+  // ~0,30 — headline sedel takmer priamo na fotke (u tejto kampane tmavá
+  // sukňa modelky), čo dávalo presne tú "bahnistú hnedú", akú opisuje
+  // ZADANIE_kompozicny_model.md bod 1 (Surdova referencia: text musí vždy
+  // sedieť na plne krycej brandovej ploche, nikdy priamo na fotke).
+  // Skrátené na 0,08, aby bola plná krycosť dosiahnutá skôr, než ktorýkoľvek
+  // z týchto volajúcich začne kresliť headline — stále ponecháva krátky
+  // mäkký nábeh (nie tvrdý rez) na samom vrchu panelu.
   const edge = campaignSurface(layout);
   return {
     type: "GRADIENT_LINEAR",
     gradientTransform: [[0, 1, 0], [1, 0, 0]],
     gradientStops: [
       { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
-      { position: 0.45, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
+      { position: 0.08, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
       { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } }
     ]
   };

@@ -2087,6 +2087,16 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   // sampledLowerPanelGradient — alfa 0,10→1,00 do 45 %), po jednom v
   // každom bočnom stĺpci, plná krycosť pri vonkajšom okraji (kde sedí
   // text), hladký prechod smerom k stredu.
+  //
+  // 8.9. dodatok: vnútorný okraj (najbližšie k fotke) mal alfu 0,10, nie 0 —
+  // posledný pixel panelu niesol ešte 10% farby, hneď za hranicou obdĺžnika
+  // (kde panel vôbec neexistuje) bola alfa 0. Tento skok 0,10→0,00 presne na
+  // hranici bol viditeľná ostrá hrana, namerané priamo na živom Figma
+  // výstupe (L6yFpLkKcHe9flUk3i11T1, node 33:3267/33:3269-70). isMask
+  // priamo na fotke bol už raz vyskúšaný a nevykreslil sa vôbec (viď
+  // komentár vyššie v tomto súbore, "c5b762a"), takže sa nerieši
+  // maskovaním — len sa gradient dotiahne na skutočnú 0 alfu presne na
+  // hranici obdĺžnika, aby žiadna nespojitosť nevznikla.
   const edge = campaignSurface(layout);
   const leftPanel = figma.createRectangle();
   leftPanel.name = "Dim brand background — left";
@@ -2099,7 +2109,7 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
     gradientStops: [
       { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
       { position: 0.55, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
-      { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } }
+      { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.00 } }
     ]
   }];
   frame.appendChild(leftPanel);
@@ -2112,7 +2122,7 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
     type: "GRADIENT_LINEAR",
     gradientTransform: [[1, 0, 0], [0, 1, 0]],
     gradientStops: [
-      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.10 } },
+      { position: 0.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 0.00 } },
       { position: 0.45, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } },
       { position: 1.00, color: { r: edge.r, g: edge.g, b: edge.b, a: 1.00 } }
     ]

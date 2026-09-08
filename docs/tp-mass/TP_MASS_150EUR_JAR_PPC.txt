@@ -1,0 +1,291 @@
+#### FILE: TP_MASS_150EUR_JAR_PPC.pptx  (slides: 78)
+--- slide 1 ---
+Tatra banka – MASS účet pre modrú planétu JAR 2026 PPC Prehľad online formátov a internej komunikácie
+7. 4. 2026
+--- slide 2 ---
+--- slide 3 ---
+PPC Awareness DDL 7. 4.
+--- slide 4 ---
+Youtube Video Reach Campaign
+Špecifikácia Sprievodný banner ( companion banner) - 300x60 Text k video reklame - Call to action max 10 znakov Headline max. 15 znakov Long headline max 90 znakov Description max 90 znakov Video musí byť nahraté do Youtube kanálu, nastavené ako public alebo unlisted Dlžka video: bumper - 6 sec Skippable in-stream - 20 - 30 sec Kreatíva : 1x 30 sec . video 4x15 sec video ( muz , zena , dievca , chlapec)
+CTA 10: Viac info HDL 15 znakov: Tatra banka Long HDL 90 Získajte až 150 EUR s novým Účtom #premodruplanetu Descrp . 90 Pripojte sa k inováciám, ktorých stredobodom ste vy.
+15 sec video (9:16, 16:9) - 33 sec video (9:16, 16:9) - 150-image-15 150-image-33
+--- slide 5 ---
+Tiktok Video
+Špecifikácia 9:16 Duration : 5-16 seconds ( Recommended length : 15 seconds ). ≤ 500 MB Copy : App name specs : 4-40 Latin alphabet letters Brand name specs : 2-20 Latin letters Ad description specs : 12-100 Latin letters . Note that emojis or these special characters : “{}” or “#” are not included . Kreatíva : Rozpohybovaná statika max 15 sec . 10 sec video (9:16)
+App name 4 – 40: Účet plný inovácií Brand name 2 - 20: Tatra banka Popis 12 – 100: Môžete získať až 150 EUR s novým Účtom #premodruplanetu.
+150-dievca-image ​-10 150-chalan-image-10 DOPLNIME NESKÔR
+--- slide 6 ---
+Meta (Facebook & Instagram) - Video ( newsfeed )
+Špecifikácia Primárny text 125 znakov - min. 1, max. 5 primárnych textov Headline 27 znakov - min. 1, max. 5 headlinov Description 27 znakov - - min. 1, max. 5 popisov URL cieľovej stránky Počet znakov nie je maximálny (znakov môže byť i viac - toto je odporúčaný počet znakov z FB) pomer: 1:1, pomer 4:5, 9:16
+Primárny text: 125 znakov – 5 variant k jednej skupine 1. Pripojte sa k inováciám s novým Účtom #premodruplanetu. Môžete získať až 150 EUR. 2 . Otvorte si Účet #premodruplanetu a získajte až 100 EUR späť z platieb kartou. Extra 50 EUR môžete získať za prenos účtu. 3. Pripojte sa s Účtom #premodruplanetu a získajte až 100 EUR späť z platieb kartou. Extra 50 EUR môžete získať za prenos účtu. 4. Otvorte si Účet #premodruplanetu pohodlne online v mobilnej aplikácii Tatra banka. 5. Pripojte sa k inováciám s novým Účtom #premodruplanetu, ktorý si otvoríte pohodlne online v mobilnej aplikácii Tatra banka. hdl : 27 znakov – 5 variant 1. Účet #premodruplanetu 2. Účet od Tatra banky 3. Preneste si účet k nám 4. Otvorte si účet online 5. Otvorte si účet teraz Popis: 27 znakov – 5 variant 1. Pripojte sa k inováciám 2. Získajte účet plný inovácií 3. Účet s odmenou 4. Pripojte sa teraz 5. Využite ponuku URL cieľovej stránky
+150-zena-image ​-10 ​ 150-muz-image-10 ​ 150-image-15
+--- slide 7 ---
+Google DV360 audio
+Špecifikácia bannery 20 sec. 150 benefit Companion banner 640x640 px
+150-muz-image-20 ​ 150-zena-image-20
+--- slide 8 ---
+Google DV360 audio
+Špecifikácia bannery 20 sec. 150 benefit Companion banner 640x640 px
+150-chalan-image-20 ​ 150-dievca-image-20
+--- slide 9 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-muz-image
+--- slide 10 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-zena-image
+--- slide 11 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-chalan-image
+--- slide 12 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-dievca-image
+--- slide 13 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-typo-bleda- image
+--- slide 14 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-typo-cierna- image
+--- slide 15 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-typo-hneda- image
+--- slide 16 ---
+Adform
+Špecifikácia bannery 300x250, 300x600, 160x600, 970x250 Dodať všetky varianty kreatív
+150-typo-modra- image
+--- slide 17 ---
+Adform video slide
+Špecifikácia bannery 15 sec video (16:9) - 150€ benefit 150-image-15 150-image-33
+--- slide 18 ---
+PPC Consideration DDL 30. 3.
+--- slide 19 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 150-muz-cons
+--- slide 20 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch 150-zena-cons
+--- slide 21 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte 150-chalan-cons
+--- slide 22 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte 150-dievca-cons
+--- slide 23 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte 150-typo-bleda-cons
+--- slide 24 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-cierna-cons ​
+--- slide 25 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-hneda-cons ​
+--- slide 26 ---
+Facebook / Instagram Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-modra-cons ​
+--- slide 27 ---
+Facebook / Instagram Texty – 150 EUR
+Primárny text: 125 znakov – 5 variant k jednej skupine 1. Pripojte sa k inováciám a otvorte si Účet #premodruplanetu. Môžete získať až 150 EUR. 2. Pripojte sa s novým Účtom #premodruplanetu a môžete získať až 150 EUR. 3. Pripojte sa k inováciám s novým Účtom #premodruplanetu a môžete získať až 150 EUR . 4. Otvorte si Účet #premodruplanetu pohodlne online v mobilnej aplikácii Tatra banka. 5. Pripojte sa k inováciám s novým Účtom #premodruplanetu, ktorý si otvoríte pohodlne online v mobilnej aplikácii Tatra banka. Titulok: 27 znakov – 5 variant 1. Účet #premodruplanetu 2. Až 150 EUR k novému účtu 3. Získajte až 150 EUR 4. Účet plný inovácií 5. Využite ponuku Popis: 27 znakov – 5 variant 1. Pripojte sa k inováciám 2. Získajte benefit 3. Otvorte si účet online 4. Otvorte si účet teraz 5. Pripojte sa online
+--- slide 28 ---
+Facebook / Instagram - REMARKETING Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-muz-cons ​ -rmkt
+--- slide 29 ---
+Facebook / Instagram - REMARKETING Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-zena-cons ​ ​ -rmkt
+--- slide 30 ---
+Facebook / Instagram - REMARKETING Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-chalan-cons ​ ​ -rmkt
+--- slide 31 ---
+Facebook / Instagram - REMARKETING Automatic Placements
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements od 1 sec do 241 min max 4 GB mp4, mov , gif Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-dievca-cons ​ ​ -rmkt
+--- slide 32 ---
+Facebook / Instagram Texty – 150 EUR REMARKETING
+Primárny text: 125 znakov – 5 variant k jednej skupine 1. Ešte stále môžete získať až 150 EUR. Pripojte sa s Účtom #premodruplanetu teraz. 2. Nezmeškajte šancu získať až 150 EUR a využite benefit s Účtom #premodruplanetu. 3. V Tatra banke môžete získať až 150 EUR. Pripojte sa s novým Účtom #premodruplanetu . 4. Otvorte si Účet #premodruplanetu pohodlne online v mobilnej aplikácii Tatra banka. 5. Pripojte sa k inováciám s novým Účtom #premodruplanetu, ktorý si otvoríte pohodlne online v mobilnej aplikácii Tatra banka. Titulok: 27 znakov – 5 variant 1. Využite ponuku 2. Nezabudnite využiť benefit 3. Ponuka stále platí 4. Benefit aj za prenos účtu 5. Nepremeškajte benefit Popis: 27 znakov – 5 variant 1. Pripojte sa k inováciám 2. Získajte benefit 3. Pripojte sa ešte dnes 4. Pripojte sa online 5. Otvorte si účet teraz
+--- slide 33 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-muz-cons ​ ​
+--- slide 34 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-zena-cons ​ ​
+--- slide 35 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-chalan-cons ​ ​
+--- slide 36 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-dievca-cons ​ ​
+--- slide 37 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-bleda-cons
+--- slide 38 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-cierna-cons
+--- slide 39 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-hneda-cons
+--- slide 40 ---
+Google Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-modra-cons
+--- slide 41 ---
+Google – Responsive ads Texty – 150 EUR
+Nadpis: 30 znakov – 5 nadpisov Staňte sa stredobodom inovácií Zažite inovatívne bankovníctvo Pripojte sa k inováciám Preneste si účet k nám Účet #premodruplanetu Popis : 90 – 5 popisov Pripojte sa k inováciám s Účtom #premodruplanetu a môžete získať až 150 EUR. Otvorte si Účet #premodruplanetu pohodlne online v mobilnej aplikácii Tatra banka. Pripojte sa s Účtom #premodruplanetu a získajte k novému účtu až 150 EUR. Pripojte sa k svetovo najoceňovanejšej slovenskej banke s Účtom #premodruplanetu . Účet #premodruplanetu máte rok bez poplatku za vedenie . Ďalšie 2 roky získajte za prenos .
+--- slide 42 ---
+Google - REMARKETING Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-muz-cons ​ ​ -rmkt
+--- slide 43 ---
+Google - REMARKETING Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-zena-cons ​ ​ -rmkt
+--- slide 44 ---
+Google - REMARKETING Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-chalan-cons ​ ​ -rmkt
+--- slide 45 ---
+Google - REMARKETING Responsive Ads
+Špecifikácia Logo: 1200x1200 1200x300 max. 5 podkladov Obrázok: 1 skupina podkladov 1200x1200px, 1200x628px, 900x1600px max 5 podkladov max 5 MB jpg , png Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-dievca-cons ​ ​ -rmkt
+--- slide 46 ---
+Google – Responsive ads – Remarketing - TEXTY Texty – 150 EUR
+Nadpis: 30 znakov Extra benefit za prenos účtu Získajte benefit k účtu Získajte až 150 EUR Nepremeškajte benefit Buďte stredobodom inovácií Dlhý nadpis 90 1. Otvorte si Účet #premodruplanetu online ešte dnes 2. Využite možnosť získať až 150 EUR k novému účtu 3. Získajte aj vy až 150 EUR k novému Účtu #premodruplanetu 4. Nenechajte si ujsť ponuku 5. Stále môžete využiť benefit Popis: 90 – 5 popisov 1. Ešte stále môžete získať benefit až 150 EUR k novému Účtu #premodruplanetu. 2. Otvorte si Účet #premodruplanetu jednoducho v mobilnej aplikácii Tatra banka ešte dnes. 3. Nezabudnite, že s novým Účtom #premodruplanetu môžete získať až 150 EUR. 4. Aj vy môžete získať až 1 50 EUR s Účtom #premodruplanetu . 5. Účet #premodruplanetu máte rok bez poplatku za vedenie . Ďalšie 2 roky získajte za prenos .
+--- slide 47 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-muz-cons ​ ​
+--- slide 48 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-zena-cons ​ ​
+--- slide 49 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-chalan-cons ​ ​
+--- slide 50 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-dievca-cons ​ ​
+--- slide 51 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte KREATIVA 05 x4
+150-typo-bleda-cons
+--- slide 52 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte KREATIVA 05 x4
+150-typo-cierna-cons
+--- slide 53 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte KREATIVA 05 x4
+150-typo-hneda-cons
+--- slide 54 ---
+Google - Demand Gen kampaň Display network + Gmail
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte KREATIVA 05 x4
+150-typo-modra-cons
+--- slide 55 ---
+Google - Demand Gen kampaň Display network + Gmail (150 EUR)
+Špecifikácia Logo : 1200x1200px max 5 MB jpg , png Obrázok: 1200x628 (minimum 600x314) 1200x1200 (minimum 300x300) 960x1200 (minimum 480x600) Nadpis max. 40 znakov - min. 1, max. 5 Popis max. 90 znakov - min. 1, max. 5 Názov firmy alebo značky - max. 25 znakov Cieľová URL Podklady potrebujeme graficky dodať kompletné ( headline , CTA button , logo)
+Nadpis: 40 znakov – 5 nadpisov Staňte sa stredobodom inovácií Zažite inovatívne bankovníctvo Pripojte sa k inováciám Získajte benefit Získajte až 1 50 EUR Popis : 90 – 5 popisov Pripojte sa s Účtom #premodruplanetu a môžete získať až 150 EUR. S novým Účtom #premodruplanetu môžete teraz získať až 150 EUR. Otvorte si Účet #premodruplanetu pohodlne online v mobilnej aplikácii Tatra banka. Pripojte sa k svetovo najoceňovanejšej slovenskej banke s Účtom #premodruplanetu. Pripojte sa k inováciám s Účtom #premodruplanetu a môžete získať až 150 EUR.
+--- slide 56 ---
+PPC Performance DDL 30. 3.
+--- slide 57 ---
+Google UAC
+Špecifikácia Pomer strán: 1:1 (1200x1200) 1,91:1 (1200x628) 4:5 (1200x1500) 6 / 7 kreatív x 3 rozmery = 1 skupina podkladov Max. 20 podkladov = 1 Skupina podkladov Min. 18 podkladov (6 kreatív x 3 rozmery) = 1 skupina podkladov - V rámci UAC je potrebné vydodať všetky kreatívy a skupín kreatív naraz (aj plánované obmeny) Nadpis max. 30 znakov (5 nadpisov) Popis max. 90 znakov (5 popisov)"" = 1 skupina podkladov . Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video, youtube linky textácie v maximalnom počte
+150-app-muz-hardsell
+--- slide 58 ---
+Google UAC
+Špecifikácia Pomer strán: 1:1 (1200x1200) 1,91:1 (1200x628) 4:5 (1200x1500) 6 / 7 kreatív x 3 rozmery = 1 skupina podkladov Max. 20 podkladov = 1 Skupina podkladov Min. 18 podkladov (6 kreatív x 3 rozmery) = 1 skupina podkladov - V rámci UAC je potrebné vydodať všetky kreatívy a skupín kreatív naraz (aj plánované obmeny) Nadpis max. 30 znakov (5 nadpisov) Popis max. 90 znakov (5 popisov)"" = 1 skupina podkladov . Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video, youtube linky textácie v maximalnom počte
+150-app-zena-hardsell
+--- slide 59 ---
+Google UAC
+Špecifikácia Pomer strán: 1:1 (1200x1200) 1,91:1 (1200x628) 4:5 (1200x1500) 6 / 7 kreatív x 3 rozmery = 1 skupina podkladov Max. 20 podkladov = 1 Skupina podkladov Min. 18 podkladov (6 kreatív x 3 rozmery) = 1 skupina podkladov - V rámci UAC je potrebné vydodať všetky kreatívy a skupín kreatív naraz (aj plánované obmeny) Nadpis max. 30 znakov (5 nadpisov) Popis max. 90 znakov (5 popisov)"" = 1 skupina podkladov . Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video, youtube linky textácie v maximalnom počte
+150-app-chalan-hardsell
+--- slide 60 ---
+Google UAC
+Špecifikácia Pomer strán: 1:1 (1200x1200) 1,91:1 (1200x628) 4:5 (1200x1500) 6 / 7 kreatív x 3 rozmery = 1 skupina podkladov Max. 20 podkladov = 1 Skupina podkladov Min. 18 podkladov (6 kreatív x 3 rozmery) = 1 skupina podkladov - V rámci UAC je potrebné vydodať všetky kreatívy a skupín kreatív naraz (aj plánované obmeny) Nadpis max. 30 znakov (5 nadpisov) Popis max. 90 znakov (5 popisov)"" = 1 skupina podkladov . Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video, youtube linky textácie v maximalnom počte
+150-app-dievca-hardsell
+--- slide 61 ---
+Google UAC Texty – 150 EUR
+Nadpis: 30 znakov – 5 nadpisov: Pripojte sa k inováciám Účet #premodruplanetu Buďte stredobodom inovácií Otvorte si nový účet ešte dnes Získajte účet plný inovácií
+Popis: 90 – 5 popisov: Pripojte sa k svetovo najoceňovanejšej slovenskej banke aj vy. Získajte až 100 EUR z platieb kartou späť a ďalších 50 EUR za prenos účtu k nám. Pripojte sa s Účtom #premodruplanetu a môžete získať až 150 EUR. Otvorte si Účet #premodruplanetu jednoducho v mobilnej aplikácii Tatra banka. Získajte až 100 EUR z platieb kartou späť a ďalších 50 EUR za prenos účtu do Tatra banky.
+--- slide 62 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-muz-hardsell
+--- slide 63 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-zena-hardsell
+--- slide 64 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-chalan-hardsell
+--- slide 65 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-dievca-hardsell
+--- slide 66 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-bleda-hardsell
+--- slide 67 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-cierna-hardsell
+--- slide 68 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-hneda-hardsell
+--- slide 69 ---
+Google Performance Max
+Špecifikácia Logo : 1200x1200px, 1200x300px Logo prosím vydodať s transparentným pozadím. max 5 podkladov max 5 MB Obrázok: 1200x628px, 1200x1200px, 960x1200px Vizuál musí obsahovať iba headline - CTA button aj logo sa doťahuje systémom 20 podkladov = 1 skupina podkladov max 5MB Video: viac ako 10 sec max 5 podkladov Kreatíva: 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch textácie v maximalnom počte
+150-typo-modra-hardsell
+--- slide 70 ---
+Google Performance Max Texty – 150 EUR
+Nadpis: 30 znakov – 15 nadpisov: Inovácie máte na dosah Zažite inovatívne bankovníctvo Pripojte sa k inováciám Účet #premodruplanetu Buďte stredobodom inovácií Otvorte si nový účet ešte dnes Vstúpte do digitálneho sveta Otvorte si nový digitálny účet Získajte až 150 EUR k účtu Benefit za prenos účtu Až 150 EUR k novému účtu Otvorte si účet teraz
+Dlhý nadpis: 90 znakov – 5 nadpisov: Pripojte sa s Účtom #premodruplanetu a zažite inovatívne bankovníctvo Otvorte si Účet #premodruplanetu a buďte stredobodom inovácií Pripojte sa k inovatívnemu bankovníctvu s Účtom #premodruplanetu Svetovo najoceňovanejšie slovenské bankovníctvo máte na dosah. Pripojte sa.
+Popis: 90 – 5 popisov: Ešte stále môžete získať benefit až 150 EUR k novému Účtu #premodruplanetu. Otvorte si Účet #premodruplanetu pohodlne online v mobilnej aplikácii Tatra banka. Pripojte sa s Účtom #premodruplanetu a získajte k novému účtu až 150 EUR. S novým Účtom #premodruplanetu môžete získať až 150 EUR. Otvorte si ho teraz. Získajte až 100 EUR z platieb kartou späť a ďalších 50 EUR za prenos účtu k nám.
+--- slide 71 ---
+META Automatic placements Download app
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch App install kampaň (dôraz na informáciu o stiahnutí aplikácie) - rozdiel v textaciach v kreative !! - textácie v maximalnom počte
+150-muz-hardsell
+--- slide 72 ---
+META Automatic placements Download app
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch App install kampaň (dôraz na informáciu o stiahnutí aplikácie) - rozdiel v textaciach v kreative !! - textácie v maximalnom počte
+150-zena-hardsell
+--- slide 73 ---
+META Automatic placements Download app
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch App install kampaň (dôraz na informáciu o stiahnutí aplikácie) - rozdiel v textaciach v kreative !! - textácie v maximalnom počte
+150-chalan-hardsell
+--- slide 74 ---
+META Automatic placements Download app
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements Kreatíva : 2x Skupina podkladov - 150€ benefit + 3 roky bez poplatkov 15 sec a 30s video vo všetkých rozmeroch App install kampaň (dôraz na informáciu o stiahnutí aplikácie) - rozdiel v textaciach v kreative !! - textácie v maximalnom počte
+150-dievca-hardsell
+--- slide 75 ---
+META Automatic placements – TEXTY 150 EUR Download app
+Špecifikácia 1:1 (desktop, mobil) 1200x1200px 4:5 (mobil) 1200x628px 1080x1920px – automatic placements Primárny text - 125 znakov - 5 variant k jednemu kreativnemu konceptu Titulok - 27 znakov - 5 variant k jednemu kreativnemu konceptu Popis - 27 znakov - 1 variant k jednemu kreativnemu konceptu URL cieľovej stránky Počet znakov nie je maximálny (znakov môže byť i viac - toto je odporúčaný počet znakov z FB)
+Primárny text: 125 znakov 1. Otvorte si Účet #premodruplanetu a získajte až 100 EUR späť z platieb kartou. Extra 50 EUR môžete získať za prenos účtu . 2 . Získajte k novému Účtu #premodruplanetu až 100 EUR späť z platieb kartou. Ďalších 50 EUR môžete získať za prenos účtu k nám. 3. Pripojte sa k inováciám s novým Účtom #premodruplanetu a môžete získať až 150 EUR . 4. Otvorte si Účet #premodruplanetu pohodlne v mobilnej aplikácii Tatra banka. 5. Pripojte sa k inováciám s novým Účtom #premodruplanetu, ktorý si otvoríte pohodlne v mobilnej aplikácii Tatra banka. Titulok : 27 znakov 1. Účet #premodruplanetu 2. Až 150 EUR k novému účtu 3. Získajte až 150 EUR 4. Účet plný inovácií 5. Využite ponuku Popis: 27 znakov 1. Pripojte sa k inováciám 2. Získajte benefit 3. Otvorte si účet online 4. Otvorte si účet teraz 5. Pripojte sa online
+--- slide 76 ---
+ĎAKUJEME!
+--- slide 77 ---
+MADE BY VACULIK Búdková 28 811 04 Bratislava Slovakia info@vaculik.com www.vaculik.com
+--- slide 78 ---
+©2021 MADE BY VACULIK, s. r. o., Búdková 28, 811 04 Bratislava, IČO: 35761814 Všetky riešenia zachytené v tejto prezentácii sú výlučným duševným vlastníctvom, ku ktorému vykonáva autorské práva MADE BY VACULIK, s. r. o.,pokiaľ nie je uvedené inak. Akékoľvek použitie častí alebo celku tejto prezentácie, najmä zverejňovanie, rozmnožovanie a šírenie textov, hudby, fotografií, grafov, šotov, klipov, akýmkoľvekspôsobom, mechanickým, elektronickým, či použitím iných technológií na prenos a záznam zvuku alebo obrazu, nie je bez predchádzajúceho písomného súhlasu MADE BY VACULIK, s. r. o., povolené a je porušením predpisov na ochranu autorských práv. MADE BY VACULIK, s. r. o., si vyhradzuje právo udeľovať súhlas na akékoľvek použitie a nakladanie s prezentáciou v zmysle § 18 a nasl. Autorského zákona.

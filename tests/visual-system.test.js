@@ -31,7 +31,13 @@ assert(source.includes('t.opacity = 0.80'), "AI disclosure must match the PSD 80
 assert(!source.includes('backing.name = "AI generované — podložka"'), "AI disclosure must not use the old black pill");
 assert(source.includes('style === "Regular" ? 110 : 100'), "typographic line-height tokens must be explicit");
 assert(source.includes('style === "Regular" ? -1.5 : -2.5'), "tracking must follow the PSD-derived scale");
-assert(source.includes('return clamp(0.46 + (1 - luma) * 0.18, 0.46, 0.64)'), "scrim must stay in the gentle 46–64% range");
+// MERGE 7.9: master's WCAG-correct direction/range won over oprava-26-8's
+// visually-narrower 46-64% band — see the "MERGE 7.9." comment above
+// scrimAlphaFor in plugin/code.js for the unresolved tension (light-KV
+// contrast compliance needs a >= 0.76, which a 0.64 cap can't reach; the
+// 90% narrowing oprava-26-8 wanted for visual reasons is intentionally
+// left unaddressed here, to be solved via a shorter scrim, not a lower cap).
+assert(source.includes('return clamp(0.50 + luma * 0.40, 0.50, 0.90)'), "scrim must follow the WCAG-corrected direction/range (0.50-0.90), not the old inverted 0.46-0.64 band");
 assert(source.includes('imageBoundaryStop'), "wide color extension must become opaque at the image boundary");
 assert(source.includes('headlineBottom - headlineNode.height'), "single-line headline must be optically anchored to subheadline");
 assert(source.includes('compactCopy ? 1.16 : 1.02'), "small Adform crops must remove technical KV borders and protect compact copy");
@@ -46,7 +52,9 @@ assert(source.includes('Clean portrait colour extension'), "clean portrait asset
 assert(source.includes('[0, 0, imageW, format.height], { x: 0, y: 0.5 }'), "wide creative masters must keep the focal visual on the left as in the Surd reference");
 assert(source.includes('ratio >= 1.25 ? "wide" : (ratio <= 0.8 ? "portrait" : "square")'), "4:5 and other orientation boundaries must match the KV picker exactly");
 assert(source.includes('const edge = campaignSurface(layout);\n    const panel = figma.createRectangle();\n    panel.name = "Brand panel";'), "970x250 must derive its panel from the shared campaign colour instead of hard-coded navy");
-assert(source.includes('const panelX = 549;'), "970x250 panel must sit near the Surd reference geometry (x=549)");
+assert(source.includes('const panelX = (rules.panel && rules.panel[0]) || 549;'),
+  "970x250 panel must take its x from ADFORM_PSD_RULES.adform_970x250.panel (measured on the PSD baseline, same source as the headline coordinates), not the hard-coded Figma-derived 549 — P0-22 (zadanie 26.8 blok B)");
+assert(source.includes('panel: [450, 0, 520, 250]'), "adform_970x250 PSD rule must carry the panel geometry measured on tests/visual-baselines/adform_970x250.png");
 assert(source.includes('const runYOffset = page.children.length'), "a new generation must not overlap an older run");
 assert(uiSource.includes('async function normalizeKvFile(file)'), "uploaded KV edges must be normalized before rendering");
 assert(uiSource.includes('transparent-or-selection-edge'), "Figma selection/padding cleanup must be recorded in metadata");

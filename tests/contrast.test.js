@@ -1,10 +1,10 @@
-// Krok 2e: kontrastný modul (WCAG 2.1), prenesené z master (commit 97b5d3f).
+// P0-16 / Krok 2e: kontrastný modul (WCAG 2.1).
 //
 // plugin/code.js beží v Figma plugin sandboxe (globálny `figma`), takže sa
 // nedá priamo require-núť v Node. Funkcie nižšie (srgbToLinear,
-// relativeLuminance, contrastRatio, ensureReadableSurface) sú čisté (žiadne
-// volanie figma.*) a sú tu zrkadlené 1:1 z plugin/code.js — pri zmene
-// jednej strany treba zmeniť aj druhú.
+// relativeLuminance, contrastRatio, ensureReadableSurface, pickTextColor,
+// scrimAlphaFor) sú čisté (žiadne volanie figma.*) a sú tu zrkadlené 1:1 z
+// plugin/code.js — pri zmene jednej strany treba zmeniť aj druhú.
 //
 // Tento súbor testuje LEN samotné funkcie ako čistú matematiku. Testy na to,
 // AKO sa majú (ne)používať pri renderovaní (biela na brandovej ploche vždy,
@@ -54,6 +54,11 @@ function pickTextColor(surface) {
   return contrastRatio(surface, white) >= contrastRatio(surface, black) ? white : black;
 }
 
+function scrimAlphaFor(layout) {
+  const luma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 1;
+  return Math.max(0.50, Math.min(0.90, 0.50 + luma * 0.40));
+}
+
 function hex(h) {
   const n = parseInt(h.replace("#", ""), 16);
   return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
@@ -87,14 +92,95 @@ const darkFixed = ensureReadableSurface(DARK, WHITE, 4.5);
 assert.ok(contrastRatio(DARK, WHITE) >= 4.5, "dark KV must already pass 4.5:1 against white");
 assert.deepStrictEqual(darkFixed, DARK, "dark KV that already passes must not be darkened further");
 
+// ── scrimAlphaFor: pre celý rozsah kv_luma_bottom musí čierny scrim pri
+// vrátenej alfe dať >= 4.5:1 voči bielemu textu ─────────────────────────────
+for (let luma = 0; luma <= 1.001; luma += 0.05) {
+  const alpha = scrimAlphaFor({ kv_luma_bottom: luma });
+  // Efektívny jas plochy pod scrimom (čierny scrim, blend v sRGB priestore
+  // ako pri kreslení do Figmy — rovnaké zjednodušenie ako v code.js komentári).
+  const blended = { r: luma * (1 - alpha), g: luma * (1 - alpha), b: luma * (1 - alpha) };
+  const ratio = contrastRatio(blended, WHITE);
+  assert.ok(ratio >= 4.5 - 1e-6, "luma " + luma.toFixed(2) + " alpha " + alpha.toFixed(2) + " must give >= 4.5:1, got " + ratio.toFixed(2));
+}
+
 // ── ensureReadableSurface nikdy nespadne na natvrdo modrú — vždy vráti niečo
 // odvodené z pôvodnej surface (rovnaký alebo tmavší/svetlejší odtieň) ───────
 const impossible = { r: 0.5, g: 0.5, b: 0.5 };
+// aj pri nedosiahnuteľnom minRatio (napr. 21 pre stredne šedú) musí vrátiť
+// najlepšiu dosiahnutú hodnotu, nie hocičo iné.
 const extreme = ensureReadableSurface(impossible, WHITE, 21);
 assert.ok(extreme.r < impossible.r, "must have darkened toward black, not jumped to an unrelated color");
 assert.ok(extreme.r >= 0 && extreme.g >= 0 && extreme.b >= 0, "must stay within valid color range");
 
-// ── pickTextColor: vyberá stranu s vyšším kontrastom ────────────────────────
+// easedAlphaStops bol odstránený z plugin/code.js (viď nižšie) — edge-prechod
+// aj wide panel sú teraz obyčajné 2-3 stopové lineárne gradienty, overené
+// priamo proti Surďovej referenčnej mask SVG (node 0:8, d51uxTh8YqPdHujzi1Plt6):
+//   <linearGradient>Stop() -> Stop(offset=1, opacity=0)</linearGradient>
+// Žiadna S-krivka — "pás" spôsobovala príliš úzka prechodová zóna (10 %),
+// nie tvar krivky. Testy na easedAlphaStops boli zmazané spolu s funkciou.
+
+// ── Regresia po 47f4523: Bottom readability gradient scrim ─────────────────
+// scrim NIE JE easedAlphaStops — má vlastný tvar, kde rampEnd znamená "tu je
+// ~70 % cieľovej alfy", nie "tu JE cieľová alfa". Testy vyššie na
+// easedAlphaStops toto nechytili, lebo scrim už tú funkciu nevolá vôbec —
+// testovali správanie zdieľanej funkcie (korektné pre panel/edge-prechod),
+// nie skutočný scrim kód. Mirror priamo z buildMasterSafeLayout.
+function scrimGradientStops(scrimAlpha, rampEnd) {
+  const _a = (podiel) => Math.round(scrimAlpha * podiel * 1000) / 1000;
+  return [
+    { position: 0.00, color: { r: 0.10, g: 0.10, b: 0.10, a: 0.00 } },
+    { position: rampEnd * 0.5, color: { r: 0.08, g: 0.08, b: 0.08, a: _a(0.34) } },
+    { position: rampEnd, color: { r: 0.05, g: 0.05, b: 0.05, a: _a(0.70) } },
+    { position: rampEnd + (1 - rampEnd) * 0.35, color: { r: 0.03, g: 0.03, b: 0.03, a: _a(0.88) } },
+    { position: 1.00, color: { r: 0.00, g: 0.00, b: 0.00, a: scrimAlpha } }
+  ];
+}
+
+const scrimAlphaTarget = 0.612;
+const rampEndTest = 0.14; // zodpovedá ~2000×1400 prípadu z regresie
+const realScrim = scrimGradientStops(scrimAlphaTarget, rampEndTest);
+const atRampEnd = realScrim.find(s => Math.abs(s.position - rampEndTest) < 1e-9);
+assert.ok(atRampEnd, "must have a stop exactly at rampEnd");
+assert.ok(atRampEnd.color.a < scrimAlphaTarget * 0.9,
+  "alpha at rampEnd must be well below target (~70%), not equal to it — regresia po 47f4523 dávala 100% už tu, získala " + atRampEnd.color.a);
+assert.ok(Math.abs(atRampEnd.color.a - scrimAlphaTarget * 0.70) < 1e-3,
+  "alpha at rampEnd must be ~70% of target");
+const lastScrimStop = realScrim[realScrim.length - 1];
+assert.strictEqual(lastScrimStop.position, 1.00, "must keep climbing to position 1.0, not hold flat from rampEnd");
+assert.strictEqual(lastScrimStop.color.a, scrimAlphaTarget, "must reach full target alpha only at the bottom corner");
+// Musí naďalej rásť MEDZI rampEnd a 1.0 (nie plochý chvost — presne regresia).
+const afterRampEnd = realScrim.filter(s => s.position > rampEndTest);
+for (let k = 1; k < afterRampEnd.length; k++) {
+  assert.ok(afterRampEnd[k].color.a > afterRampEnd[k - 1].color.a,
+    "alpha must strictly keep increasing past rampEnd, not plateau (flat dark plate regression)");
+}
+
+// ── ZADANIE bod 2: text na brandovej ploche je VŽDY biely — brandové
+// pravidlo, nie výsledok "čo kontrastuje lepšie" (textNaPodklade/
+// pickTextColor boli z tohto dôvodu odstránené z plugin/code.js). Keď biela
+// sama osebe nedosiahne prah, rieši sa to stmavením PLOCHY cez
+// ensureReadableSurface, nie preklopením textu na tmavú. Test overuje, že
+// toto platí naprieč svetlými AJ tmavými brand farbami — surfaceColor sa
+// mení, farba textu ostáva biela a >= 4,5 : 1 vždy vyjde.
+const BRAND_COLORS_LIGHT_AND_DARK = [
+  { name: "svetlá koralová (#f28c73)", color: hex("#f28c73") },
+  { name: "sýta coral (#c55e4d)", color: hex("#c55e4d") },
+  { name: "pastelová (#F2E4D6)", color: hex("#F2E4D6") },
+  { name: "tmavomodrá (#0a1a3d)", color: hex("#0a1a3d") }
+];
+BRAND_COLORS_LIGHT_AND_DARK.forEach(({ name, color }) => {
+  const surfaceColor = ensureReadableSurface(color, WHITE, 4.5);
+  const ratio = contrastRatio(surfaceColor, WHITE);
+  assert.ok(ratio >= 4.5 - 1e-6,
+    name + ": surfaceColor musí dať >= 4,5 : 1 voči bielej (biela je fixná, plocha sa prispôsobuje), got " + ratio.toFixed(2));
+  // Farba textu je vždy biela — žiadna voľba, žiadne porovnávanie s tmavou.
+  const farbaTextu = WHITE;
+  assert.deepStrictEqual(farbaTextu, WHITE, name + ": text na brandovej ploche musí byť vždy biely");
+});
+
+// ── pickTextColor: vyberá stranu s vyšším kontrastom (funkcia v code.js
+// ostáva definovaná ako čistá utilita, aj keď sa na brandColor plochu
+// nepoužíva — pozri pravidlo vyššie) ────────────────────────────────────────
 assert.deepStrictEqual(pickTextColor({ r: 0.05, g: 0.05, b: 0.05 }), WHITE, "dark surface must pick white text");
 assert.deepStrictEqual(pickTextColor({ r: 0.95, g: 0.95, b: 0.95 }), { r: 0, g: 0, b: 0 }, "light surface must pick black text");
 

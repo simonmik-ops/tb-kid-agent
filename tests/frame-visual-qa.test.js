@@ -86,4 +86,13 @@ assert.strictEqual(brandingLeaderActualSize, 48, "kontrola predpokladu: branding
 assert(brandingLeaderActualSize > brandingLeaderExpected * 1.08,
   "kontrola predpokladu: 48px je mimo tolerancie voči 18px — presne preto qa_typography_scale bez layoutType-gate vždy falošne hlásilo tento formát");
 
+// Regresia 8.9.2026: qa_empty_surface_ratio vynímalo len adform_psd, nie
+// logo_only. buildLogoOnlyLayout kreslí frame.fills = [] a ŽIADEN obrázok
+// (exportný PNG asset, zámerne len logo) — takže qaImg tam vždy neexistuje
+// a emptyRatio je vždy 1,0 (100 % nad prahom 0,40). Namerané vo Validation
+// reporte: KAŽDÝ logo_only formát (Google Responsive ads/PMax/Demand gen
+// — logo) bol garantovane nahlásený bez ohľadu na to, že ide o zámer.
+assert(/if \(layoutType !== "adform_psd" && layoutType !== "logo_only"\)/.test(source),
+  "qa_empty_surface_ratio musí vynímať aj logo_only, inak sa nahlási na 100 % logo-only formátov (zámerne bez obrázka)");
+
 console.log("frame visual QA: ok");

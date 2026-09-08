@@ -1615,7 +1615,14 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
   // plochej farby na 1200×628) a nechytal žiadny zo správne fungujúcich
   // master_safe/side_safe/interscroller_safe prípadov overených v tejto aj
   // predošlých session (KV tam vždy prekrýva podstatne viac než 60 % plochy).
-  if (layoutType !== "adform_psd") {
+  //
+  // 8.9. dodatok: logo_only tiež vyňaté. buildLogoOnlyLayout kreslí
+  // frame.fills = [] a ŽIADEN obrázok — je to exportný PNG asset s jediným
+  // obsahom (logo), zámerne bez fotky. Namerané vo Validation reporte:
+  // KAŽDÝ logo_only formát (Google Responsive ads/PMax/Demand gen — logo)
+  // bol garantovane nahlásený, keďže qaImg tam vždy neexistuje — 100 %
+  // "prázdnej" plochy je pre tento layout správne správanie, nie chyba.
+  if (layoutType !== "adform_psd" && layoutType !== "logo_only") {
     const imgArea = qaImg
       ? Math.max(0, Math.min(qaImg.x + qaImg.width, format.width) - Math.max(qaImg.x, 0)) *
         Math.max(0, Math.min(qaImg.y + qaImg.height, format.height) - Math.max(qaImg.y, 0))

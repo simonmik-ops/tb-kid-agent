@@ -1,0 +1,121 @@
+#### FILE: TP_MASS_JAR_DISPLAY.pptx  (slides: 30)
+--- slide 1 ---
+Tatra banka – MASS účet pre modrú planétu JAR 2026 DISPLAY Prehľad online formátov a internej komunikácie
+7. 4. 2026
+--- slide 2 ---
+--- slide 3 ---
+Display DDL 7. 4.
+--- slide 4 ---
+joj.sk Branding / interscroller
+Špecifikácia Branding: 2000x1400 Interscroller : mobile 300x600
+150-image
+--- slide 5 ---
+markiza.sk branding
+Špecifikácia 1000x200 + 2x 120x600 2000x1400 3 x max 60 kB ( jpg ) max. 200kB (html5 jpg , gif , html5, gif Počet kreatív : Interscroller : max 3x na obdobie Branding : 1x na obdobie
+150-image
+--- slide 6 ---
+markiza.sk intrerscroller
+Špecifikácia 720x1280 max 300 kB jpg Počet kreatív : Interscroller : max 3x na obdobie Branding : 1x na obdobie
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 7 ---
+pluska.sk + plus7dni.sk + cas.sk intrerscroller
+Špecifikácia Interscroller : recommended size 750x1624px - with center safe zone 750x982px. Min resolution is 375x812px with center safe zone 375x491px.
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 8 ---
+hnonline.sk branding
+Špecifikácia desktop 1275x250 + 2x 160x600px max 300 kB jpg , gif , html5 Počet kreatív : Interscroller : max 4x na obdobie Branding : 1x na obdobie
+150-image
+--- slide 9 ---
+hnonline.sk mobile intrerscroller
+Špecifikácia mobile 400x600px max 150 kB jpg , gif , html5 Počet kreatív : Interscroller : max 4x na obdobie Branding : 1x na obdobie
+150-muz-image 150-chalan-image
+150-dievca-image 150-zena-image
+--- slide 10 ---
+cp.sk sqare
+Špecifikácia 300x300 and 300x250 px
+--- slide 11 ---
+sme.sk branding
+Špecifikácia leaderboard : 1000x200px side skyscrapers : 2 x 160x600px max 150 kB / 3x60 kB jpg , gif , html5 Počet kreatív : Interscroller : max 4x na obdobie Branding : 1x na obdobie
+150-image
+--- slide 12 ---
+sme.sk interscroller
+Špecifikácia mobile 320x600px max 150 kB jpg Počet kreatív : Interscroller : max 4x na obdobie Branding : 1x na obdobie
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 13 ---
+aktuality.sk, sport.sk, azet.sk, zive.sk mobile interscroller
+Špecifikácia 9:16 720x1280 max 250 kB jpg Počet kreatív : Interscroller : max 4x na obdobie Leaderboard : 1x na obdobie
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 14 ---
+aktuality.sk, sport.sk, azet.sk, zive.sk desktop
+Špecifikácia leaderboard: 1200x400px interscroller : 720×1280, ratio: 9:16 Počet kreatív : Interscroller : max 4x na obdobie Leaderboard : 1x na obdobie
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 15 ---
+Minúta po minute banner
+Špecifikácia 3 x 320x100 px max 250 kB jpg , gif Kreatíva : Počet kreatív : Interscroller : max 4x na obdobie Branding : 1x na obdobie
+150-hneda-image
+150-cierna-image 150-bleda-image
+--- slide 16 ---
+topky.sk interscroller
+Špecifikácia 400x600 max 100 kB jpg , html5 Počet kreatív : Interscroller : max 4x na obdobie Branding : 1x na obdobie
+150-muz-image 150-chalan-image
+150-dievca-image 150-zena-image
+--- slide 17 ---
+topky.sk branding
+Špecifikácia 2x 450x800px max 250 kB jpg , gif Kreatíva : Počet kreatív : Interscroller : max 4x na obdobie Branding : 1x na obdobie
+150-image
+--- slide 18 ---
+pravda.sk branding
+Špecifikácia 1200x200+ 2x 200x700 max. 200 kB Počet kreatív : Interscroller : max 3x na obdobie Branding : 1x na obdobie
+150-image
+--- slide 19 ---
+pravda.sk interscroller
+Špecifikácia 300x600 - safe area 50px left + 50 px right max 75 kB jpg , png , gif Počet kreatív : Interscroller : max 3x na obdobie Branding : 1x na obdobie
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 20 ---
+startitup.sk interscroller
+Špecifikácia 500x800 px max 100 kB gif , jpg , html5 Počet kreatív : Interscroller : max 4x na obdobie
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 21 ---
+Engerio network
+Špecifikácia Headlines + pictures 4:3
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+1. Pripojte sa k inováciám a otvorte si Účet #premodruplanetu. Môžete získať až 150 EUR. ​ 2. Pripojte sa s novým Účtom #premodruplanetu a môžete získať až 150 EUR. ​ 3. Pripojte sa k inováciám s novým Účtom #premodruplanetu a môžete získať až 150 EUR . ​ 4. Otvorte si Účet #premodruplanetu pohodlne online v mobilnej aplikácii Tatra banka.
+--- slide 22 ---
+Pinterest
+Špecifikácia We recommend using a 2:3 aspect ratio , or 1000 x 1500 pixels . Pins with an aspect ratio greater than 2:3 might get cut off in people's feeds . Text: Title: Získajte až 150 EUR s novým účtom. Description: Otvorte si Účet # premodruplanetu a získajte až 100 EUR späť z platieb kartou. Extra 50 EUR môžete získať za prenos účtu.
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 23 ---
+Valetin preroll/midroll
+Špecifikácia video, 1280x720 px (HD), 1920x1080 (Full HD)
+150-image-15 ​
+--- slide 24 ---
+Inclick network
+Špecifikácia Vertical : video 9:16 max. 30 sec . Kreatíva : Hero video 15 sec . alebo rozpohybované video ( TikToK )?? 150-image-15
+--- slide 25 ---
+Dennik N sponsoring Hlavného podcastu
+Špecifikácia spot max. 30 sec. + Logo 63x63 px + krátky text : Otvorte si Účet #premodruplanetu a získajte až 100 EUR späť z platieb kartou. Extra 50 EUR môžete získať za prenos účtu.
+150-image-33
+--- slide 26 ---
+DM DDL 7. 4.
+--- slide 27 ---
+azet.sk databaza 18-55
+Špecifikácia Sirka: do 640 px Vyska : 500 px max 100 kB html, jpg Predmet správy: do 80 znakov Odosielateľa (štandardne názov spoločnosti či produktu): do 25 znakov
+Predmet - 80 znakov Získajte až 150 EUR k novému Účtu #premodruplanetu od Tatra banky Odosielateľ: Tatra banka
+Získajte s novým Účtom#premodruplanetu až 150 EUR Vrátime vám až 100 EUR späť z platieb kartou a ďalších 50 EUR môžete získať za prenos účtu. Nový účet môžete mať navyše až na 3 roky bez poplatku za vedenie Za otvorenie účtu vás odmeníme 1 rokom bez poplatku za vedenie a ďalšie 2 roky môžete získať za prenos účtu k nám.
+150-muz-image 150-zena-image
+150-dievca-image 150-chalan-image
+--- slide 28 ---
+ĎAKUJEME!
+--- slide 29 ---
+MADE BY VACULIK Búdková 28 811 04 Bratislava Slovakia info@vaculik.com www.vaculik.com
+--- slide 30 ---
+©2021 MADE BY VACULIK, s. r. o., Búdková 28, 811 04 Bratislava, IČO: 35761814 Všetky riešenia zachytené v tejto prezentácii sú výlučným duševným vlastníctvom, ku ktorému vykonáva autorské práva MADE BY VACULIK, s. r. o.,pokiaľ nie je uvedené inak. Akékoľvek použitie častí alebo celku tejto prezentácie, najmä zverejňovanie, rozmnožovanie a šírenie textov, hudby, fotografií, grafov, šotov, klipov, akýmkoľvekspôsobom, mechanickým, elektronickým, či použitím iných technológií na prenos a záznam zvuku alebo obrazu, nie je bez predchádzajúceho písomného súhlasu MADE BY VACULIK, s. r. o., povolené a je porušením predpisov na ochranu autorských práv. MADE BY VACULIK, s. r. o., si vyhradzuje právo udeľovať súhlas na akékoľvek použitie a nakladanie s prezentáciou v zmysle § 18 a nasl. Autorského zákona.

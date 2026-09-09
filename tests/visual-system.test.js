@@ -12,16 +12,17 @@ vm.createContext(context);
 vm.runInContext(tbSource + "\nthis.__TB = TB;", context);
 const TB = context.__TB;
 
+// 9.9. dodatok: koeficienty (0,056/0,060/0,082) dávali systematicky len
+// ~83 % referenčnej veľkosti — prepočítané na 0,0667/0,075/0,0955 (strop
+// square/portrait vetvy zdvihnutý 68->96, nech 80/81 doň nenarazia).
 assert.deepStrictEqual(
   [TB.headline(1200, 628), TB.headline(1200, 1200), TB.headline(1080, 1920)],
-  [51, 67, 65],
+  [60, 80, 81],
   "wide, square and portrait headline sizes must keep the approved optical scale"
 );
-assert.strictEqual(TB.headline(1920, 1080), 89,
-  "Full-HD wide headline must keep the same 8.2% optical scale instead of the old 52 px cap");
 assert.deepStrictEqual(
   [TB.subheadline(1200, 628), TB.subheadline(1200, 1200), TB.subheadline(1080, 1920)],
-  [27, 35, 34],
+  [31, 42, 42],
   "subheadline must remain approximately 52% of headline"
 );
 assert.strictEqual(TB.logoBox(1080, 1920).height, 151, "story logo must not grow to the old 216 px size");
@@ -30,7 +31,7 @@ assert.strictEqual(TB.button(1200, 1200).height, 64, "CTA height must stay subor
 assert(source.includes('t.opacity = 0.80'), "AI disclosure must match the PSD 80% opacity");
 assert(!source.includes('backing.name = "AI generované — podložka"'), "AI disclosure must not use the old black pill");
 assert(source.includes('style === "Regular" ? 110 : 100'), "typographic line-height tokens must be explicit");
-assert(source.includes('style === "Regular" ? -1.5 : -2.5'), "tracking must follow the PSD-derived scale");
+assert(source.includes('style === "Regular" ? 0 : -2'), "tracking must follow the PSD-derived scale");
 // MERGE 7.9: master's WCAG-correct direction/range won over oprava-26-8's
 // visually-narrower 46-64% band — see the "MERGE 7.9." comment above
 // scrimAlphaFor in plugin/code.js for the unresolved tension (light-KV

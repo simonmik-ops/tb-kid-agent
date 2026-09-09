@@ -16,9 +16,13 @@ var TB = {
     // nechal 1920×1080 s rovnakým headlineom ako 1200×628, takže publisher
     // a YouTube formáty pôsobili opticky zmenšené. 1200×628 ostáva 51 px,
     // 1920×1080 je 89 px — rovnaký 8,2 % pomer k výške.
-    if (r > 1.45) return Math.round(clamp(H * 0.082, 18, 96));
-    if (r < 0.75) return Math.round(clamp(W * 0.060, 22, 68));
-    return Math.round(clamp(Math.min(W, H) * 0.056, 22, 68));
+    // 9.9. dodatok: koeficienty dávali systematicky len ~83 % referenčnej
+    // veľkosti (1200×1200: 67 vs. 80; 1080×1920: 65 vs. 81; 1200×628: 51
+    // vs. 60) — prepočítané na 0,0667 / 0,075 / 0,0955. Strop 68 (square aj
+    // portrait vetva) zdvihnutý na 96, inak by 80 aj 81 doň narazili.
+    if (r > 1.45) return Math.round(clamp(H * 0.0955, 18, 96));
+    if (r < 0.75) return Math.round(clamp(W * 0.075, 22, 96));
+    return Math.round(clamp(Math.min(W, H) * 0.0667, 22, 96));
   },
   subheadline: function (W, H) { return Math.max(12, Math.round(TB.headline(W, H) * 0.52)); },
   legal: function (W, H) { return Math.max(12, Math.min(24, Math.round(TB.headline(W, H) * 0.30))); },
@@ -579,7 +583,8 @@ function addAiNote(frame, format, contentBox) {
   t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   t.opacity = 0.80;                       // presne podľa PSD disclosure vrstvy
-  try { t.letterSpacing = { value: -1.5, unit: "PERCENT" }; } catch (e) {}
+  // 9.9. dodatok: FONT_REGULAR tracking má byť 0 %, nie -1,5 % (referencia).
+  try { t.letterSpacing = { value: 0, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = TB.padding(format.width, format.height);
   frame.appendChild(t);
@@ -2948,7 +2953,8 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align,
   txt.textAlignHorizontal = align || "LEFT";
   try {
     txt.lineHeight = { value: style === "Regular" ? 110 : 100, unit: "PERCENT" };
-    txt.letterSpacing = { value: style === "Regular" ? -1.5 : -2.5, unit: "PERCENT" };
+    // 9.9. dodatok: referencia je Regular 0 % / Bold -2 % (predtým -1,5 % / -2,5 %).
+    txt.letterSpacing = { value: style === "Regular" ? 0 : -2, unit: "PERCENT" };
   } catch (e) {}
   try {
     const slova = String(value).split(/\s+/);

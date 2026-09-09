@@ -3535,6 +3535,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // čistej brandColor dosť kontrastu pre veľký Bold text (WCAG 3 : 1).
     const brand = campaignSurface(layout);
     noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 4.5, "wide_panel_small_text");
+    // P0-16 dodatok (9.9.): headline/subheadline sú vzdy velky tucny text
+    // (TB.headline()/TB.subheadline()), WCAG 2.1 pre ne vyzaduje len 3:1, nie
+    // 4,5:1 (ten platí pre small_text vyssie). Panel sa NESMIE stmavovat
+    // kvoli kontrastu (Krok 3 pravidlo 2, komentar vyssie) — toto je preto
+    // len QA hlasenie (rovnaky vzor ako small_text), nie aktivna oprava.
+    noteContrastIfLow(layout, brand, { r: 1, g: 1, b: 1 }, 3.0, "wide_panel_headline_text");
     const panelAlpha = scrimAlphaFor(layout);
     const textX = Math.max(cb.x + pad, Math.round(format.width * 0.54));
     const textRight = cb.x + cb.w - pad;
@@ -3721,6 +3727,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // mimo Kroku 3 — iný profil (clean_image, bez textu), zámerne nezmenené.
       const portraitPanelColor = campaignSurface(layout);
       noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
+      // P0-16 dodatok (9.9.): rovnaky dovod ako "wide_panel_headline_text"
+      // vyssie — velky tucny text potrebuje len 3:1, QA-only (bez stmavovania).
+      noteContrastIfLow(layout, portraitPanelColor, { r: 1, g: 1, b: 1 }, 3.0, "portrait_panel_headline_text");
       // bottomShade 0.85, nie 1: priamo zmeraný Surďov panel (0:7 v
       // d51uxTh8YqPdHujzi1Plt6) je rgb(197,94,77) ≈ (0.77,0.37,0.30) — teda
       // bližšie k tieňu, presne podľa agent.js promptu ("vzorkuj z tmavšej
@@ -3864,6 +3873,9 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // podkladu, nie samostatny (a chybny) vzorok z dolneho okraja.
       const scrimBrand = campaignSurface(layout);
       noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 4.5, "scrim_small_text");
+      // P0-16 dodatok (9.9.): rovnaky dovod ako "wide_panel_headline_text"
+      // vyssie — velky tucny text potrebuje len 3:1, QA-only (bez stmavovania).
+      noteContrastIfLow(layout, scrimBrand, { r: 1, g: 1, b: 1 }, 3.0, "scrim_headline_text");
       const scrim = figma.createRectangle();
       scrim.name = "Bottom readability gradient";
       scrim.resize(format.width, scrimH);
@@ -4432,8 +4444,12 @@ function buildMicroLayout(frame, format, layout, headline, figmaImage, figmaLogo
   // (najsvetlejšie, najprísnejší prípad) — rovnako ako scrimAlphaFor.
   const _microLuma = (layout && typeof layout.kv_luma_bottom === "number") ? layout.kv_luma_bottom : 1;
   const _microBlend = _microLuma * (1 - plateauAlpha);
+  // P0-16 dodatok (9.9.): buildMicroLayout kreslí LEN headline (bez CTA,
+  // subheadlinu aj prelepky — viď komentár funkcie vyššie) — žiadny malý
+  // text tu scrim nezdieľa, takže 4,5:1 (prah pre small_text) bol vecne
+  // nesprávny; veľký tučný text potrebuje podľa WCAG 2.1 len 3:1.
   noteContrastIfLow(
-    layout, { r: _microBlend, g: _microBlend, b: _microBlend }, { r: 1, g: 1, b: 1 }, 4.5, "micro_scrim"
+    layout, { r: _microBlend, g: _microBlend, b: _microBlend }, { r: 1, g: 1, b: 1 }, 3.0, "micro_headline_text"
   );
   const scrim = figma.createRectangle();
   scrim.name = "Left readability scrim";

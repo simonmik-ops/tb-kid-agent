@@ -3949,11 +3949,25 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     );
   }
   if (layout.show_legal !== false && content.legalText) {
-    const legalH = Math.round(TB.legal(format.width, format.height) * 1.6);
+    const legalFontSize = TB.legal(format.width, format.height);
+    const legalW = cb.w - pad * 2;
+    const legalBottomMargin = Math.max(4, Math.round(pad * 0.25));
+    // 9.9. dodatok (nájdené pri vizuálnej kontrole 320×480 topky.sk):
+    // legalH bol pevný odhad pre JEDEN riadok (fontSize * 1,6), ale Y sa
+    // z neho počítal ako kotva ZHORA — pri viacriadkovom legal texte (bežné,
+    // napr. "Marketingové oznámenie. S investovaním sú spojené riziká.")
+    // box narástol nadol od tej istej (podhodnotenej) pozície a presiahol
+    // cez spodný okraj rámu (namerané: y=455, výška 26 → koniec 481 v
+    // 480px vysokom ráme — cez hranicu, spodný padding celkom zožraný).
+    // measureWrappedHeight() (rovnaká funkcia ako pri spodnom páse vyššie
+    // v tomto súbore) zmeria skutočnú výšku PRED umiestnením, takže sa dá
+    // kotviť zdola nahor a padding zostane zachovaný bez ohľadu na počet
+    // riadkov.
+    const legalH = measureWrappedHeight(frame, content.legalText, legalW, legalFontSize, "Regular");
     addTemplateText(
       frame, "Legal text", content.legalText,
-      [cb.x + pad, cb.y + cb.h - legalH - Math.max(4, Math.round(pad * 0.25)), cb.w - pad * 2, legalH],
-      TB.legal(format.width, format.height),
+      [cb.x + pad, cb.y + cb.h - legalH - legalBottomMargin, legalW, legalH],
+      legalFontSize,
       { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
     );
   }

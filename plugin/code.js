@@ -1054,7 +1054,7 @@ async function createAllFrames({
           badgeText,
           aiGenerated: aiNote,
           showGuides: guides
-        }, figmaImage, curImgSize, figmaLogo, resolveContentBox(format));
+        }, figmaImage, curImgSize, figmaLogo, resolveContentBox(format), figmaLogoWhite);
       } else {
         buildFullBleedLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       }
@@ -3560,8 +3560,48 @@ function resolveContentBox(format) {
   return { x: 0, y: 0, w: W, h: H };
 }
 
-function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo, contentBox) {
+function buildMasterSafeLayout(frame, format, layout, content, figmaImage, imageSize, figmaLogo, contentBox, figmaLogoWhite) {
   const cb = contentBox || resolveContentBox(format);
+  // 9.9. Meta Automatic Placements — kompozičná oprava pre presne tri
+  // formáty (1200×1200, 1200×628, 1080×1920), overená priamo proti
+  // Surďovej referencii (z2gIXYePfNODOwmjecZwRB, frame 2:1135/2:1116/
+  // 2:1099). Úzko orezané na channel === "Meta" + presné rozmery, aby sa
+  // nedotklo žiadneho iného kanála ani formátu — TB.headline, KV geometria
+  // square/wide a headline veľkosti ostávajú presne také, ako sú.
+  const isMetaChannel = String(format.channel || "").toLowerCase() === "meta";
+  const isMetaSquare = isMetaChannel && format.width === 1200 && format.height === 1200;
+  const isMetaWide = isMetaChannel && format.width === 1200 && format.height === 628;
+  const isMetaPortrait = isMetaChannel && format.width === 1080 && format.height === 1920;
+  function drawMetaAiNote(centered, x, y) {
+    if (!(content.aiGenerated && layout.show_ai_disclosure !== false)) return;
+    const t = figma.createText();
+    t.name = "AI generované";
+    t.fontName = FONT_REGULAR;
+    t.characters = "✧  " + STYLE.aiTagText;
+    t.fontSize = aiNoteFontSize(format);
+    t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    t.opacity = 0.80;
+    try { t.letterSpacing = { value: -1.5, unit: "PERCENT" }; } catch (e) {}
+    t.textAutoResize = "WIDTH_AND_HEIGHT";
+    frame.appendChild(t);
+    t.x = centered ? Math.round((format.width - t.width) / 2) : x;
+    t.y = y;
+    t.locked = true;
+  }
+  // Referenčné layouty nemajú viditeľný subheadline/legal (LAYOUT-VYSKA/
+  // LAYOUT-SIRKA/LAYOUT-SQUARE majú len HEADLINE a AI generované) — ak ich
+  // ale campaign rules vyžadujú, umiestňujeme ich v rámci tejto kompozície
+  // (pod headline skupinou), nie generickým bottom-stackom viazaným na celý
+  // frame. legalY sa navyše nikdy nedostane pod spodný okraj rámu (rovnaký
+  // princíp ako P0-16f).
+  function drawMetaLegal(x, y, w, align) {
+    if (!(layout.show_legal !== false && content.legalText)) return;
+    const legalFontSize = TB.legal(format.width, format.height);
+    const legalH = measureWrappedHeight(frame, content.legalText, w, legalFontSize, "Regular");
+    const maxY = format.height - Math.max(4, Math.round(TB.padding(format.width, format.height) * 0.25)) - legalH;
+    addTemplateText(frame, "Legal text", content.legalText, [x, Math.min(y, maxY), w, legalH],
+      legalFontSize, { r: 1, g: 1, b: 1 }, "Regular", align || "LEFT");
+  }
   const _ratio = format.width / format.height;
   const family = layout.master_family ||
     (_ratio >= 1.25 ? "wide" : (_ratio <= 0.8 ? "portrait" : "square"));
@@ -3584,6 +3624,86 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
 
   if (family === "wide") {
+    if (isMetaWide) {
+      // Meta Automatic Placements 1200×628 — samostatná, uzavretá vetva
+      // (KV geometria nezmenená — rovnaká voľba ako generická wide vetva
+      // nižšie — len panel/headline/subheadline/logo/AI/legal podľa
+      // overenej referencie).
+      const metaImageW = Math.round(format.width * 0.75);
+      if (layout.asset_fallback_kind) {
+        addProtectedImageFrame(
+          frame, figmaImage, imageSize, "Protected single master — wide image zone",
+          [0, 0, metaImageW, format.height], { x: 0, y: 0.5 }, undefined, true
+        );
+        layout.kv_strategy = "master-protected-single-master";
+      } else {
+        addMasterCoreImage(frame, figmaImage, imageSize, [0, 0, metaImageW, format.height], focal, content.showGuides, undefined, true);
+      }
+      // "prechod" x=746..882 (šírka 136), plná krycosť od x=882 —
+      // z2gIXYePfNODOwmjecZwRB frame 2:1116 (VIZUAL-BACKGROUND x=882
+      // potvrdzuje presne tento bod). Predtým generický panel začínal už na
+      // x=540 a prekrýval oveľa väčšiu časť fotografie, než referencia.
+      const metaPanelX = 746;
+      const metaBrand = campaignSurface(layout);
+      noteContrastIfLow(layout, metaBrand, { r: 1, g: 1, b: 1 }, 3.0, "wide_panel_headline_text");
+      const metaPanel = figma.createFrame();
+      metaPanel.name = "Wide content panel";
+      metaPanel.resize(format.width - metaPanelX, format.height);
+      metaPanel.x = metaPanelX;
+      metaPanel.y = 0;
+      metaPanel.clipsContent = true;
+      const metaBoundary = (882 - 746) / (format.width - metaPanelX);
+      metaPanel.fills = [{
+        type: "GRADIENT_LINEAR",
+        gradientTransform: [[1, 0, 0], [0, 1, 0]],
+        gradientStops: [
+          { position: 0, color: { r: metaBrand.r, g: metaBrand.g, b: metaBrand.b, a: 0 } },
+          { position: metaBoundary, color: { r: metaBrand.r, g: metaBrand.g, b: metaBrand.b, a: 1 } },
+          { position: 1, color: { r: metaBrand.r, g: metaBrand.g, b: metaBrand.b, a: 1 } }
+        ]
+      }];
+      frame.appendChild(metaPanel);
+
+      // Headline+subheadline skupina vycentrovaná v referenčnom kontajneri
+      // (I2:1134;96:1997 HEADLINE, absolútne x=646,y=146,w=503,h=300) —
+      // nie kotvená zdola nahor podľa CTA/AI rezervy (Meta nemá CTA, takže
+      // krátky 1-riadkový headline predtým padal až na y=443).
+      const metaHeadlineSize = TB.headline(format.width, format.height);
+      const metaSubheadlineSize = TB.subheadline(format.width, format.height);
+      const metaContainerX = 646, metaContainerY = 146, metaContainerW = 503, metaContainerH = 300;
+      const metaShowSub = shouldShowSubheadline(format, layout, metaContainerH, content.headline, content.subheadline);
+      const metaGap = Math.round(metaHeadlineSize * 0.30);
+      const metaSubH = metaShowSub
+        ? measureWrappedHeight(frame, content.subheadline, metaContainerW, metaSubheadlineSize, "Regular")
+        : 0;
+      const metaHlH = measureWrappedHeight(frame, content.headline, metaContainerW, metaHeadlineSize, "Bold") ||
+        Math.round(metaHeadlineSize * 1.3);
+      const metaGroupH = metaHlH + (metaShowSub ? metaGap + metaSubH : 0);
+      const metaGroupTop = metaContainerY + Math.max(0, Math.round((metaContainerH - metaGroupH) / 2));
+      addTemplateText(frame, "Headline", content.headline,
+        [metaContainerX, metaGroupTop, metaContainerW, metaHlH],
+        metaHeadlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
+      if (metaShowSub) {
+        addTemplateText(frame, "Subheadline", content.subheadline,
+          [metaContainerX, metaGroupTop + metaHlH + metaGap, metaContainerW, metaSubH],
+          metaSubheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", "LEFT");
+      }
+
+      // Logo: pozícia sa už zhoduje s referenciou (x≈1013,y≈448 namerané
+      // proti I2:1134;96:1994 x≈1014,y≈446) — jediný rozdiel je variant.
+      const metaWLogo = TB.logoBox(format.width, format.height);
+      if (shouldShowLogo(format, layout, figmaLogo)) {
+        placeLogo(frame, figmaLogoWhite || figmaLogo,
+          cb.x + cb.w - pad - metaWLogo.width, cb.y + cb.h - pad - metaWLogo.height,
+          metaWLogo.width, metaWLogo.height);
+      }
+
+      // AI tag vľavo dole pri fotke (I2:1134;96:1995, absolútne x=50,y=553)
+      // — NIE pod headline vpravo, ako generický addAiNote() ukotvuje.
+      drawMetaAiNote(false, 50, 553);
+      drawMetaLegal(metaContainerX, metaGroupTop + metaGroupH + metaGap, metaContainerW, "LEFT");
+      return;
+    }
     const imageW = Math.round(format.width * 0.75);
     const adaptedWide = !!layout.asset_fallback_kind;
     if (adaptedWide) {
@@ -3753,6 +3873,88 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // to orezávalo hlavu na úzkych formátoch a pôsobilo to "špinavo" oproti
     // referencii. Teraz je fitted+panel vždy default pre celú "portrait"
     // rodinu; scrim nižšie (riadok ~2634) sa preto vždy skryje.
+    if (isMetaPortrait) {
+      // Meta Automatic Placements 1080×1920 — samostatná, uzavretá vetva.
+      // Presné súradnice overené priamo z z2gIXYePfNODOwmjecZwRB, frame
+      // 2:1099 (VIZUAL-KV/prechod/VIZUAL-BACKGROUND/LAYOUT-VYSKA). Plugin
+      // predtým fitoval fotku 0..1080 a headline padal až na y=1648 —
+      // o ~870 px nižšie než referencia.
+      const kvHolder = figma.createFrame();
+      kvHolder.name = "Protected single master — portrait image zone";
+      kvHolder.resize(format.width, format.height);
+      kvHolder.x = 0;
+      kvHolder.y = 0;
+      kvHolder.clipsContent = true;
+      kvHolder.fills = [];
+      frame.appendChild(kvHolder);
+      if (figmaImage) {
+        const kvRect = figma.createRectangle();
+        kvRect.name = "Key visual — protected full master";
+        kvRect.resize(1686, 1686);
+        kvRect.x = -303;
+        kvRect.y = -271;
+        kvRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+        kvHolder.appendChild(kvRect);
+      } else {
+        kvHolder.fills = [{ type: "SOLID", color: { r: 0.84, g: 0.86, b: 0.9 } }];
+      }
+
+      // prechod y=780->1276 (výška 496), opaque pás 1276->1920.
+      const metaPanelY = 780;
+      const metaPortraitColor = campaignSurface(layout);
+      noteContrastIfLow(layout, metaPortraitColor, { r: 1, g: 1, b: 1 }, 4.5, "portrait_panel_small_text");
+      noteContrastIfLow(layout, metaPortraitColor, { r: 1, g: 1, b: 1 }, 3.0, "portrait_panel_headline_text");
+      const metaPortraitPanel = figma.createRectangle();
+      metaPortraitPanel.name = "Adaptive portrait content panel";
+      metaPortraitPanel.resize(format.width, format.height - metaPanelY);
+      metaPortraitPanel.x = 0;
+      metaPortraitPanel.y = metaPanelY;
+      const metaPortraitBoundary = (1276 - metaPanelY) / (format.height - metaPanelY);
+      metaPortraitPanel.fills = [sampledPortraitOverlayGradient(layout, metaPortraitBoundary, 0.85, metaPortraitColor)];
+      frame.appendChild(metaPortraitPanel);
+      layout.kv_strategy = "master-protected-single-master";
+
+      // Headline kontajner (I2:1106;96:1128 HEADLINE, absolútne x=71,y=777,
+      // 938×376), textAlignHorizontal=CENTER, bottom-aligned v rámci
+      // kontajnera — krátky headline/subheadline musí zostať v tomto
+      // priestore, nie pri spodnom okraji rámu.
+      const metaHeadlineSize = TB.headline(format.width, format.height);
+      const metaSubheadlineSize = TB.subheadline(format.width, format.height);
+      const metaContainerX = 71, metaContainerTop = 777, metaContainerW = 938, metaContainerH = 376;
+      const metaContainerBottom = metaContainerTop + metaContainerH;
+      const metaShowSub = shouldShowSubheadline(format, layout, metaContainerH, content.headline, content.subheadline);
+      const metaGap = Math.round(metaHeadlineSize * 0.30);
+      const metaSubH = metaShowSub
+        ? measureWrappedHeight(frame, content.subheadline, metaContainerW, metaSubheadlineSize, "Regular")
+        : 0;
+      const metaHlH = measureWrappedHeight(frame, content.headline, metaContainerW, metaHeadlineSize, "Bold") ||
+        Math.round(metaHeadlineSize * 1.3);
+      let metaCursor = metaContainerBottom;
+      if (metaShowSub) metaCursor -= metaSubH;
+      const metaSubY = metaCursor;
+      if (metaShowSub) metaCursor -= metaGap;
+      metaCursor -= metaHlH;
+      const metaHeadlineY = Math.max(metaContainerTop, metaCursor);
+      addTemplateText(frame, "Headline", content.headline,
+        [metaContainerX, metaHeadlineY, metaContainerW, metaHlH],
+        metaHeadlineSize, { r: 1, g: 1, b: 1 }, "Bold", "CENTER");
+      if (metaShowSub) {
+        addTemplateText(frame, "Subheadline", content.subheadline,
+          [metaContainerX, metaSubY, metaContainerW, metaSubH],
+          metaSubheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", "CENTER");
+      }
+
+      // Referenčný layout nemá viditeľné bankové logo v portrait variante
+      // (LAYOUT-VYSKA obsahuje len HEADLINE a AI generované) — logo sa tu
+      // preto vôbec nekreslí, nezávisle od luminancie/variantu.
+
+      // AI generované centrované na šírku rámu (I2:1106;96:1126, box
+      // 222×38,5 pri x=432 na šírke 1080 — teda centrované, nie pevné x),
+      // y=1189.
+      drawMetaAiNote(true, null, 1189);
+      drawMetaLegal(metaContainerX, metaContainerBottom + metaGap, metaContainerW, "CENTER");
+      return;
+    }
     const adaptedPortrait = family === "portrait";
     // P0-29-S8: hoistnuté mimo if-bloku nižšie, aby sa dal panel po
     // výpočte headlineY (ďalej dole) retroaktívne skrátiť namiesto
@@ -4013,44 +4215,86 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     }
 
     const textAlign = (format.height / format.width >= 1.7 && format.width >= 600) ? "CENTER" : "LEFT";
-    let headlineNode = placeReserveText(
-      "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
-      headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
-    );
-    if (headlineNode && showSubheadline) {
-      const headlineBottom = subheadlineY - gap;
-      headlineNode.y = Math.max(cb.y + pad, headlineBottom - headlineNode.height);
-      // Po posunutí bližšie k subheadline môže text vojsť do vertikálnej
-      // zóny loga. Vtedy ho prekreslíme do užšieho stĺpca a znovu ukotvíme
-      // jeho spodnú hranu — bez kolízie a bez falošnej prázdnej medzery.
-      if (logoReserve && headlineBottom > logoTop &&
-          headlineNode.width > Math.max(60, textW - logoReserve) + 1) {
-        headlineNode.remove();
-        headlineNode = addTemplateText(
-          frame, "Headline", content.headline,
-          [cb.x + pad, headlineY, Math.max(60, textW - logoReserve), headlineBoxH],
-          headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
-        );
-        if (headlineNode) headlineNode.y = Math.max(cb.y + pad, headlineBottom - headlineNode.height);
+    if (isMetaSquare) {
+      // Meta Automatic Placements 1200×1200 — KV geometria a AI disclosure
+      // ostávajú generické (nezmenené — addAiNote() na konci funkcie sa
+      // spúšťa aj pre tento vetvu), len headline+subheadline skupina sa
+      // ukotvuje do referenčného kontajnera (I2:1141;96:1330 HEADLINE,
+      // absolútne x=60,y=887,w=843,h=262, bottom-aligned) namiesto
+      // generického cursorY steku, ktorý krátky text nechával príliš
+      // vysoko/nízko podľa CTA/loga rezervy (Meta nemá CTA); legal text sa
+      // kreslí priamo pod túto skupinu (drawMetaLegal), nie generickým
+      // bottom-stackom viazaným na celý frame — pozri guard nižšie pri
+      // generickom legal bloku.
+      const metaContainerX = 60, metaContainerTop = 887, metaContainerW = 843, metaContainerH = 262;
+      const metaContainerBottom = metaContainerTop + metaContainerH;
+      const metaGap = Math.round(headlineSize * 0.30);
+      const metaSubH = showSubheadline
+        ? measureWrappedHeight(frame, content.subheadline, metaContainerW, subheadlineSize, "Regular")
+        : 0;
+      const metaHlH = measureWrappedHeight(frame, content.headline, metaContainerW, headlineSize, "Bold") ||
+        Math.round(headlineSize * 1.3);
+      let metaCursor = metaContainerBottom;
+      if (showSubheadline) metaCursor -= metaSubH;
+      const metaSubY = metaCursor;
+      if (showSubheadline) metaCursor -= metaGap;
+      metaCursor -= metaHlH;
+      const metaHeadlineY = Math.max(metaContainerTop, metaCursor);
+      addTemplateText(frame, "Headline", content.headline,
+        [metaContainerX, metaHeadlineY, metaContainerW, metaHlH],
+        headlineSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
+      if (showSubheadline) {
+        addTemplateText(frame, "Subheadline", content.subheadline,
+          [metaContainerX, metaSubY, metaContainerW, metaSubH],
+          subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", "LEFT");
       }
-    }
-    if (headlineNode && family === "portrait") {
-      headlineNode.textAlignVertical = "CENTER";
-    }
-    if (showSubheadline) {
-      placeReserveText(
-        "Subheadline", content.subheadline, cb.x + pad, subheadlineY, subheadlineBoxH,
-        subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", textAlign
+      if (shouldShowLogo(format, layout, figmaLogo)) {
+        const logoX = logoOwnRow
+          ? Math.round(cb.x + (cb.w - logo.width) / 2)
+          : (cb.x + cb.w - pad - logo.width);
+        placeLogo(frame, figmaLogoWhite || figmaLogo, logoX, cb.y + cb.h - pad - logo.height, logo.width, logo.height);
+      }
+      drawMetaLegal(metaContainerX, metaContainerBottom + metaGap, metaContainerW, "LEFT");
+    } else {
+      let headlineNode = placeReserveText(
+        "Headline", content.headline, cb.x + pad, headlineY, headlineBoxH,
+        headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
       );
-    }
-    if (layout.show_cta !== false) {
-      addMasterCta(frame, content.ctaText, cb.x + pad, btnY, btnW, btn.height);
-    }
-    if (shouldShowLogo(format, layout, figmaLogo)) {
-      const logoX = logoOwnRow
-        ? Math.round(cb.x + (cb.w - logo.width) / 2)
-        : (cb.x + cb.w - pad - logo.width);
-      placeLogo(frame, figmaLogo, logoX, cb.y + cb.h - pad - logo.height, logo.width, logo.height);
+      if (headlineNode && showSubheadline) {
+        const headlineBottom = subheadlineY - gap;
+        headlineNode.y = Math.max(cb.y + pad, headlineBottom - headlineNode.height);
+        // Po posunutí bližšie k subheadline môže text vojsť do vertikálnej
+        // zóny loga. Vtedy ho prekreslíme do užšieho stĺpca a znovu ukotvíme
+        // jeho spodnú hranu — bez kolízie a bez falošnej prázdnej medzery.
+        if (logoReserve && headlineBottom > logoTop &&
+            headlineNode.width > Math.max(60, textW - logoReserve) + 1) {
+          headlineNode.remove();
+          headlineNode = addTemplateText(
+            frame, "Headline", content.headline,
+            [cb.x + pad, headlineY, Math.max(60, textW - logoReserve), headlineBoxH],
+            headlineSize, { r: 1, g: 1, b: 1 }, "Bold", textAlign
+          );
+          if (headlineNode) headlineNode.y = Math.max(cb.y + pad, headlineBottom - headlineNode.height);
+        }
+      }
+      if (headlineNode && family === "portrait") {
+        headlineNode.textAlignVertical = "CENTER";
+      }
+      if (showSubheadline) {
+        placeReserveText(
+          "Subheadline", content.subheadline, cb.x + pad, subheadlineY, subheadlineBoxH,
+          subheadlineSize, { r: 1, g: 1, b: 1 }, "Regular", textAlign
+        );
+      }
+      if (layout.show_cta !== false) {
+        addMasterCta(frame, content.ctaText, cb.x + pad, btnY, btnW, btn.height);
+      }
+      if (shouldShowLogo(format, layout, figmaLogo)) {
+        const logoX = logoOwnRow
+          ? Math.round(cb.x + (cb.w - logo.width) / 2)
+          : (cb.x + cb.w - pad - logo.width);
+        placeLogo(frame, figmaLogo, logoX, cb.y + cb.h - pad - logo.height, logo.width, logo.height);
+      }
     }
   }
 
@@ -4064,7 +4308,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       Math.max(12, Math.round(badgeH * 0.42)), BRAND_COLOR, "Bold", "CENTER"
     );
   }
-  if (layout.show_legal !== false && content.legalText) {
+  // isMetaSquare: legal už nakreslený vyššie (drawMetaLegal, viazaný na
+  // referenčný headline kontajner), nie tento generický celofrémový
+  // bottom-stack (isMetaWide/isMetaPortrait sa sem vôbec nedostanú — obe
+  // vetvy končia early return-om).
+  if (layout.show_legal !== false && content.legalText && !isMetaSquare) {
     const legalFontSize = TB.legal(format.width, format.height);
     const legalBottomMargin = Math.max(4, Math.round(pad * 0.25));
     // 9.9. dodatok (nájdené pri vizuálnej kontrole 320×480 topky.sk):

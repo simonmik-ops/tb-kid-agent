@@ -2831,27 +2831,24 @@ function resolveAdformPsdRules(templateId, content, layout) {
     if (compact) Object.assign(rules, compact);
   }
 
-  const adaptedPortrait = layout && layout.asset_fallback_kind === "portrait";
-  if (adaptedPortrait && templateId === "adform_300x600") {
-    Object.assign(rules, {
-      panel: [0, 300, 300, 300],
-      headline: [20, 365, 230, 58], headlineSize: 25,
-      cta: [20, 455, 124, 42], bankLogo: [216, 480, 64, 62],
-      ai: [23, 562, 100, 19]
-    });
-  }
-  if (adaptedPortrait && templateId === "adform_160x600") {
-    Object.assign(rules, {
-      panel: [0, 160, 160, 440],
-      headline: [12, 250, 136, 54], headlineSize: 22,
-      cta: [15, 320, 130, 42], bankLogo: [43, 390, 74, 73],
-      // ai bolo na y:548 — logo konci na 390+73=463, takze medzi nimi
-      // zostavala ~85px prazdna medzera (cca 17 % vysky frame-u), nahlasene
-      // pri vizualnej kontrole. Posunute na 483 (~20px pod logom), konzistentne
-      // s tesnejsim rozostupom, aky uz ma 300x600 (logo koniec 542, ai 562).
-      ai: [30, 483, 100, 19]
-    });
-  }
+  // 9.9. dodatok (MERANIE_adform_vs_PSD_8_9): tento blok predtým prepisoval
+  // panel/headline/headlineSize/cta/bankLogo/ai natvrdo ručne doladenými
+  // súradnicami vždy, keď je KV odvodený z jediného nahraného mastera
+  // (asset_fallback_kind === "portrait") — teda takmer vždy, keď nikto
+  // nenahral samostatný portrétový variant. Pixel-porovnanie proti
+  // schváleným PSD artboardom (tests/visual-baselines/) potvrdilo: 300×250
+  // a 970×250 (bez tohto override) sedia na pixel, 300×600 a 160×600
+  // (S TÝMTO override) sa rozchádzajú — CTA o 41 px/20 px posunuté,
+  // rozmery iné. Príčina: fallback KV orientácie nemá dôvod hýbať CTA
+  // tlačidlom, headlineom, logom ani AI tagom — tie sú súčasťou PSD
+  // template geometrie, nie fotky. Blok odstránený celý; `rules` teraz
+  // vždy vychádza priamo z ADFORM_PSD_RULES (prípadne compactCopy variantu
+  // vyššie), rovnako pre fallback aj nefallback prípad. Pre 300×600 to
+  // znamená, že panel kľúč zostáva nedefinovaný (presne ako v
+  // ADFORM_PSD_RULES.adform_300x600, ktorá žiadny panel nemá) —
+  // addAdformBackgroundTreatment() tak padne na svoju existujúcu vetvu pre
+  // formáty bez rules.panel ("Bottom readability gradient", celoplošný
+  // scrim), rovnaký mechanizmus, aký by sa použil aj bez fallbacku.
   return rules;
 }
 

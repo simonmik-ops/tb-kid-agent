@@ -20,6 +20,14 @@ assert.deepStrictEqual(
   [60, 80, 81],
   "wide, square and portrait headline sizes must keep the approved optical scale"
 );
+// 9.9. dodatok: táto assertion bola dočasne ODSTRÁNENÁ v commite 9cab0e4,
+// keď nová wide-vetva (H*0,0955) zmenila výsledok z 89 na 96 — nevyriešený
+// konflikt s 1200×628 (potrebuje H*0,0955=60), obe formáty idú cez rovnakú
+// vetvu (r > 1,45). Obnovené na pôvodných 89 na výslovnú žiadosť — test sa
+// neohýba, aby sedel na kód. Aktuálne PADÁ (TB.headline(1920,1080) je teraz
+// 96), kým sa nevyberie a neimplementuje riešenie z návrhu (viď odpoveď).
+assert.strictEqual(TB.headline(1920, 1080), 89,
+  "Full-HD wide headline must keep the same 8.2% optical scale instead of the old 52 px cap");
 assert.deepStrictEqual(
   [TB.subheadline(1200, 628), TB.subheadline(1200, 1200), TB.subheadline(1080, 1920)],
   [31, 42, 42],
@@ -31,7 +39,12 @@ assert.strictEqual(TB.button(1200, 1200).height, 64, "CTA height must stay subor
 assert(source.includes('t.opacity = 0.80'), "AI disclosure must match the PSD 80% opacity");
 assert(!source.includes('backing.name = "AI generované — podložka"'), "AI disclosure must not use the old black pill");
 assert(source.includes('style === "Regular" ? 110 : 100'), "typographic line-height tokens must be explicit");
-assert(source.includes('style === "Regular" ? 0 : -2'), "tracking must follow the PSD-derived scale");
+// 9.9. oprava: tracking sa vyberá podľa ROLY (name), nie podľa štýlu —
+// Headline -2%/Subheadline 0% majú novú referenčnú hodnotu, Badge/Legal
+// text/CTA text/slogan (všetky zdieľajú Bold alebo Regular štýl s inými
+// rolami) si musia zachovať pôvodný -2,5%/-1,5% tracking.
+assert(source.includes('name === "Headline" ? -2 : (name === "Subheadline" ? 0 : (style === "Regular" ? -1.5 : -2.5))'),
+  "tracking must be selected by role (name), not by style, so Badge/Legal/CTA/slogan keep their original values");
 // MERGE 7.9: master's WCAG-correct direction/range won over oprava-26-8's
 // visually-narrower 46-64% band — see the "MERGE 7.9." comment above
 // scrimAlphaFor in plugin/code.js for the unresolved tension (light-KV

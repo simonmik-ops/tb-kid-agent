@@ -583,8 +583,10 @@ function addAiNote(frame, format, contentBox) {
   t.fontSize = aiNoteFontSize(format);
   t.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   t.opacity = 0.80;                       // presne podľa PSD disclosure vrstvy
-  // 9.9. dodatok: FONT_REGULAR tracking má byť 0 %, nie -1,5 % (referencia).
-  try { t.letterSpacing = { value: 0, unit: "PERCENT" }; } catch (e) {}
+  // 9.9. oprava: predošlá zmena (0,80% -> 0%) bola nesprávna generalizácia
+  // podľa štýlu (Regular), nie podľa role — pre AI disclosure nemáme
+  // referenčnú hodnotu, vrátené na pôvodných -1,5 %.
+  try { t.letterSpacing = { value: -1.5, unit: "PERCENT" }; } catch (e) {}
   t.textAutoResize = "WIDTH_AND_HEIGHT";
   const pad = TB.padding(format.width, format.height);
   frame.appendChild(t);
@@ -2953,8 +2955,17 @@ function addTemplateText(frame, name, value, box, fontSize, color, style, align,
   txt.textAlignHorizontal = align || "LEFT";
   try {
     txt.lineHeight = { value: style === "Regular" ? 110 : 100, unit: "PERCENT" };
-    // 9.9. dodatok: referencia je Regular 0 % / Bold -2 % (predtým -1,5 % / -2,5 %).
-    txt.letterSpacing = { value: style === "Regular" ? 0 : -2, unit: "PERCENT" };
+    // 9.9. oprava: predošlá zmena vetvila podľa štýlu (Regular/Bold), čo
+    // nesprávne zasiahlo aj Badge a "Myslite na seba" (obe Bold) a Legal
+    // text/AI generované (obe Regular) — pre tie nemáme referenčnú hodnotu.
+    // Tracking sa teraz volí podľa ROLY (name), nie podľa štýlu: len
+    // Headline (-2 %, predtým -2,5 %) a Subheadline (0 %, predtým -1,5 %)
+    // majú novú referenčnú hodnotu. Všetko ostatné si drží svoj pôvodný
+    // štýlom odvodený tracking.
+    txt.letterSpacing = {
+      value: name === "Headline" ? -2 : (name === "Subheadline" ? 0 : (style === "Regular" ? -1.5 : -2.5)),
+      unit: "PERCENT"
+    };
   } catch (e) {}
   try {
     const slova = String(value).split(/\s+/);

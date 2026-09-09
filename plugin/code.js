@@ -4439,6 +4439,54 @@ function buildAdformPsdLayout(frame, format, layout, content, figmaImage, imageS
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — top zone", [0, 0, 160, 360], focal, { x: 0.5, y: 0.5 }, 1.02);
   } else if (activeTemplate === "adform_300x250") {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, 300, 250], focal, { x: compactCopy ? 0.86 : 0.76, y: 0.52 }, compactCopy ? 1.16 : 1.02);
+  } else if (activeTemplate === "adform_300x600" &&
+             layout.asset_fallback_kind === "portrait" && layout.kv_source_kind === "square") {
+    // 9.9. dodatok: komentár vyššie ("fallback vetvy uz nie su potrebne")
+    // bol kalibrovaný proti portrait/landscape zdrojom, nie proti
+    // ŠTVORCOVÉMU masteru — cover-crop cez celú vysokú zónu (300×600,
+    // pomer 1:2) vynúti pri štvorcovom zdroji extrémny zoom (takmer 2×
+    // priblíženie oproti šírke), nie plynulý celoplošný záber ako v PSD.
+    // Skutočný portrait/landscape zdroj touto vetvou vôbec neprechádza —
+    // pre neho platí pôvodné správanie (else nižšie) bez zmeny.
+    //
+    // Chránená štvorcová kompozícia + farebná extension, overené priamo
+    // proti z2gIXYePfNODOwmjecZwRB, frame 2:1247 (VIZUAL-KV/VIZUAL-
+    // BACKGROUND) — súradnice sú fixné referenčné hodnoty pre tento jeden
+    // formát, nie prepočítaný vzorec.
+    const kvHolder = figma.createFrame();
+    kvHolder.name = "Key visual crop — full frame";
+    kvHolder.resize(format.width, format.height);
+    kvHolder.x = 0;
+    kvHolder.y = 0;
+    kvHolder.clipsContent = true;
+    kvHolder.fills = [];
+    frame.appendChild(kvHolder);
+    if (figmaImage) {
+      const kvRect = figma.createRectangle();
+      kvRect.name = "Key visual — protected square";
+      kvRect.resize(523, 523);
+      kvRect.x = -112;
+      kvRect.y = -46;
+      kvRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+      kvHolder.appendChild(kvRect);
+    } else {
+      kvHolder.fills = [{ type: "SOLID", color: { r: 0.84, g: 0.86, b: 0.9 } }];
+    }
+    // Plynulý prechod z fotky do spodnej farebnej plochy — rovnaká funkcia
+    // ako master_safe portrait (sampledPortraitOverlayGradient), nie tvrdý
+    // rez. Rect začína VYŠŠIE (y=423), než kde fotka reálne končí
+    // (-46+523=477) — presne podľa referencie — alfa dobehne na plnú
+    // krycosť presne tam, kde fotka končí.
+    const extensionY = 423;
+    const extensionH = format.height - extensionY;
+    const extensionBoundary = (-46 + 523 - extensionY) / extensionH;
+    const extension = figma.createRectangle();
+    extension.name = "Key visual crop — colour extension";
+    extension.resize(format.width, extensionH);
+    extension.x = 0;
+    extension.y = extensionY;
+    extension.fills = [sampledPortraitOverlayGradient(layout, extensionBoundary, 1, campaignSurface(layout))];
+    frame.appendChild(extension);
   } else {
     addFocalImageFrame(frame, figmaImage, imageSize, "Key visual crop — full frame", [0, 0, format.width, format.height], focal, { x: compactCopy ? 0.72 : 0.68, y: 0.40 }, 1.02);
   }

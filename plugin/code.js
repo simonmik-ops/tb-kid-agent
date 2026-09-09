@@ -1001,6 +1001,21 @@ async function createAllFrames({
       } else if (layoutType === "micro") {
         buildMicroLayout(frame, format, layout, hl, figmaImage, figmaLogo);
       } else if (layoutType === "adform_psd") {
+        // 9.9. dodatok: pickLogoForLayout() vyberá biele/tmavé logo podľa
+        // farby FOTKY (brandEdgeColor), nie podľa toho, čo sa v skutočnosti
+        // vykreslí za logom. adform_300x600 (bez rules.panel — pozri
+        // resolveAdformPsdRules) kreslí celoplošný takmer čierny
+        // "Bottom readability gradient" (addAdformBackgroundTreatment,
+        // {0.04,0.04,0.05} alfa 0,06→0,78) NAD celou fotkou vrátane miesta,
+        // kde sedí bankLogo — takže aj pri korálovej fotke (svetlá luma →
+        // tmavé logo) je skutočné pozadie pod logom tmavé. Namerané priamo
+        // na živom výstupe (L6yFpLkKcHe9flUk3i11T1, node 47:404): logo
+        // takmer nečitateľné. 300×250 má rovnaký typ scrimu, ale len na
+        // ĽAVEJ strane — logo (x=215) sedí mimo neho, na holej fotke,
+        // problém sa tam nereprodukuje (overené screenshotom), preto sa
+        // táto výnimka týka len 300×600.
+        const adformLogo = (localAdformTemplate === "adform_300x600" && figmaLogoWhite)
+          ? figmaLogoWhite : figmaLogo;
         buildAdformPsdLayout(frame, format, layout, {
           headline,
           subheadline,
@@ -1008,7 +1023,7 @@ async function createAllFrames({
           legalText,
           badgeText,
           aiGenerated: aiNote
-        }, figmaImage, curImgSize, figmaLogo, localAdformTemplate);
+        }, figmaImage, curImgSize, adformLogo, localAdformTemplate);
       } else if (layoutType === "master_safe") {
         buildMasterSafeLayout(frame, format, layout, {
           headline,

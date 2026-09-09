@@ -67,4 +67,20 @@ assert.deepStrictEqual(j(r160.cta), [10, 340, 140, 48],
 assert.deepStrictEqual(j(r160.panel), [0, 310, 160, 290],
   "adform_160x600 panel musí sedieť na ADFORM_PSD_RULES, got " + JSON.stringify(r160.panel));
 
+// ── Regresia #2 (9.9., objavená priamo po prvej oprave): keď panel zmizol,
+// adform_300x600 padá na celoplošný takmer čierny "Bottom readability
+// gradient" (addAdformBackgroundTreatment) — ale pickLogoForLayout() vyberá
+// biele/tmavé logo podľa farby FOTKY, nie podľa tohto scrimu navrchu.
+// Namerané na živom výstupe (node 47:404): tmavé logo takmer nečitateľné
+// na tmavom scrime. 300×250 má rovnaký typ scrimu, ale len na ľavej
+// strane — logo (x=215) sedí mimo neho (overené screenshotom), takže
+// výnimka sa týka len 300×600. ──────────────────────────────────────────
+const adformDispatchStart = source.indexOf('layoutType === "adform_psd"');
+const adformDispatchEnd = source.indexOf("} else if (", adformDispatchStart);
+const adformDispatchSrc = source.slice(adformDispatchStart, adformDispatchEnd);
+assert(/localAdformTemplate === "adform_300x600" && figmaLogoWhite/.test(adformDispatchSrc),
+  "adform_300x600 musí vynútiť biele logo, keď je k dispozícii — inak je logo nečitateľné na čiernom scrime");
+assert(/buildAdformPsdLayout\([^;]*,\s*adformLogo\s*,\s*localAdformTemplate\)/.test(adformDispatchSrc),
+  "buildAdformPsdLayout sa musí volať s prepočítaným adformLogo, nie priamo s pôvodným figmaLogo");
+
 console.log("adform portrait-fallback override (PSD geometry regression): ok");

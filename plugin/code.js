@@ -2665,7 +2665,7 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
   }
 
   if (shouldShowHeadline(layout, headline)) {
-    const fontSize = Math.round(clamp(format.width * 0.055, 28, 44));
+    let fontSize = Math.round(clamp(format.width * 0.055, 28, 44));
     // Pôvodná medzera (13 % šírky) rátala s celou content area voľnou pre
     // headline. Keď CTA zabral spodok, rovnaká medzera by headline
     // stlačila na pár px — s CTA použi menšiu, pevnú medzeru.
@@ -2678,7 +2678,26 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
     // bez CTA, kde povodna 13%-sirky medzera uz aj tak logo cistila —
     // tam sa textY nemeni.
     const textY = Math.max(logoBottom + gap, heroH + pad + gap);
-    addText(frame, headline, pad, textY, format.width - pad * 2, Math.max(20, contentBottom - textY), fontSize, BRAND_COLOR, "LEFT", "Headline");
+    let boxH = contentBottom - textY;
+    // 9.9. dodatok (P2-31): na nízkych formátoch s logom AJ CTA (azet
+    // 640×500) nezostáva po vyššie uvedenom textY dosť miesta ani na jeden
+    // riadok — boxH tu vychádza záporný. Predošlý tvrdý floor "20 px" box
+    // predĺžil ZA hranicu CTA, takže sa headline vizuálne prekrýval s
+    // tlačidlom (namerané 5 px, live output azet 640×500). Overené: pre
+    // e-mailové formáty (azet/modrykonik/NMH) neexistuje žiadna Surďova
+    // Figma ani PSD referencia (skontrolované — Surďova master Figma aj
+    // lokálne PSD súbory pokrývajú len Meta/Google/Adform) — toto je preto
+    // vlastné, zdokumentované inžinierske rozhodnutie, nie hodnota odvodená
+    // z referencie: font sa zmenší tak, aby sa headline reálne zmestil do
+    // dostupného priestoru bez zásahu do CTA, s dolnou hranicou 12 px
+    // (existujúci konvenčný floor, P2-4). Nie je to finálne dizajnové
+    // riešenie (viď B-* zoznam) — len bezpečný fallback namiesto
+    // viditeľného prekryvu.
+    if (boxH < fontSize * 1.1) {
+      fontSize = Math.max(12, Math.min(fontSize, Math.round(boxH / 1.1)));
+      boxH = Math.max(12, boxH);
+    }
+    addText(frame, headline, pad, textY, format.width - pad * 2, boxH, fontSize, BRAND_COLOR, "LEFT", "Headline");
   }
 }
 

@@ -67,7 +67,8 @@ function runEmailLayout(width, height, opts) {
   );
   const logo = frame.findOne((n) => n.name === "Logo");
   const headline = frame.findOne((n) => n.name === "Headline");
-  return { logo: logo, headline: headline };
+  const cta = frame.findOne((n) => n.name === "CTA button");
+  return { logo: logo, headline: headline, cta: cta };
 }
 
 for (const dims of [[640, 500, "azet_dm"], [730, 1000, "modrykonik_email"], [500, 800, "nmh_dm"]]) {
@@ -84,5 +85,23 @@ const noLogo = runEmailLayout(640, 500, { show_logo: false });
 assert(!noLogo.logo, "no logo expected when show_logo is false");
 assert.strictEqual(noLogo.headline.y, 270 + 45 + Math.round(45 * 0.4),
   "headline position without a logo must be unchanged (heroH + pad + gap)");
+
+// Regresia 9.9.2026, P2-31: na azet 640×500 (logo AJ CTA prítomné) sa
+// headline box (predošlý tvrdý floor 20px) natiahol 5px DO CTA tlačidla —
+// potvrdené na živom výstupe. Ziadna Surdova referencia/PSD pre e-mailové
+// formáty neexistuje (overené) — toto je preto vlastné rozhodnutie (font
+// sa zmenší, aby sa zmestil do skutočne dostupného priestoru, floor 12px
+// podľa P2-4), nie hodnota z referencie. Test overuje mechanizmus: headline
+// nesmie NIKDY zasahovať do CTA, na žiadnom z troch reálnych formátov.
+for (const dims of [[640, 500, "azet_dm"], [730, 1000, "modrykonik_email"], [500, 800, "nmh_dm"]]) {
+  const [w, h, id] = dims;
+  const { headline, cta } = runEmailLayout(w, h);
+  assert(headline && cta, id + ": headline and CTA must both be drawn");
+  const headlineBottom = headline.y + headline.height;
+  assert(headlineBottom <= cta.y,
+    id + " (" + w + "×" + h + "): headline bottom (y=" + headlineBottom + ") must not reach into CTA (y=" + cta.y + ")");
+  assert(headline.fontSize >= 12,
+    id + ": headline font must never shrink below the 12px floor (P2-4), got " + headline.fontSize);
+}
 
 console.log("email layout logo/headline geometry: ok");

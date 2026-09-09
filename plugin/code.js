@@ -2097,7 +2097,14 @@ function buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage) {
   addSolidRect(frame, "Headline scrim", 0, boxY, format.width, boxH, campaignSurface(layout), 0.88);
 
   const fontSize = Math.round(clamp(format.height * (isPortrait ? 0.045 : 0.085), 20, 62));
-  addText(frame, headline, pad, boxY + pad, format.width - pad * 2, boxH - pad * 2, fontSize, { r: 1, g: 1, b: 1 });
+  // 9.9. dodatok (rovnaká trieda ako P0-16f vyššie v tomto súbore): addText()
+  // nemá poistku na zmenšenie fontu — dlhší headline by rástol
+  // textAutoResize=HEIGHT boxom pod "Headline scrim" obdĺžnik, na holú fotku
+  // bez podkladu. addTemplateText zmenší font/riadky tak, aby sa zmestil do
+  // scrimu.
+  addTemplateText(frame, "Headline", headline,
+    [pad, boxY + pad, format.width - pad * 2, boxH - pad * 2],
+    fontSize, { r: 1, g: 1, b: 1 }, "Bold");
 }
 
 // Full page branding: keep central website content readable/empty.
@@ -2652,7 +2659,13 @@ function buildNativeCenterLayout(frame, format, layout, headline, figmaImage) {
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(format.width * 0.055, 24, 38));
-    addText(frame, headline, pad, imageH + pad, format.width - pad * 2, format.height - imageH - pad * 2, fontSize, BRAND_COLOR);
+    // 9.9. dodatok (rovnaká trieda ako P0-16f vyššie v tomto súbore): addText()
+    // nemá poistku na zmenšenie fontu — dlhší headline by rástol
+    // textAutoResize=HEIGHT boxom pod spodný okraj frame-u (posledný prvok,
+    // nič pod ním nekryje presah, len holý biely frame.fills).
+    addTemplateText(frame, "Headline", headline,
+      [pad, imageH + pad, format.width - pad * 2, format.height - imageH - pad * 2],
+      fontSize, BRAND_COLOR, "Bold");
   }
 }
 
@@ -2762,16 +2775,17 @@ function buildStripLayout(frame, format, layout, headline, figmaImage, figmaLogo
 
   // Headline pod logom — jasne oddelené
   const fontSize = Math.max(7, Math.min(layout.headline_size_px || 18, Math.floor(format.height * 0.20)));
-  const txt = figma.createText();
-  txt.fontName = FONT;
-  txt.characters = headline || "HEADLINE";
-  txt.fontSize = fontSize;
-  txt.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  txt.resize(textZoneW, format.height);
-  txt.textAutoResize = "HEIGHT";
-  txt.x = pad;
-  txt.y = pad + logoH + Math.round(format.height * 0.08);
-  frame.appendChild(txt);
+  const textY = pad + logoH + Math.round(format.height * 0.08);
+  // 9.9. dodatok (rovnaká trieda ako P0-16f vyššie v tomto súbore): ručne
+  // vytvorený text mal resize(textZoneW, format.height) — teda celú výšku
+  // frame-u, nie skutočne dostupnú výšku POD textY (na nízkych "strip"
+  // banneroch — 728×90, 970×250 — to znamená prakticky žiadnu reálnu hranicu
+  // a žiadnu poistku na zmenšenie fontu, takže dlhší headline pri malej
+  // výške frame-u pretiekol cez spodný okraj). addTemplateText dostáva
+  // skutočne dostupnú výšku a má vlastný font-shrink mechanizmus.
+  addTemplateText(frame, "Headline", headline,
+    [pad, textY, textZoneW, Math.max(20, format.height - textY - pad)],
+    fontSize, { r: 1, g: 1, b: 1 }, "Bold");
 }
 
 // Zadanie 31.8 blok A / P0-22: jediné miesto pravdy pre hranicu medzi

@@ -2377,7 +2377,17 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     // panelu, nech headline vždy sedí na čitateľnom pozadí bez ohľadu na to,
     // čo je v danom mieste fotky.
     const textY = panelY + pad;
-    addText(frame, headline, x + pad, textY, contentW - pad * 2, Math.max(20, ctaTop - textY), fontSize, { r: 1, g: 1, b: 1 }, "CENTER", "Headline");
+    // 9.9. dodatok (rovnaká trieda ako P0-16f/master_safe subheadline vyššie
+    // v tomto súbore): addText() nemá ŽIADNU poistku na zmenšenie fontu ani
+    // limit počtu riadkov — pri dlhšom headline v úzkom stĺpci (160×600,
+    // 120×600) rástol textAutoResize=HEIGHT box bez obmedzenia nadol, priamo
+    // do CTA tlačidla (ctaTop je tu pevne dané PRED headline). addTemplateText
+    // má rovnaký font-shrink/maxRiadkov mechanizmus, aký už chráni master_safe
+    // headline/subheadline — nahrádza addText len tu, kde CTA/AI rezerva
+    // závisí od pevného ctaTop, nie od skutočnej výšky headlinu.
+    addTemplateText(frame, "Headline", headline,
+      [x + pad, textY, contentW - pad * 2, Math.max(20, ctaTop - textY)],
+      fontSize, { r: 1, g: 1, b: 1 }, "Bold", "CENTER");
   }
 }
 
@@ -2459,7 +2469,15 @@ function buildBrandingLeaderFullLayout(frame, format, layout, headline, ctaText,
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(format.height * 0.14, 18, 32));
-    addText(frame, headline, brandX + pad, pad, brandW - pad * 2, Math.max(20, ctaTop - pad), fontSize, { r: 1, g: 1, b: 1 });
+    // 9.9. dodatok (rovnaká trieda ako buildSideSafeLayout/master_safe
+    // vyššie): addText() nemá poistku na zmenšenie fontu — dlhší headline
+    // by rástol textAutoResize=HEIGHT boxom nadol do CTA (ctaTop pevne dané
+    // pred headline). addTemplateText pridáva font-shrink/maxRiadkov
+    // mechanizmus + korektné meno "Headline" (predtým chýbalo — addAiNote()
+    // preto tento uzol nikdy nevidela pri vlastnom vyhýbaní kolíziám).
+    addTemplateText(frame, "Headline", headline,
+      [brandX + pad, pad, brandW - pad * 2, Math.max(20, ctaTop - pad)],
+      fontSize, { r: 1, g: 1, b: 1 }, "Bold", "LEFT");
   }
 }
 
@@ -2612,12 +2630,17 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(comp.panelH * 0.16, 18, 46));
-    const headlineNode = addText(
-      frame, headline, comp.panelX + comp.inner, comp.panelY + comp.inner,
-      comp.panelW - comp.inner * 2, comp.panelH - comp.inner * 2 - ctaBudget,
-      fontSize, { r: 1, g: 1, b: 1 }
-    );
-    headlineNode.name = "Headline";
+    // 9.9. dodatok (rovnaká trieda ako buildSideSafeLayout vyššie): addText()
+    // nemá poistku na zmenšenie fontu — dlhší headline v malom paneli
+    // (comp.panelH je len 120–330px) by rástol nadol do CTA/AI rezervy
+    // (ctaBudget je tu pevne dané pred headline). addTemplateText pridáva
+    // font-shrink/maxRiadkov mechanizmus, name sa nastaví priamo (nie
+    // dodatočne cez .name — to už padalo na null, ak by shouldShowHeadline
+    // prešlo, ale value bolo prázdne).
+    addTemplateText(frame, "Headline", headline,
+      [comp.panelX + comp.inner, comp.panelY + comp.inner,
+       comp.panelW - comp.inner * 2, comp.panelH - comp.inner * 2 - ctaBudget],
+      fontSize, { r: 1, g: 1, b: 1 }, "Bold");
   }
 }
 

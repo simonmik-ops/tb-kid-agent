@@ -609,13 +609,25 @@ function addAiNote(frame, format, contentBox) {
   t.x = textCol !== null ? textCol : Math.max(cb.x + pad, Math.round(imgLeft) + pad);
   t.y = Math.min(cb.y + cb.h - t.height - pad, Math.round(imgBottom) - t.height - pad);
   try {
-    var kolizie = ["Logo", "CTA button", "Subheadline", "Headline", "Legal text"]
-      .map(function (nm) { return frame.findOne(function (q) { return q.name === nm; }); })
-      .filter(function (q) {
-        return q && (t.x < q.x + q.width) && (t.x + t.width > q.x) &&
-               (t.y < q.y + q.height) && (t.y + t.height > q.y);
-      });
-    if (kolizie.length) {
+    // 9.9. dodatok (nájdené pri vizuálnej kontrole Vinted 300×250): pôvodne
+    // sa kolízia kontrolovala len RAZ — po posunutí nad prvý nájdený
+    // kolidujúci prvok sa nová pozícia už neoverila voči ostatným (Legal
+    // text/CTA/Logo/... sedia na tomto malom formáte veľmi blízko seba).
+    // Namerané: AI tag posunutý nad "Legal text" skončil namiesto toho v
+    // zóne "CTA button" (9px zvislý, 88px vodorovný presah). Cyklus (rovnaký
+    // vzor ako font-shrink poistky inde v súbore) opakuje kontrolu proti
+    // VŠETKÝM prvkom po každom posune, kým nie je čistý alebo nedôjde k
+    // podlahe (pad).
+    var kolizneMena = ["Logo", "CTA button", "Subheadline", "Headline", "Legal text"];
+    var poistkaAi = 0;
+    while (poistkaAi < 5) {
+      var kolizie = kolizneMena
+        .map(function (nm) { return frame.findOne(function (q) { return q.name === nm; }); })
+        .filter(function (q) {
+          return q && (t.x < q.x + q.width) && (t.x + t.width > q.x) &&
+                 (t.y < q.y + q.height) && (t.y + t.height > q.y);
+        });
+      if (!kolizie.length) break;
       var najvyssia = kolizie.reduce(function (a, b) { return a.y < b.y ? a : b; });
       var novaY = najvyssia.y - t.height - Math.round(t.height * 0.5);
       if (novaY >= pad) {
@@ -623,7 +635,9 @@ function addAiNote(frame, format, contentBox) {
       } else {
         t.x = pad;
         t.y = format.height - t.height - pad;
+        break;
       }
+      poistkaAi++;
     }
   } catch (e) {}
   t.locked = true;
@@ -3881,14 +3895,43 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
         portraitImageH
       );
       if (contentTop > adaptivePanel.y) {
-        // Nový panel začína (v týchto medzerových prípadoch) prakticky vždy
-        // až POD spodným okrajom fotky — pôvodný obrazovo-viazaný
-        // boundaryStop stráca zmysel, stačí krátky, pevný nábeh (rovnaký
-        // princíp ako sampledLowerPanelGradient — rýchly nábeh k plnej
-        // krycosti, nie viazaný na percento obrázka).
+        // 9.9. dodatok (nájdené pri vizuálnej kontrole Httpool 1000×1500):
+        // pevný boundaryStop=0,12 tu bol nezávislý od toho, kde fotka SKUTOČNE
+        // končí voči novej (posunutej) pozícii panelu. Pixelovo overené na
+        // živom výstupe: presne na hranici fotky (y=1000 z 1500) farba SKOČÍ
+        // z (140,67,54) na (192,95,77) — o ~50 bodov jasnejšie — lebo panel v
+        // tom mieste ešte nedosiahol plnú krycosť (0,12 z jeho výšky 541px =
+        // 65px nábeh, fotka ale končí už po 41px do panelu), takže sa na
+        // krátko odhalí NEZATIENENÁ campaignSurface farba namiesto toho, aby
+        // nadviazala na fotkin už stmavený spodný okraj. Rovnaký vzorec ako
+        // pôvodný (nie-skrátený) boundaryStop vyššie — plná krycosť presne
+        // tam, kde fotka končí, nech sa za fotkou nikdy nič neodhalí.
+        // sampledPortraitOverlayGradient() má vlastný interný floor
+        // clamp(imageBoundaryStop, 0,16, 0,72) — zmysluplný pre pôvodné
+        // volanie (vždy je čo odhaľovať, fotka reálne siaha aspoň 16 % do
+        // panelu), ale tu je prekrytie fotky s panelom typicky oveľa menšie
+        // (namerané: 41 px z 541 px = 0,076) — floor 0,16 by aj s prepočítaným
+        // vzorcom vynútil širší nábeh, než kde fotka reálne končí, a presne
+        // ten istý švík by sa zopakoval (namerané: alfa 0,47 namiesto ~1,00).
+        // Gradient je preto postavený priamo tu, s floorom 0,02 — nič
+        // nepotrebuje odhaliť dlhšie, než kým fotka trvá.
+        const shortenedBoundary = clamp(
+          (portraitImageH - contentTop) / Math.max(1, format.height - contentTop),
+          0.02, 0.98
+        );
+        const shortenedEdge = campaignSurface(layout);
+        const shortenedDark = shadedColor(shortenedEdge, 0.85);
         adaptivePanel.resize(format.width, format.height - contentTop);
         adaptivePanel.y = contentTop;
-        adaptivePanel.fills = [sampledPortraitOverlayGradient(layout, 0.12, 0.85, campaignSurface(layout))];
+        adaptivePanel.fills = [{
+          type: "GRADIENT_LINEAR",
+          gradientTransform: [[0, 1, 0], [1, 0, 0]],
+          gradientStops: [
+            { position: 0, color: { r: shortenedEdge.r, g: shortenedEdge.g, b: shortenedEdge.b, a: 0 } },
+            { position: shortenedBoundary, color: { r: shortenedDark.r, g: shortenedDark.g, b: shortenedDark.b, a: 1 } },
+            { position: 1, color: { r: shortenedDark.r, g: shortenedDark.g, b: shortenedDark.b, a: 1 } }
+          ]
+        }];
       }
     }
 
@@ -4006,7 +4049,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   }
   if (layout.show_legal !== false && content.legalText) {
     const legalFontSize = TB.legal(format.width, format.height);
-    const legalW = cb.w - pad * 2;
     const legalBottomMargin = Math.max(4, Math.round(pad * 0.25));
     // 9.9. dodatok (nájdené pri vizuálnej kontrole 320×480 topky.sk):
     // legalH bol pevný odhad pre JEDEN riadok (fontSize * 1,6), ale Y sa
@@ -4019,10 +4061,28 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // v tomto súbore) zmeria skutočnú výšku PRED umiestnením, takže sa dá
     // kotviť zdola nahor a padding zostane zachovaný bez ohľadu na počet
     // riadkov.
-    const legalH = measureWrappedHeight(frame, content.legalText, legalW, legalFontSize, "Regular");
+    let legalW = cb.w - pad * 2;
+    let legalH = measureWrappedHeight(frame, content.legalText, legalW, legalFontSize, "Regular");
+    let legalY = cb.y + cb.h - legalH - legalBottomMargin;
+    // Druhý nález pri tej istej kontrole: Logo (wide aj portrait/square
+    // vetva vyššie) sedí VŽDY v tom istom spodnom páse ako legal text
+    // (cb.y+cb.h-pad-logo.height..cb.y+cb.h-pad) — legal text na plnú šírku
+    // ho prekrýval (namerané: topky.sk 320×480, "riziká." pod logom "IKA",
+    // 10px zvislo aj 52px vodorovne). Rovnaký dvojkrokový princíp ako
+    // placeReserveText() vyššie — skús plnú šírku, zúž len ak reálne
+    // zasahuje do zvislého pásma loga.
+    const legalLogoNode = frame.findOne(function (q) { return q.name === "Logo"; });
+    if (legalLogoNode &&
+        legalLogoNode.x + legalLogoNode.width > cb.x + pad &&
+        legalY < legalLogoNode.y + legalLogoNode.height &&
+        legalY + legalH > legalLogoNode.y) {
+      legalW = Math.max(60, legalLogoNode.x - Math.round(pad * 0.4) - (cb.x + pad));
+      legalH = measureWrappedHeight(frame, content.legalText, legalW, legalFontSize, "Regular");
+      legalY = cb.y + cb.h - legalH - legalBottomMargin;
+    }
     addTemplateText(
       frame, "Legal text", content.legalText,
-      [cb.x + pad, cb.y + cb.h - legalH - legalBottomMargin, legalW, legalH],
+      [cb.x + pad, legalY, legalW, legalH],
       legalFontSize,
       { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
     );

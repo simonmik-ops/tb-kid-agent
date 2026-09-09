@@ -125,6 +125,20 @@ assert(legalBottom <= 480,
 assert(480 - legalBottom >= 3,
   "320x480: legal text musí mať aspoň minimálny spodný padding (>=3px), got " + (480 - legalBottom));
 
+// Regresia 9.9.2026 (nájdené pri vizuálnej kontrole živého výstupu, topky.sk
+// 320×480 aj Vinted 300×250): Logo sedí v tom istom spodnom páse ako legal
+// text (obe kotvené na cb.y+cb.h) — legal text na plnú šírku ho prekrýval
+// (namerané: "riziká." pod "TATRA BANKA" logom, 10px zvislo + 52px
+// vodorovne). runMasterSafe() vyššie už logo kreslí (figmaLogo je nastavené,
+// show_logo: true) — táto kontrola len pridáva explicitné overenie, že sa
+// s legal textom neprekrýva.
+const legalLogo = legalFrame.findOne((n) => n.name === "Logo");
+assert(legalLogo, "320x480: logo must be drawn");
+assert(!overlaps(legal, legalLogo),
+  "320x480: legal text (x=" + legal.x + ".." + (legal.x + legal.width) + ", y=" + legal.y + ".." + legalBottom +
+  ") nesmie zasahovať do loga (x=" + legalLogo.x + ".." + (legalLogo.x + legalLogo.width) +
+  ", y=" + legalLogo.y + ".." + (legalLogo.y + legalLogo.height) + ")");
+
 // Regresia 9.9.2026 (rovnaká trieda ako legal text vyššie): subheadlineBoxH/
 // subH boli pevné odhady (1,25x / 1,6x fontSize) v "portrait/square" aj
 // "wide" vetve buildMasterSafeLayout — pri dlhšom podnadpise (bežná celá

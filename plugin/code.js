@@ -3639,7 +3639,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // CTA a AI tagu ostane menej ako 1,6× jeho výšky, alebo je formát
     // pod min(W,H) 400 px.
     const showSub = shouldShowSubheadline(format, layout, wCur - (cb.y + pad));
-    const subH = Math.round(TB.subheadline(format.width, format.height) * 1.6);
+    // 9.9. dodatok (rovnaký princíp ako P0-16f, "Legal text" nižšie v tomto
+    // súbore): pevný odhad 1,6x nepočíta so skutočným zalomením — reálny
+    // podnadpis (celá veta) sa v úzkom stĺpci bežne zalomí na viac riadkov,
+    // než odhad predpokladal, a box narastal NADOL od subY, smerom k CTA
+    // tlačidlu pod ním (btnY už bolo v tom bode pevne dané). Zmerané
+    // vopred cez measureWrappedHeight (rovnaká funkcia ako pri legal texte).
+    const subH = measureWrappedHeight(frame, content.subheadline, textW, TB.subheadline(format.width, format.height), "Regular");
     if (showSub) { subY = wCur - subH; wCur = subY - Math.round(wGap * 0.6); }
     const hlDost = Math.max(20, wCur - pad);
     const hlH = Math.min(Math.round(headlineSize * 1.15 * 2), hlDost);
@@ -3753,7 +3759,6 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // Textové boxy sledujú typografiu, nie percento výšky plátna. Percentá
     // vytvárali pri jednom riadku 100+ px prázdne medzery medzi textami.
     const headlineBoxH = Math.round(headlineSize * (family === "portrait" ? 2.25 : 1.25));
-    const subheadlineBoxH = Math.round(subheadlineSize * 1.25);
     const btn = TB.button(format.width, format.height);
     const logo = TB.logoBox(format.width, format.height);
     const logoClear = TB.logoClear(format.width, format.height);
@@ -3761,6 +3766,20 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     const logoOwnRow = showsLogo && (logo.width + logoClear) > textW * 0.5;
     const logoTop = (showsLogo && !logoOwnRow) ? (cb.y + cb.h - pad - logo.height) : (cb.y + cb.h);
     const logoReserve = (showsLogo && !logoOwnRow) ? (logo.width + logoClear) : 0;
+    // 9.9. dodatok (rovnaký princíp ako "wide" vetva vyššie / P0-16f "Legal
+    // text" nižšie): pevný odhad 1,25x nepočíta so skutočným zalomením —
+    // box narastal NADOL od subheadlineY, smerom k už pevne danému btnY.
+    // Zmerané vopred cez measureWrappedHeight — musí použiť rovnakú (užšiu)
+    // šírku ako placeReserveText() nakoniec reálne nakreslí (namerané:
+    // logoReserve zužuje stĺpec, takže meranie na plnú textW podhodnocuje
+    // výšku presne v prípadoch, keď sa podnadpis dostane do zóny loga —
+    // 320×480 s dlhým podnadpisom kolidovalo s CTA o 7px aj po prvej
+    // oprave, kým meranie brala staršiu, širšiu textW).
+    const subheadlineBoxH = measureWrappedHeight(
+      frame, content.subheadline,
+      logoReserve ? Math.max(60, textW - logoReserve) : textW,
+      subheadlineSize, "Regular"
+    );
     // Rezerva podľa SKUTOČNEJ výšky textu (node.height), nie výšky boxu —
     // box headline/subheadline je percento formátu, reálny text v ňom
     // môže byť podstatne nižší, a rezerva sa vtedy zapínala zbytočne.

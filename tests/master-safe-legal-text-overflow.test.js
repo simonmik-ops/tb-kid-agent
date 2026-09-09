@@ -46,6 +46,7 @@ const context = {
   __html__: "<html></html>",
   figma: {
     createRectangle: makeNode,
+    createEllipse: makeNode,
     createText: function () {
       // Simuluje Figma auto-wrap: keď je textAutoResize=HEIGHT, výška sa
       // dopočíta z počtu riadkov (šírka boxu / fontSize určuje znakov na
@@ -88,16 +89,17 @@ const context = {
 vm.createContext(context);
 vm.runInContext(source + "\nthis.buildMasterSafeLayout = buildMasterSafeLayout;", context);
 
-function runMasterSafe(width, height, legalText) {
+function runMasterSafe(width, height, opts) {
+  opts = opts || {};
   const frame = makeNode();
   frame.width = width;
   frame.height = height;
   const format = { width: width, height: height };
-  const layout = { show_headline: true, show_logo: true, show_cta: true, show_legal: true };
-  const content = {
+  const layout = { show_headline: true, show_logo: true, show_cta: true, show_legal: true, show_subheadline: true };
+  const content = Object.assign({
     headline: "fffff", subheadline: null, ctaText: "Zistiť viac",
-    legalText: legalText, badgeText: null, aiGenerated: false
-  };
+    legalText: null, badgeText: null, aiGenerated: false
+  }, opts);
   context.__frame = frame;
   context.__format = format;
   context.__layout = layout;
@@ -108,11 +110,12 @@ function runMasterSafe(width, height, legalText) {
     "buildMasterSafeLayout(__frame, __format, __layout, __content, __figmaImage, {width:1000,height:1000}, __figmaLogo, {x:0,y:0,w:__format.width,h:__format.height});",
     context
   );
-  return frame.findOne((n) => n.name === "Legal text");
+  return frame;
 }
 
 const legalText = "Marketingové oznámenie. S investovaním sú spojené riziká.";
-const legal = runMasterSafe(320, 480, legalText);
+const legalFrame = runMasterSafe(320, 480, { legalText: legalText });
+const legal = legalFrame.findOne((n) => n.name === "Legal text");
 assert(legal, "320x480: legal text must be drawn");
 assert(legal.height > 20,
   "kontrola predpokladu: legal text pri tomto texte/šírke sa musí zalomiť na viac než 1 riadok (výška > 20), got " + legal.height);
@@ -121,5 +124,38 @@ assert(legalBottom <= 480,
   "320x480: legal text (bottom=" + legalBottom + ") nesmie presiahnuť cez spodný okraj rámu (480)");
 assert(480 - legalBottom >= 3,
   "320x480: legal text musí mať aspoň minimálny spodný padding (>=3px), got " + (480 - legalBottom));
+
+// Regresia 9.9.2026 (rovnaká trieda ako legal text vyššie): subheadlineBoxH/
+// subH boli pevné odhady (1,25x / 1,6x fontSize) v "portrait/square" aj
+// "wide" vetve buildMasterSafeLayout — pri dlhšom podnadpise (bežná celá
+// veta), čo sa zalomí na viac riadkov než odhad predpokladal, box narastal
+// NADOL smerom k už pevne danému CTA tlačidlu pod ním.
+//
+// Formáty zvolené zámerne tak, že TB.subheadline(W,H) tam už sedí na
+// spodnej hranici (12px floor, žiadny priestor na ďalšie zmenšenie
+// fontu) — presne rovnaká podmienka ako pri "Legal text" vyššie. Pri
+// väčších subheadlineSize (napr. 1200×628/1200×1200, kde font má rezervu
+// 27–35px zhora) interný zmenšovací cyklus addTemplateText() (maxRiadkov)
+// sám osebe zmenší font tak, aby sa zmestil do PÔVODNÉHO (nesprávneho)
+// odhadu — bez viditeľného rozdielu oproti oprave. Overené priamo (dočasný
+// revert oboch vetiev + porovnanie): 1200×628/1200×1200 dávajú identický
+// výsledok pred aj po oprave, 320×480/970×250 (font už na floor 12px,
+// nemá kam ďalej zmenšiť) reálne kolidujú pred opravou.
+const longSubheadline = "S Investičnými stratégiami TB môžete investovať ako najbohatší ľudia sveta";
+
+function overlaps(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+for (const [w, h, familyLabel] of [[320, 480, "portrait"], [970, 250, "wide"]]) {
+  const frame = runMasterSafe(w, h, { subheadline: longSubheadline });
+  const sub = frame.findOne((n) => n.name === "Subheadline");
+  const cta = frame.findOne((n) => n.name === "CTA button");
+  assert(sub && cta, familyLabel + " " + w + "x" + h + ": subheadline and CTA must both be drawn");
+  assert(sub.height > 20,
+    familyLabel + " " + w + "x" + h + ": kontrola predpokladu — dlhý podnadpis pri floor-font (12px) sa musí zalomiť na viac riadkov, got height=" + sub.height);
+  assert(!overlaps(sub, cta),
+    familyLabel + " " + w + "x" + h + ": subheadline (bottom=" + (sub.y + sub.height) + ") nesmie zasahovať do CTA (top=" + cta.y + ")");
+}
 
 console.log("master_safe legal text overflow (P0-16f): ok");

@@ -1751,6 +1751,12 @@ function placeLogo(frame, figmaLogo, x, y, w, h, naRusivom) {
   logoRect.y = y;
   logoRect.fills = [{ type: "IMAGE", imageHash: figmaLogo.hash, scaleMode: "FIT" }];
   frame.appendChild(logoRect);
+  // 9.9. dodatok: vráť skutočný (po minLogoPx dorovnaní a kMax orezaní)
+  // uzol — volajúci si predtým počítal vlastný odhad w/h PRED týmto
+  // dorovnaním a z neho odvodzoval pozíciu susedného prvku (napr.
+  // buildMicroLayout's contentX), čo sa s realitou rozišlo presne vtedy,
+  // keď toto dorovnanie skutočne zasiahlo (viď volanie v buildMicroLayout).
+  return logoRect;
 }
 
 // Lokálny layout resolver — použije sa pri Excel ceste (rozmery z tabuľky od
@@ -4866,8 +4872,19 @@ function buildMicroLayout(frame, format, layout, headline, figmaImage, figmaLogo
   if (hasLogo) {
     const logoH = Math.min(format.height - pad * 2, Math.round(format.height * 0.6));
     const logoW = Math.max(50, Math.round(logoH * (255 / 243)));
-    placeLogo(frame, figmaLogo, pad, Math.round((format.height - logoH) / 2), logoW, logoH);
-    contentX = pad + logoW + Math.round(pad * 0.8);
+    // 9.9. dodatok: contentX sa predtým počítal z logoW/logoH PRED tým,
+    // než placeLogo() interne dorovná pod STYLE.minLogoPx (50px) a logo
+    // preškáluje nahor — na 320×50 logoH=30 je pod tým prahom, skutočné
+    // logo po dorovnaní+orezaní na výšku frame-u vyjde 66×40, nie 50×30.
+    // Headline (od contentX) preto sedel 11px pod skutočným pravým
+    // okrajom loga. contentX teraz vychádza zo SKUTOČNEJ šírky
+    // vráteného uzla, nie z predpokladanej — žiadny natvrdo posunutý
+    // headline. Regresia z 586ab9e7 (merge 8.9.) — predtým placeLogo()
+    // toto dorovnanie vôbec nerobilo, takže sa assumed/real nemalo ako
+    // rozísť. 728×90 (logoH=54, už nad prahom) tento rozdiel nemá.
+    const logoNode = placeLogo(frame, figmaLogo, pad, Math.round((format.height - logoH) / 2), logoW, logoH);
+    const realLogoW = logoNode ? logoNode.width : logoW;
+    contentX = pad + realLogoW + Math.round(pad * 0.8);
   }
 
   // P0-16d: headline box siaha až po format.width - pad (nižšie, availW).

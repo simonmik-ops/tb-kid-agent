@@ -399,6 +399,20 @@ function noteContrastIfLow(layout, surface, textColor, minRatio, where) {
   return false;
 }
 
+// 10.9. (P0-40 C3 / P2-26): jeden mechanizmus pre oba tiché fallbacky
+// loga — Simonino pravidlo je "na farebných a tmavých plochách biele
+// logo; čierne len pri logo-only výstupe na transparentnom pozadí".
+// pickLogoForLayout() (nižšie, closure v createAllFrames) doteraz pri
+// chýbajúcom bielom uploade vrátilo tmavé logo bez ohľadu na pozadie —
+// aj keď by bolo zvolilo biele, ostalo ticho. buildLogoOnlyLayout() robí
+// to isté pri úplne chýbajúcom logu (padne na headline text). Obe teraz
+// volajú túto funkciu — rovnaký kanál (layout.validation_warnings), aký
+// už používa noteContrastIfLow.
+function noteLogoFallback(layout, reason) {
+  if (!layout.validation_warnings) layout.validation_warnings = [];
+  layout.validation_warnings.push("logo_variant_fallback_" + reason);
+}
+
 // Mäkký prechod z alfy 0 po targetAlpha — pomalý štart, rýchly stred,
 // doceľuje na cieľ (S-krivka namiesto lineárneho nábehu, ktorý sa vizuálne
 // javí ako pás/hrana). rampEndFrac = kde v rozsahu [0,1] sa dosiahne
@@ -778,8 +792,19 @@ async function createAllFrames({
   // pixel vzorok z dolneho okraja KV — tam, kde vacsina layoutov logo kladie),
   // inak layout.bg_r/g/b (AI odhad), inak BRAND_COLOR fallback.
   function pickLogoForLayout(layout) {
-    if (!figmaLogoWhite) return figmaLogoDark;
+    if (!figmaLogoDark && !figmaLogoWhite) return null;
     if (!figmaLogoDark) return figmaLogoWhite;
+    if (!figmaLogoWhite) {
+      // 10.9. (P0-40 C3): predtým tichý — vždy tmavé, bez ohľadu na to, či
+      // by pozadie bolo dosť tmavé na to, aby si vyžiadalo biely variant
+      // (Simonino pravidlo: farebné/tmavé plochy = biele logo). Teraz sa
+      // luma stále počíta, aby sa dalo zistiť, či tento fallback reálne
+      // niečo zhoršuje, a ak áno, nahlási sa namiesto tichého priechodu.
+      const bg = brandEdgeColor(layout, "bottom");
+      const luma = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+      if (luma < 0.5) noteLogoFallback(layout, "white_missing_on_dark_surface");
+      return figmaLogoDark;
+    }
     const bg = brandEdgeColor(layout, "bottom");
     const luma = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
     return luma < 0.5 ? figmaLogoWhite : figmaLogoDark;
@@ -5008,6 +5033,10 @@ function buildLogoOnlyLayout(frame, format, layout, headline, figmaLogo) {
     /google_logo|logo-only|logo_only/.test(String(format.id || ""));
   frame.fills = [];
   const hasLogo = !!figmaLogo;
+  // 10.9. (P0-40 C3 / P2-26): rovnaký mechanizmus ako pickLogoForLayout()
+  // vyššie — chýbajúce logo tu tiché padalo na headline text namiesto
+  // loga, bez akéhokoľvek hlásenia.
+  if (!hasLogo) noteLogoFallback(layout, "missing_on_logo_only_output");
 
   // P0-29-S10 (25.8. večer): komentár tvrdil "Logo vycentrované", ale
   // vertikálne sa logo ukotvovalo na pevný lPad (15 % od vrchu), nie na

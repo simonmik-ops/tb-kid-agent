@@ -1973,12 +1973,16 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
   // tmavnúcim chvostom gradientu za ním (zvyšný "pruh" na Clean assets 1200×628).
   // Kolo 4, uloha 1: campaignSurface(layout) namiesto holeho brandColor v
   // asset_fallback_kind vetve — zjednotene s Adform aj buildMasterSafeLayout.
-  // Nefallback vetva ({0.96,0.97,0.98}, takmer biela — RSA "Image asset"
-  // formaty) NEMENENA — to je otvorena otazka pre Simonu (zamer/prehliadnute),
-  // nie sucast tejto ulohy.
-  frame.fills = layout.asset_fallback_kind
-    ? [{ type: "SOLID", color: campaignSurface(layout) }]
-    : [{ type: "SOLID", color: { r: 0.96, g: 0.97, b: 0.98 } }];
+  // 10.9. (P0-41): nefallback vetva mala natvrdo takmer bielu
+  // {0.96,0.97,0.98} — bola tu vlastne otvorená otázka ("zámer/prehliadnuté,
+  // nie súčasť tejto úlohy"), teraz rozhodnuté: 1200×628 Google RSA/
+  // Responsive (clean_image, "Obrázky BEZ textu") hlásené s veľkou prázdnou
+  // plochou. addFocalImageFrame nižšie cover-cropuje na celý frame, takže by
+  // táto farba nemala byť za normálnych okolností vidieť vôbec — ale keď je
+  // (zaoblenie, layout.image_fit==="contain", chýbajúci CUR_IMG_W/H), musí
+  // byť za tým kampaňová farba, nie takmer biela. Zjednotené s fallback
+  // vetvou — jedna farba pre celú funkciu.
+  frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
   if (layout.asset_fallback_kind && figmaImage && CUR_IMG_W && CUR_IMG_H) {
     // Protected single-master rule applies to clean assets too. Preserve the
     // whole composition and extend it with the KV colour instead of producing
@@ -2478,6 +2482,31 @@ function buildBrandingLeaderFullLayout(frame, format, layout, headline, ctaText,
   const photoW = Math.round(format.width * 0.35);
   addImageRect(frame, figmaImage, "Foto", 0, 0, photoW, format.height, "FILL");
 
+  // 10.9. (P0-41): frame.fills už kryje celú plochu (žiadna biela medzera),
+  // ale fotka končila tvrdo presne na photoW s ničím, čo by ju s farbou
+  // premiešalo — presne "prechody sú tvrdé preto, že fotka končí skôr, než
+  // ju stihne čokoľvek prekryť" (REFERENCIA_Surdo_hodnoty_18_8.md, kap. 3).
+  // Rovnaký vzor ako "Clean portrait/wide colour extension" — pás začína
+  // VNÚTRI fotky (0,78×photoW), nie na jej hrane.
+  const leaderBrand = campaignSurface(layout);
+  const leaderFeatherStart = Math.round(photoW * 0.78);
+  if (leaderFeatherStart < photoW) {
+    const leaderFeather = figma.createRectangle();
+    leaderFeather.name = "Branding leader colour extension";
+    leaderFeather.resize(photoW - leaderFeatherStart, format.height);
+    leaderFeather.x = leaderFeatherStart;
+    leaderFeather.y = 0;
+    leaderFeather.fills = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0, color: { r: leaderBrand.r, g: leaderBrand.g, b: leaderBrand.b, a: 0 } },
+        { position: 1, color: { r: leaderBrand.r, g: leaderBrand.g, b: leaderBrand.b, a: 1 } }
+      ]
+    }];
+    frame.appendChild(leaderFeather);
+  }
+
   const brandX = photoW;
   const brandW = format.width - photoW;
   const pad = Math.round(clamp(brandW * 0.08, 20, 56));
@@ -2682,7 +2711,15 @@ function buildNativeCenterLayout(frame, format, layout, headline, figmaImage) {
   frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
   const pad = Math.round(format.width * 0.06);
   const imageH = Math.round(format.height * 0.70);
-  addImageRect(frame, figmaImage, "Native image 3:2", pad, pad, format.width - pad * 2, imageH - pad, "FILL");
+  // 10.9. (P0-41): native_clean je jediný profil, ktorý sem smeruje, a má
+  // headline:false vždy — vetva nižšie je preto v praxi mŕtvy kód, ponechaná
+  // len defenzívne. Predošlý pad-ovaný obrázok (0,06×šírky okraj zo všetkých
+  // strán + 30% výšky voľné dole) nechával nevyplnenú bielu plochu na
+  // formátoch typu Engerio native 3:2 (600×400, "Bez loga a textu" — nič
+  // iné sa do toho voľného priestoru ani nekreslí). Obrázok teraz cover-
+  // cropuje celý rám — presne to, čo "native" (bez textu/loga) placement aj
+  // má byť.
+  addImageRect(frame, figmaImage, "Native image 3:2", 0, 0, format.width, format.height, "FILL");
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(format.width * 0.055, 24, 38));

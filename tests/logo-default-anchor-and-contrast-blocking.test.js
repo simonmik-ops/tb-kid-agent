@@ -2,13 +2,11 @@
 // jednom teste, obe LEN logo variant/umiestnenie (KV, gradient, typografia,
 // CTA text, rozmery formátov sa nemenia):
 //
-// 1) buildInterscrollerSafeLayout a buildEmailLayout mali logo ukotvené
-//    hore vľavo (namerané: Markíza interscroller 720×1280 na (40,40); Azet
-//    e-mail 640×500 hneď pod hero fotkou). Tieto dva layoutType nemajú
-//    vlastnú Surďovu Figmu/PSD predlohu (Plugin_podla_Surdu.md: "Branding
-//    a interscroller — bežia, ale ešte nemajú Surďov dizajn") — platí preto
-//    potvrdený DEFAULT "logo vpravo dole", nie PSD pravidlo. Presunuté do
-//    CTA riadku (rovnaký princíp ako buildSideSafeLayout, zadanie E).
+// 1) buildEmailLayout malo logo ukotvené hore vľavo (namerané: Azet e-mail
+//    640×500 hneď pod hero fotkou). Tento layoutType nemá vlastnú Surďovu
+//    Figmu/PSD predlohu (Plugin_podla_Surdu.md: "Branding a interscroller
+//    — bežia, ale ešte nemajú Surďov dizajn") — platí preto potvrdený
+//    DEFAULT "logo vpravo dole", nie PSD pravidlo. Presunuté do CTA riadku.
 //
 // 2) noteLogoFallback() (P0-40 C3/P2-26) zapisovalo len do
 //    layout.validation_warnings (súhrnný Validation report kanál) — nie do
@@ -18,9 +16,20 @@
 //    existujúci mechanizmus do tejto vrstvy (nemení KEDY sa fallback deje,
 //    len ho robí viditeľným ako QA issue).
 //
+// 10.9. REVERT (logo zadanie v3): buildInterscrollerSafeLayout bolo TU
+// pôvodne testované rovnako ako email (logo presunuté do CTA riadku), ale
+// v3 zadanie nariadilo REVERT interscrolleru na geometriu spred tejto
+// zmeny — na úzkych formátoch (JOJ interscroller 300×600/600×960) CTA a
+// logo nemajú dosť miesta zdieľať riadok bez toho, aby jeden z nich
+// deformovali. Interscroller-špecifické assercie boli preto z tohto súboru
+// odstránené (nie zoslabené — testujú SKUTOČNE INÚ, explicitne revertnutú
+// geometriu) a nahradené v tests/logo-anchor-revert-v3.test.js, ktorý
+// overuje presný návrat na pôvodnú (pred-E) pozíciu. Email v3 zadanie
+// nespomína ako regresiu — zostáva nezmenený, testovaný tu ďalej.
+//
 // Katalógovo riadené (nie natvrdo číslom 54/49) — zoznam formátov sa berie
-// priamo z formats.js (role "interscroller"/"email", campaign "kid"), takže
-// test prežije zmenu katalógu bez úpravy.
+// priamo z formats.js (role "email", campaign "kid"), takže test prežije
+// zmenu katalógu bez úpravy.
 //
 // "Logo neprekrýva postavu" NIE JE v tomto teste — detekcia subjektu v
 // plugine neexistuje. Namiesto toho: logo box nesmie zasahovať do
@@ -93,7 +102,6 @@ function makeContext() {
   vm.createContext(context);
   vm.runInContext(
     source +
-      "\nthis.buildInterscrollerSafeLayout = buildInterscrollerSafeLayout;" +
       "\nthis.buildEmailLayout = buildEmailLayout;" +
       "\nthis.validateGeneratedFrame = validateGeneratedFrame;",
     context
@@ -153,22 +161,6 @@ function checkCommon(frame, format, ctaText) {
 }
 
 const context1 = makeContext();
-const interscrollerFormats = FORMATS.filter((f) => f.campaign === "kid" && f.role === "interscroller");
-assert(interscrollerFormats.length > 0, "catalog must contain at least one interscroller format (test is catalog-driven, not hardcoded)");
-for (const format of interscrollerFormats) {
-  const frame = makeNode();
-  frame.width = format.width; frame.height = format.height;
-  const layout = { show_headline: true, show_logo: true, show_cta: true };
-  context1.__frame = frame; context1.__format = format; context1.__layout = layout;
-  context1.__headline = "Investovanie s Tatra bankou"; context1.__ctaText = "Zistiť viac";
-  context1.__figmaImage = null; context1.__figmaLogo = { hash: "fake-logo" };
-  vm.runInContext(
-    "buildInterscrollerSafeLayout(__frame, __format, __layout, __headline, __ctaText, __figmaImage, __figmaLogo);",
-    context1
-  );
-  checkCommon(frame, format, "Zistiť viac");
-}
-
 const context2 = makeContext();
 const emailFormats = FORMATS.filter((f) => f.campaign === "kid" && f.role === "email");
 assert(emailFormats.length > 0, "catalog must contain at least one email format (test is catalog-driven, not hardcoded)");
@@ -209,5 +201,5 @@ const cleanQa = runQa(false);
 assert(!cleanQa.issues.includes("qa_logo_contrast_variant_missing"),
   "without any fallback warning, qa_logo_contrast_variant_missing must not fire, got " + JSON.stringify(cleanQa.issues));
 
-console.log("interscroller/email logo default anchor (vpravo dole) + QA contrast-variant blocking (logo zadanie, úlohy 2+5): ok " +
-  "(" + interscrollerFormats.length + " interscroller + " + emailFormats.length + " email formats, catalog-driven)");
+console.log("email logo default anchor (vpravo dole) + QA contrast-variant blocking (logo zadanie, úlohy 2+5): ok " +
+  "(" + emailFormats.length + " email formats, catalog-driven)");

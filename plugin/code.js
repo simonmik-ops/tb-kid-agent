@@ -2391,30 +2391,16 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   const logoH = 58;
   const logoW = Math.min(Math.round(logoH * 3.5), sideW - pad * 2);
 
-  // E2 (10.9., zadanie E): logo bolo ukotvené hore vľavo v KAŽDOM stĺpci
-  // (pad, 48) — namerané na živom výstupe (L6yFpLkKcHe9flUk3i11T1,
-  // 110:8897): logá na (44,48) a (1544,48). Podľa pravidla ("logo patrí
-  // vpravo dole") aj referencie patrí do PRAVÉHO DOLNÉHO rohu — ale
-  // SVOJHO VLASTNÉHO panelu, nie celého rámu. Toto NIE JE duplicitný
-  // prvok, ktorý by stačilo zjednotiť na jeden (dve "Dim brand background"
-  // pásy, dva headline, dva CTA — zrkadlená dvojstĺpcová kompozícia okolo
-  // "Website content area guide"): opravou ako duplicity by sa stratil
-  // celý pravý pás. Ľavý stĺpec siaha po sideW (stred), pravý po
-  // format.width — pravý dolný roh KAŽDÉHO z nich je preto iný bod.
-  // placeLogo() vracia skutočný uzol (9.9. 78592db) — pozícia sa dopočíta
-  // z jeho reálneho (post-minLogoPx) rozmeru, rovnaký princíp ako pri
-  // buildSideSafeLayout vyššie.
+  // 10.9. REVERT (logo zadanie v3): E2 presunulo logo do pravého dolného
+  // rohu KAŽDÉHO stĺpca — v3 zadanie nariaďuje vrátiť na geometriu spred
+  // tejto zmeny (commit b0fefbe), keďže "branding" nemá vlastnú Surďovu
+  // Figmu/PSD predlohu (Plugin_podla_Surdu.md: "bežia, ale ešte nemajú
+  // Surďov dizajn") — logo tu preto zostáva na PÔVODNEJ pozícii (hore v
+  // stĺpci, y=48), označené ako "unknown — čaká na predlohu", nie
+  // odvodené z inej rodiny formátov (2000×1400/1920×1080 Markíza/JOJ).
   if (shouldShowLogo(format, layout, figmaLogo)) {
-    const leftLogo = placeLogo(frame, figmaLogo, sideW - pad - logoW, format.height - pad - logoH, logoW, logoH);
-    if (leftLogo) {
-      leftLogo.x = sideW - pad - leftLogo.width;
-      leftLogo.y = format.height - pad - leftLogo.height;
-    }
-    const rightLogo = placeLogo(frame, figmaLogo, format.width - pad - logoW, format.height - pad - logoH, logoW, logoH);
-    if (rightLogo) {
-      rightLogo.x = format.width - pad - rightLogo.width;
-      rightLogo.y = format.height - pad - rightLogo.height;
-    }
+    placeLogo(frame, figmaLogo, pad, 48, logoW, logoH);
+    placeLogo(frame, figmaLogo, format.width - sideW + pad, 48, logoW, logoH);
   }
 
   const headlineY = topOffset + 80;
@@ -2539,6 +2525,21 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   const box = resolveSideSafeContentBox(format);
   const { x, y, contentW, contentH, pad, panelY, panelH, panelX, panelW } = box;
 
+  // 10.9. REVERT (logo zadanie v3): zadanie E presunulo logo do pravého
+  // dolného rohu, zdieľajúceho riadok s CTA — na úzkych formátoch (120×600,
+  // 160×600) sa CTA a logo nezmestili vedľa seba bez zásahu do jedného z
+  // nich (namerané naživo: 120×600 CTA[12,513,40,44] vs logo[58,502,50,55],
+  // medzera 6px — "sploštené" tlačidlo). v3 zadanie nariaďuje revert na
+  // geometriu spred tejto zmeny (commit b0fefbe) — side_safe (branding_
+  // side) nemá vlastnú Surďovu Figmu/PSD predlohu, takže logo zostáva na
+  // PÔVODNEJ pozícii (hore vľavo), označené ako "unknown — čaká na
+  // predlohu", nič sa neodvodzuje z inej rodiny formátov.
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const logoH = Math.round(clamp(contentH * 0.08, 28, 52));
+    const logoW = Math.min(Math.round(logoH * 3.5), contentW - pad * 2);
+    placeLogo(frame, figmaLogo, x + pad, y + pad, logoW, logoH);
+  }
+
   // P0-29-E1: lokálny panel (nie celoplošný) — pomer 0,483 podľa
   // ADFORM_PSD_RULES.adform_160x600.panel (290/600). Kreslí sa PRED CTA a
   // headline, nech sedia navrchu neho.
@@ -2571,101 +2572,29 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     frame.appendChild(panelExtension);
   }
 
-  // 10.9. (zadanie E): referencia (REFERENCIA_Surdo_hodnoty_18_8.md, kap. 4)
-  // ukazuje CTA a logo na tej istej základni (jedna línia), AI tag POD nimi
-  // — nie logo hore vľavo (namerané na živom výstupe: 120×600 malo logo na
-  // 12,12) a AI NAD CTA (namerané: AI y=524, CTA y=544 — AI je vyššie, teda
-  // nad CTA, presne opačne, než referencia žiada). Príčina poradia: AI
-  // rezerva sa doteraz odpočítavala len z ctaTop (miesto pre headline), nie
-  // aj z btnY (CTA pozícia) — CTA tak vždy sedelo na úplnom spodku zóny a AI
-  // (addAiNote, orchestrácia, kreslí sa AŽ PO tomto builderi) sa vlastnou
-  // kolíznou poistkou vtesnalo NAD neho. Btn sa teraz posúva o aiRezerva
-  // vyššie, nech zostane skutočný spodný riadok voľný pre AI tag.
-  //
-  // aiRezerva MUSÍ presne kopírovať skutočný odtlačok addAiNote() (jej
-  // vlastný t.height + TB.padding), nie hrubý odhad — inak sa CTA/logo
-  // riadok len ČASTO, nie VŽDY, zmestí nad AI tag (empiricky: pri odhade
-  // fontSize*2,2 to sedelo na 160×600, ale na 120×600 aj 450×800 to
-  // nestačilo a AI tag skončil znova nad CTA/logom, presne ten istý bug).
-  const aiTextH = Math.round(aiNoteFontSize(format) * 1.3);
-  const aiPad = TB.padding(format.width, format.height);
+  // CTA nad spodným okrajom safe zóny — rovnaký button ako master_safe/PSD
+  // ("CTA above the bank lockup" v PSD referencii pre 160×600). Rezervuje
+  // sa PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
   const showCta = layout.show_cta !== false && !!ctaText;
-  const showsLogoE = shouldShowLogo(format, layout, figmaLogo);
-  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
-    ? (aiTextH + aiPad) : 0;
-  let ctaTop = y + contentH - pad - aiRezerva;
+  let ctaTop = y + contentH - pad;
   if (showCta) {
     const btnH = Math.round(clamp(contentH * 0.08, 26, 44));
-    const btnY = y + contentH - pad - aiRezerva - btnH;
-    const btnFullW = contentW - pad * 2;
-    let btnW = btnFullW;
-    if (showsLogoE) {
-      const logoHReq = Math.min(btnH, Math.round(clamp(contentH * 0.08, 28, 52)));
-      const logoWReq = Math.min(Math.round(logoHReq * 3.5), Math.round((contentW - pad * 2) * 0.42));
-      // placeLogo() vynucuje min. 50 px na MENŠOM rozmere loga (dotazník) —
-      // predpovedaný reálny rozmer (bez kreslenia) rozhodne, či sa logo
-      // ešte zmestí vedľa CTA bez toho, aby ho zúžilo pod jeden riadok
-      // textu.
-      const minDim = Math.min(logoWReq, logoHReq);
-      const predictedLogoW = minDim < STYLE.minLogoPx ? Math.round(logoWReq * (STYLE.minLogoPx / minDim)) : logoWReq;
-      const provisionalReserve = predictedLogoW + Math.round(pad * 0.5);
-      const candidateBtnW = Math.max(40, btnFullW - provisionalReserve);
-      const labelSize = Math.max(12, Math.round(btnH * 0.36));
-      // 10.9. živá regresia (nahlásené priamo z vygenerovanej Figmy, 120×600):
-      // zdieľaný riadok zúžil CTA na 40 px — text "Zistiť viac ›" sa zalomil
-      // na 2 riadky a tlačidlo vyzeralo "sploštené". Skontroluj VOPRED
-      // (measureWrappedHeight, rovnaký nástroj ako inde v súbore), či sa
-      // text ešte zmestí na jeden riadok — ak nie, logo dostane VLASTNÝ
-      // riadok NAD CTA namiesto zdieľaného, a CTA ostáva úplne nezmenené
-      // (plná šírka aj pozícia), presne podľa "Nemeň CTA".
-      const wrapH = measureWrappedHeight(frame, ctaText + "  ›", candidateBtnW, labelSize, "Bold");
-      const fitsOneLine = wrapH <= Math.round(labelSize * 1.55);
-
-      if (fitsOneLine) {
-        // Logo zdieľa CTA riadok (rovnaké btnY, "jedna línia") vpravo dole,
-        // zarovnané na spodnú hranu CTA ("základňa") — CTA sa zúži len o
-        // toľko, koľko logo reálne potrebuje, nie natvrdo napoly.
-        const logoYReq = btnY + Math.round((btnH - logoHReq) / 2);
-        const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
-        let logoReserve = provisionalReserve;
-        if (logoNode) {
-          const realW = logoNode.width, realH = logoNode.height;
-          // "základňa" = spodná hrana, nie stred — keď minLogoPx zväčší
-          // logo nad výšku CTA, logo rastie NAHOR nad btnY, spodná hrana
-          // zostáva zarovnaná s CTA.
-          logoNode.x = x + contentW - pad - realW;
-          logoNode.y = btnY + btnH - realH;
-          logoReserve = realW + Math.round(pad * 0.5);
-          ctaTop = Math.min(ctaTop, logoNode.y - Math.round(pad * 0.6));
-        }
-        btnW = Math.max(40, btnFullW - logoReserve);
-      } else {
-        const logoYReq = btnY;
-        const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
-        if (logoNode) {
-          const realW = logoNode.width, realH = logoNode.height;
-          logoNode.x = x + contentW - pad - realW;
-          logoNode.y = btnY - Math.round(pad * 0.5) - realH;
-          ctaTop = Math.min(ctaTop, logoNode.y - Math.round(pad * 0.6));
-        }
-      }
-    }
+    const btnW = contentW - pad * 2;
+    const btnY = y + contentH - pad - btnH;
     addMasterCta(frame, ctaText, x + pad, btnY, btnW, btnH);
-    ctaTop = Math.min(ctaTop, btnY - Math.round(pad * 0.6));
-  } else if (showsLogoE) {
-    // Bez CTA: logo samostatne vpravo dole (nie hore vľavo), stále nad
-    // rezervou pre AI tag.
-    const logoHReq = Math.round(clamp(contentH * 0.08, 28, 52));
-    const logoWReq = Math.min(Math.round(logoHReq * 3.5), contentW - pad * 2);
-    const logoYReq = y + contentH - pad - aiRezerva - logoHReq;
-    const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
-    if (logoNode) {
-      const realW = logoNode.width, realH = logoNode.height;
-      logoNode.x = x + contentW - pad - realW;
-      logoNode.y = y + contentH - pad - aiRezerva - realH;
-      ctaTop = logoNode.y - Math.round(pad * 0.6);
-    }
+    ctaTop = btnY - Math.round(pad * 0.6);
   }
+  // Zadanie 26.8 blok E: AI tag (addAiNote, orchestrácia, kreslí sa AŽ PO
+  // tomto builderi) sa ukotvuje na spodok tejto istej panel/content zóny
+  // (cb.y+cb.h == panelY+panelH == y+contentH) — doteraz sa preň nič
+  // nerezervovalo, takže headline box siahal až po ctaTop bez ohľadu naň.
+  // Namerané na živom výstupe (topky.sk 450×800/400×600/120×600/160×600):
+  // headline box preráža AI tag o ~10–13 px. Rovnaký vzor rezervy, aký už
+  // existuje pre master_safe (aiRezerva, r. ~2911) a full_bleed (AI_ON,
+  // r. ~3475) — aplikovaný tu prvýkrát na side_safe.
+  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
+    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
+  ctaTop -= aiRezerva;
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));
@@ -2924,89 +2853,22 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
     }
   }
 
-  // 10.9. (logo zadanie, úloha 5): logo bolo ukotvené hore vľavo v paneli
-  // (safe.x+pad, safe.y+pad) — namerané na živom výstupe: Markíza
-  // interscroller 720×1280 na (40,40). Potvrdený default (Plugin_podla_
-  // Surdu.md) je "logo vpravo dole" — tento layoutType nemá vlastnú PSD/
-  // Figma predlohu (Plugin_podla_Surdu.md: "Branding a interscroller —
-  // bežia, ale ešte nemajú Surďov dizajn"), takže sa tu rieši DEFAULTOM,
-  // nie PSD pravidlom. Presunuté do CTA riadku (rovnaký princíp ako
-  // buildSideSafeLayout, zadanie E, 10.9.): logo zdieľa CTA spodnú hranu
-  // ("základňu"), CTA sa zúži len o toľko, koľko logo reálne potrebuje.
+  if (shouldShowLogo(format, layout, figmaLogo)) {
+    const logoH = Math.round(clamp(safe.h * 0.045, 34, 70));
+    const logoW = Math.min(Math.round(logoH * 3.5), safe.w - comp.pad * 2);
+    placeLogo(frame, figmaLogo, safe.x + comp.pad, safe.y + comp.pad, logoW, logoH);
+  }
+
+  // CTA v spodnej časti panelu — rovnaký button ako master_safe/PSD
+  // ("CTA bottom-left" v PSD referencii pre 300×600). Rezervované miesto
+  // sa odráta od výšky headlinu, nech nekolidujú.
   const showCta = layout.show_cta !== false && !!ctaText;
-  const showsLogoI = shouldShowLogo(format, layout, figmaLogo);
   let ctaBudget = 0;
   if (showCta) {
-    const btnY = comp.panelY + comp.panelH - comp.inner - comp.btnH;
     const btnX = comp.panelX + comp.inner;
-    let btnW = comp.btnW;
-    let ownRowLogoBudget = 0;
-    if (showsLogoI) {
-      const logoHReq = Math.min(comp.btnH, Math.round(clamp(safe.h * 0.045, 34, 70)));
-      const logoWReq = Math.min(Math.round(logoHReq * 3.5), Math.round((comp.panelW - comp.inner * 2) * 0.42));
-      // 10.9. živá regresia (nahlásené priamo z vygenerovanej Figmy, rovnaká
-      // trieda ako buildSideSafeLayout vyššie): zdieľaný riadok môže zúžiť
-      // CTA natoľko, že text sa zalomí/zmenší ("sploštené" tlačidlo) —
-      // overené na 4 zo 6 interscroller formátov (markíza, ringier, joj
-      // desktop, ženské weby). Skontroluj VOPRED (predpovedaný post-
-      // minLogoPx rozmer), či CTA text ešte sedí na jeden riadok pri plnej
-      // veľkosti — ak nie, logo dostane VLASTNÝ riadok NAD CTA namiesto
-      // zdieľaného, a CTA ostáva NEZMENENÉ (plná šírka aj pozícia).
-      const minDim = Math.min(logoWReq, logoHReq);
-      const predictedLogoW = minDim < STYLE.minLogoPx ? Math.round(logoWReq * (STYLE.minLogoPx / minDim)) : logoWReq;
-      const provisionalReserve = predictedLogoW + Math.round(comp.inner * 0.5);
-      const candidateBtnW = Math.max(60, comp.btnW - provisionalReserve);
-      const labelSize = Math.max(12, Math.round(comp.btnH * 0.36));
-      const wrapH = measureWrappedHeight(frame, ctaText + "  ›", candidateBtnW, labelSize, "Bold");
-      const fitsOneLine = wrapH <= Math.round(labelSize * 1.55);
-
-      if (fitsOneLine) {
-        // placeLogo() vie logo zväčšiť nad minLogoPx (50px) — reálny
-        // rozmer sa vždy potvrdí z vráteného uzla, rovnaký princíp ako v
-        // side_safe.
-        const logoNode = placeLogo(
-          frame, figmaLogo,
-          comp.panelX + comp.panelW - comp.inner - logoWReq, btnY,
-          logoWReq, logoHReq
-        );
-        let logoReserve = provisionalReserve;
-        if (logoNode) {
-          const realW = logoNode.width, realH = logoNode.height;
-          logoNode.x = comp.panelX + comp.panelW - comp.inner - realW;
-          logoNode.y = btnY + comp.btnH - realH;
-          logoReserve = realW + Math.round(comp.inner * 0.5);
-        }
-        btnW = Math.max(60, comp.btnW - logoReserve);
-      } else {
-        const logoNode = placeLogo(
-          frame, figmaLogo,
-          comp.panelX + comp.panelW - comp.inner - logoWReq, btnY,
-          logoWReq, logoHReq
-        );
-        if (logoNode) {
-          const realW = logoNode.width, realH = logoNode.height;
-          logoNode.x = comp.panelX + comp.panelW - comp.inner - realW;
-          logoNode.y = btnY - Math.round(comp.inner * 0.5) - realH;
-          ownRowLogoBudget = realH + Math.round(comp.inner * 0.5);
-        }
-      }
-    }
-    addMasterCta(frame, ctaText, btnX, btnY, btnW, comp.btnH);
-    ctaBudget = comp.btnH + Math.round(comp.inner * 0.55) + ownRowLogoBudget;
-  } else if (showsLogoI) {
-    const logoHReq = Math.round(clamp(safe.h * 0.045, 34, 70));
-    const logoWReq = Math.min(Math.round(logoHReq * 3.5), comp.panelW - comp.inner * 2);
-    const logoYReq = comp.panelY + comp.panelH - comp.inner - logoHReq;
-    const logoNode = placeLogo(
-      frame, figmaLogo,
-      comp.panelX + comp.panelW - comp.inner - logoWReq, logoYReq,
-      logoWReq, logoHReq
-    );
-    if (logoNode) {
-      logoNode.x = comp.panelX + comp.panelW - comp.inner - logoNode.width;
-      logoNode.y = comp.panelY + comp.panelH - comp.inner - logoNode.height;
-      ctaBudget = logoNode.height + Math.round(comp.inner * 0.55);
-    }
+    const btnY = comp.panelY + comp.panelH - comp.inner - comp.btnH;
+    addMasterCta(frame, ctaText, btnX, btnY, comp.btnW, comp.btnH);
+    ctaBudget = comp.btnH + Math.round(comp.inner * 0.55);
   }
   // Zadanie 26.8 blok E: rovnaký problém a rovnaká oprava ako
   // buildSideSafeLayout vyššie — AI tag sa ukotvuje na comp.panelY+comp.panelH

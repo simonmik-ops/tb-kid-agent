@@ -1708,6 +1708,21 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
     if (emptyRatio > 0.40) add("qa_empty_surface_ratio");
   }
 
+  // 4) qa_publisher_zone_subject_risk (10.9., P0-40 C1): keď formát
+  // deklaruje publisher safe zónu (centerWidth+topOffset — Markíza/JOJ/
+  // Games branding, kde web/hra prekryje stred KV) a tá zóna zaberá
+  // polovicu alebo viac šírky formátu, bežne centrovaný subjekt (človek,
+  // produkt) do nej pravdepodobne spadá. Plugin nevidí obsah fotky (kde
+  // presne je tvár/produkt) — toto je preto geometrický odhad, NIE
+  // skutočná detekcia subjektu. Vedomé, potvrdené riziko: formáty, kde je
+  // stred ZÁMERNE prázdny (napr. "Games branding" — stred je herná
+  // plocha, nie skrytý subjekt), sa tiež označia, hoci nejde o chybu —
+  // preto vyžaduje ručné overenie, nie automatický hard-fail bez kontextu.
+  if (format.safeZones && format.safeZones.centerWidth && format.width > 0 &&
+      format.safeZones.centerWidth / format.width >= 0.5) {
+    add("qa_publisher_zone_subject_risk");
+  }
+
   return { status: issues.length ? "FAIL" : "PASS", issues: issues };
 }
 

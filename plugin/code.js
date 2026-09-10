@@ -1362,6 +1362,7 @@ function humanizeWarnings(warnings) {
     qa_missing_subheadline: "Chýba subheadline, hoci ho pravidlo vyžaduje.",
     qa_subheadline_policy_unknown: "Dodaný je text podnadpisu, ale tento formát nemá potvrdenú predlohu (unknown — čaká na predlohu) — zatiaľ sa nezobrazuje.",
     qa_subheadline_policy_conflict: "Dodaný je text podnadpisu, ale zdroje si protirečia, či ho má formát vôbec mať (pozri kód, clean_image) — zatiaľ sa nezobrazuje.",
+    qa_logo_contrast_variant_missing: "Chýba požadovaný kontrastný variant loga (biele na tmavom/farebnom podklade) — zobrazený je tmavý variant, ktorý sa na toto pozadie nehodí. BLOCKING pred deliverom.",
     qa_missing_cta: "Chýba CTA, hoci ho pravidlo vyžaduje.",
     qa_missing_logo: "Chýba logo, hoci ho pravidlo vyžaduje.",
     qa_content_overflow: "Obsah presahuje mimo frame.",
@@ -1522,6 +1523,16 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
   if (supportsCta && layout.show_cta !== false && content.ctaText && !cta) add("qa_missing_cta");
   if (layoutType !== "clean_image" && layoutType !== "native_center" &&
       layout.show_logo !== false && content.hasLogo && !format.noLogo && !logo) add("qa_missing_logo");
+  // 10.9. (logo zadanie, úloha 2): "Ak požadovaný variant chýba, QA musí
+  // vrátiť blocking error. Nesmie potichu použiť nesprávny variant." —
+  // noteLogoFallback() (P0-40 C3/P2-26, jeden mechanizmus) už zapisuje do
+  // layout.validation_warnings, ale to je len súčasť súhrnného zoznamu na
+  // Validation report stránke — nie tejto QA issues vrstvy, ktorú číta
+  // zvyšok tejto funkcie aj testy. Táto kontrola ich len premostí do
+  // rovnakého "issues" kanála, nemení kedy/prečo sa noteLogoFallback volá.
+  if ((layout.validation_warnings || []).some(function (w) { return w.indexOf("logo_variant_fallback_") === 0; })) {
+    add("qa_logo_contrast_variant_missing");
+  }
 
   // P1-7 (zadané 19.8., dovtedy nezakomponované): AI tag chýbal v kolíznych
   // párov aj v contentNodes, takže QA neohlásila prekryv s headlineom,
@@ -2889,22 +2900,56 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
     }
   }
 
-  if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(safe.h * 0.045, 34, 70));
-    const logoW = Math.min(Math.round(logoH * 3.5), safe.w - comp.pad * 2);
-    placeLogo(frame, figmaLogo, safe.x + comp.pad, safe.y + comp.pad, logoW, logoH);
-  }
-
-  // CTA v spodnej časti panelu — rovnaký button ako master_safe/PSD
-  // ("CTA bottom-left" v PSD referencii pre 300×600). Rezervované miesto
-  // sa odráta od výšky headlinu, nech nekolidujú.
+  // 10.9. (logo zadanie, úloha 5): logo bolo ukotvené hore vľavo v paneli
+  // (safe.x+pad, safe.y+pad) — namerané na živom výstupe: Markíza
+  // interscroller 720×1280 na (40,40). Potvrdený default (Plugin_podla_
+  // Surdu.md) je "logo vpravo dole" — tento layoutType nemá vlastnú PSD/
+  // Figma predlohu (Plugin_podla_Surdu.md: "Branding a interscroller —
+  // bežia, ale ešte nemajú Surďov dizajn"), takže sa tu rieši DEFAULTOM,
+  // nie PSD pravidlom. Presunuté do CTA riadku (rovnaký princíp ako
+  // buildSideSafeLayout, zadanie E, 10.9.): logo zdieľa CTA spodnú hranu
+  // ("základňu"), CTA sa zúži len o toľko, koľko logo reálne potrebuje.
   const showCta = layout.show_cta !== false && !!ctaText;
+  const showsLogoI = shouldShowLogo(format, layout, figmaLogo);
   let ctaBudget = 0;
   if (showCta) {
-    const btnX = comp.panelX + comp.inner;
     const btnY = comp.panelY + comp.panelH - comp.inner - comp.btnH;
-    addMasterCta(frame, ctaText, btnX, btnY, comp.btnW, comp.btnH);
+    let logoReserve = 0;
+    if (showsLogoI) {
+      const logoHReq = Math.min(comp.btnH, Math.round(clamp(safe.h * 0.045, 34, 70)));
+      const logoWReq = Math.min(Math.round(logoHReq * 3.5), Math.round((comp.panelW - comp.inner * 2) * 0.42));
+      // placeLogo() vie logo zväčšiť nad minLogoPx (50px) — reálny rozmer sa
+      // vždy potvrdí z vráteného uzla, rovnaký princíp ako v side_safe.
+      const logoNode = placeLogo(
+        frame, figmaLogo,
+        comp.panelX + comp.panelW - comp.inner - logoWReq, btnY,
+        logoWReq, logoHReq
+      );
+      if (logoNode) {
+        const realW = logoNode.width, realH = logoNode.height;
+        logoNode.x = comp.panelX + comp.panelW - comp.inner - realW;
+        logoNode.y = btnY + comp.btnH - realH;
+        logoReserve = realW + Math.round(comp.inner * 0.5);
+      }
+    }
+    const btnX = comp.panelX + comp.inner;
+    const btnW = Math.max(60, comp.btnW - logoReserve);
+    addMasterCta(frame, ctaText, btnX, btnY, btnW, comp.btnH);
     ctaBudget = comp.btnH + Math.round(comp.inner * 0.55);
+  } else if (showsLogoI) {
+    const logoHReq = Math.round(clamp(safe.h * 0.045, 34, 70));
+    const logoWReq = Math.min(Math.round(logoHReq * 3.5), comp.panelW - comp.inner * 2);
+    const logoYReq = comp.panelY + comp.panelH - comp.inner - logoHReq;
+    const logoNode = placeLogo(
+      frame, figmaLogo,
+      comp.panelX + comp.panelW - comp.inner - logoWReq, logoYReq,
+      logoWReq, logoHReq
+    );
+    if (logoNode) {
+      logoNode.x = comp.panelX + comp.panelW - comp.inner - logoNode.width;
+      logoNode.y = comp.panelY + comp.panelH - comp.inner - logoNode.height;
+      ctaBudget = logoNode.height + Math.round(comp.inner * 0.55);
+    }
   }
   // Zadanie 26.8 blok E: rovnaký problém a rovnaká oprava ako
   // buildSideSafeLayout vyššie — AI tag sa ukotvuje na comp.panelY+comp.panelH
@@ -2964,28 +3009,49 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
   addSolidRect(frame, "Content area", 0, heroH, format.width, format.height - heroH, { r: 1, g: 1, b: 1 }, 1);
 
   const pad = Math.round(clamp(format.width * 0.07, 28, 56));
-  // Zadanie 26.8 blok D: logoBottom sledovane, ked sa logo naozaj kresli —
-  // textY nizsie z neho vychadza namiesto z rovnakeho kotviaceho bodu ako
-  // logo (heroH + pad), co spôsobovalo prekryv headlineu s logom pri malej
-  // CTA medzere (pad * 0.4). Bez loga zostava logoBottom == heroH + pad,
-  // teda spravanie bez loga je nezmenene.
-  let logoBottom = heroH + pad;
-  if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(format.width * 0.08, 38, 62));
-    placeLogo(frame, figmaLogo, pad, heroH + pad, Math.round(logoH * 3.5), logoH);
-    logoBottom = heroH + pad + logoH;
-  }
-
-  // CTA v spodnej časti content area — rovnaký button ako master_safe/PSD.
-  // Rezervované PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
+  // 10.9. (logo zadanie, úloha 5): logo bolo ukotvené hore vľavo, hneď pod
+  // hero fotkou (pad, heroH+pad) — namerané na azet 640×500. E-mailové
+  // formáty (azet/modrykonik/NMH) nemajú vlastnú Surďovu Figmu ani PSD
+  // (overené — pozri poznámku pri headline nižšie), takže platí potvrdený
+  // default "logo vpravo dole", nie PSD pravidlo. Presunuté do CTA riadku
+  // (rovnaký princíp ako buildSideSafeLayout/buildInterscrollerSafeLayout
+  // vyššie): logo zdieľa CTA spodnú hranu, CTA sa zúži len o toľko, koľko
+  // logo reálne potrebuje. logoBottom (predtým "spodok loga hore") teraz
+  // zostáva vždy heroH+pad — logo už nezaberá miesto v hornej časti content
+  // area, takže headline textY vzorec nižšie (nezmenený) sa correctne
+  // správa presne tak, ako v prípade "bez loga" predtým.
+  const logoBottom = heroH + pad;
   const showCta = layout.show_cta !== false && !!ctaText;
+  const showsLogoEmail = shouldShowLogo(format, layout, figmaLogo);
   let contentBottom = format.height - pad;
   if (showCta) {
     const btnH = Math.round(clamp(format.width * 0.09, 36, 56));
-    const btnW = Math.max(120, Math.round(format.width * 0.30));
     const btnY = format.height - pad - btnH;
+    let logoReserve = 0;
+    if (showsLogoEmail) {
+      const logoHReq = Math.min(btnH, Math.round(clamp(format.width * 0.08, 38, 62)));
+      const logoWReq = Math.round(logoHReq * 3.5);
+      const logoNode = placeLogo(frame, figmaLogo, format.width - pad - logoWReq, btnY, logoWReq, logoHReq);
+      if (logoNode) {
+        const realW = logoNode.width, realH = logoNode.height;
+        logoNode.x = format.width - pad - realW;
+        logoNode.y = btnY + btnH - realH;
+        logoReserve = realW + Math.round(pad * 0.4);
+      }
+    }
+    const btnW = Math.max(100, Math.max(120, Math.round(format.width * 0.30)) - logoReserve);
     addMasterCta(frame, ctaText, pad, btnY, btnW, btnH);
     contentBottom = btnY - Math.round(pad * 0.5);
+  } else if (showsLogoEmail) {
+    const logoH = Math.round(clamp(format.width * 0.08, 38, 62));
+    const logoW = Math.round(logoH * 3.5);
+    const logoY = format.height - pad - logoH;
+    const logoNode = placeLogo(frame, figmaLogo, format.width - pad - logoW, logoY, logoW, logoH);
+    if (logoNode) {
+      logoNode.x = format.width - pad - logoNode.width;
+      logoNode.y = format.height - pad - logoNode.height;
+      contentBottom = logoNode.y - Math.round(pad * 0.5);
+    }
   }
 
   if (shouldShowHeadline(layout, headline)) {
@@ -2993,7 +3059,14 @@ function buildEmailLayout(frame, format, layout, headline, ctaText, figmaImage, 
     // Pôvodná medzera (13 % šírky) rátala s celou content area voľnou pre
     // headline. Keď CTA zabral spodok, rovnaká medzera by headline
     // stlačila na pár px — s CTA použi menšiu, pevnú medzeru.
-    const gap = Math.round(showCta ? pad * 0.4 : format.width * 0.13);
+    //
+    // 10.9. (logo zadanie): logo sa presunulo dole vpravo (bolo hore) —
+    // rovnaký problém teraz nastáva aj BEZ CTA, keď je logo samo (contentBottom
+    // sa zúžil o logoH, ale gap zostal pôvodný 13%-šírky, kalkulovaný pre
+    // celú voľnú content area) — na azet 640×500 to dávalo boxH < 0 a
+    // headline sa vykreslil cez logo. Rovnaká úzka medzera ako pri CTA
+    // platí vždy, keď niečo (CTA ALEBO logo) reálne zaberá spodok.
+    const gap = Math.round((showCta || showsLogoEmail) ? pad * 0.4 : format.width * 0.13);
     // Zadanie 26.8 blok D / P0-?: textY sa predtym pocital z heroH + pad —
     // rovnaky kotviaci bod ako logo, vysku loga vobec neberuc do uvahy.
     // Pri malej CTA medzere (pad * 0.4 = 18px na 640×500) sa headline

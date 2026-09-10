@@ -2301,9 +2301,30 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   const logoH = 58;
   const logoW = Math.min(Math.round(logoH * 3.5), sideW - pad * 2);
 
+  // E2 (10.9., zadanie E): logo bolo ukotvené hore vľavo v KAŽDOM stĺpci
+  // (pad, 48) — namerané na živom výstupe (L6yFpLkKcHe9flUk3i11T1,
+  // 110:8897): logá na (44,48) a (1544,48). Podľa pravidla ("logo patrí
+  // vpravo dole") aj referencie patrí do PRAVÉHO DOLNÉHO rohu — ale
+  // SVOJHO VLASTNÉHO panelu, nie celého rámu. Toto NIE JE duplicitný
+  // prvok, ktorý by stačilo zjednotiť na jeden (dve "Dim brand background"
+  // pásy, dva headline, dva CTA — zrkadlená dvojstĺpcová kompozícia okolo
+  // "Website content area guide"): opravou ako duplicity by sa stratil
+  // celý pravý pás. Ľavý stĺpec siaha po sideW (stred), pravý po
+  // format.width — pravý dolný roh KAŽDÉHO z nich je preto iný bod.
+  // placeLogo() vracia skutočný uzol (9.9. 78592db) — pozícia sa dopočíta
+  // z jeho reálneho (post-minLogoPx) rozmeru, rovnaký princíp ako pri
+  // buildSideSafeLayout vyššie.
   if (shouldShowLogo(format, layout, figmaLogo)) {
-    placeLogo(frame, figmaLogo, pad, 48, logoW, logoH);
-    placeLogo(frame, figmaLogo, format.width - sideW + pad, 48, logoW, logoH);
+    const leftLogo = placeLogo(frame, figmaLogo, sideW - pad - logoW, format.height - pad - logoH, logoW, logoH);
+    if (leftLogo) {
+      leftLogo.x = sideW - pad - leftLogo.width;
+      leftLogo.y = format.height - pad - leftLogo.height;
+    }
+    const rightLogo = placeLogo(frame, figmaLogo, format.width - pad - logoW, format.height - pad - logoH, logoW, logoH);
+    if (rightLogo) {
+      rightLogo.x = format.width - pad - rightLogo.width;
+      rightLogo.y = format.height - pad - rightLogo.height;
+    }
   }
 
   const headlineY = topOffset + 80;

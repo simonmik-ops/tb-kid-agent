@@ -2055,29 +2055,56 @@ function buildCleanImageLayout(frame, format, layout, figmaImage) {
     // clean_image wide (na rozdiel od buildMasterSafeLayout, kde je 0:21) —
     // vrátené na pôvodné, bezpečné CONTAIN zarovnanie.
     //
-    // Zadanie 26.8 R1: skúmané, NEZMENENÉ. CONTAIN na wide s x:0 (vľavo)
-    // dáva na 1200×628 so štvorcovým zdrojom 628×628 na (0,0) — nameraná
-    // "fotka len v ľavých 52 %, zvislý rez". Skúšala som x:0 -> x:0.5
-    // (stred), aby sa prázdna plocha rozdelila na obe strany — ale presne
-    // TOTO už bolo vyskúšané a zamietnuté: tests/visual-system.test.js
-    // zamyká x:0 s dôvodom "namiesto centrovania dvoch farebných pásov"
-    // (t.j. centrovanie vyrobí DVA viditeľné pásy/hrany namiesto jedného,
-    // čo bolo vyhodnotené ako horšie). Vrátené na pôvodné x:0. SKUTOČNÉ
-    // predimenzovanie (žiadny viditeľný pás vôbec) NIE JE V TOMTO PR —
-    // KV_OVERSIZE_POINTS aj WIDE_KV_ZONE_MULTIPLIER sú namerané pre iné
-    // zóny (square/portrait celý frame, wide 75% zóna s panelom), nie pre
-    // "wide, celý frame, bez panelu". Použitie ktoréhokoľvek z nich by
-    // bolo hádanie — presne to, čo tu už raz zlyhalo a bolo revertnuté
-    // (komentár vyššie, "orezávalo hlavu"). Potrebuje vlastné meranie zo
-    // Surďovej referencie pre tento presný prípad — nahlásené, nedomyslené.
-    addProtectedImageFrame(
-      frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
-      "Adapted clean master — full composition",
-      [0, 0, format.width, format.height],
-      family === "wide" ? { x: 0, y: 0.5 } :
-        (family === "portrait" ? { x: 0.5, y: 0 } : { x: 0.5, y: 0.5 }),
-      family === "wide" ? undefined : (format.height / format.width)
-    );
+    // Zadanie 26.8 R1: predošlý pokus na wide bol CONTAIN (Math.min), ktoré
+    // pri x:0 nechávalo napravo holú farebnú plochu (presne P0-34/F, nahlásené
+    // 10.9. — 1200×628 Google Responsive vedľa 1200×628 Meta, ktorá cover-
+    // cropuje a je bez medzery). Centrovanie CONTAIN-u (x:0,5) bolo vyskúšané
+    // a zamietnuté (tests/visual-system.test.js) — to ale rieši len to, KDE
+    // je prázdna plocha, nie ŽE je prázdna. WIDE_KV_ZONE_MULTIPLIER/
+    // KV_OVERSIZE_POINTS boli tiež vyskúšané a zamietnuté (komentár vyššie,
+    // "orezávalo hlavu") — obe sú namerané pre INÚ tvar zóny (master_safe
+    // wide = 75 % šírky s panelom; Krok 4c = celý štvorcový/portrétový rám),
+    // nie pre "wide, celý rám, bez panelu", takže ich oversize faktor tu bol
+    // navyše a priveľmi priblížil.
+    //
+    // 10.9. (P0-34/F): rieši sa preto obyčajným cover-crop bez akéhokoľvek
+    // oversize faktora — Math.max namiesto Math.min. Cover-crop podľa
+    // definície nikdy nenechá prázdnu plochu (vypĺňa oba rozmery zóny), a bez
+    // extra multiplikátora orezáva len toľko, koľko je matematicky nutné —
+    // menej agresívne než ktorýkoľvek z predošlých zamietnutých pokusov.
+    // Vlastný, samostatný blok (nie addProtectedImageFrame s wideZone) — tá
+    // funkcia má aj iných volajúcich (napr. master_safe portrait
+    // fallback, riadok nižšie v tomto súbore), ktorí sa spoliehajú na jej
+    // PÔVODNÝ Math.min default; meniť ho by ich potichu zmenilo tiež.
+    if (family === "wide") {
+      const coverHolder = figma.createFrame();
+      coverHolder.name = "Adapted clean master — full composition";
+      coverHolder.resize(format.width, format.height);
+      coverHolder.x = 0;
+      coverHolder.y = 0;
+      coverHolder.clipsContent = true;
+      coverHolder.fills = [];
+      frame.appendChild(coverHolder);
+      const coverScale = Math.max(format.width / CUR_IMG_W, format.height / CUR_IMG_H);
+      const coverRenderedW = CUR_IMG_W * coverScale;
+      const coverRenderedH = CUR_IMG_H * coverScale;
+      const coverAnchorY = typeof layout.crop_anchor_y === "number" ? clamp(layout.crop_anchor_y, 0, 1) : 0.5;
+      const coverRect = figma.createRectangle();
+      coverRect.name = "Key visual — protected full master";
+      coverRect.resize(coverRenderedW, coverRenderedH);
+      coverRect.fills = [{ type: "IMAGE", imageHash: figmaImage.hash, scaleMode: "FILL" }];
+      coverRect.x = Math.round((format.width - coverRenderedW) / 2);
+      coverRect.y = Math.round((format.height - coverRenderedH) * coverAnchorY);
+      coverHolder.appendChild(coverRect);
+    } else {
+      addProtectedImageFrame(
+        frame, figmaImage, { width: CUR_IMG_W, height: CUR_IMG_H },
+        "Adapted clean master — full composition",
+        [0, 0, format.width, format.height],
+        family === "portrait" ? { x: 0.5, y: 0 } : { x: 0.5, y: 0.5 },
+        format.height / format.width
+      );
+    }
     if (family === "wide") {
       // Krok 4a (clean_image wide), tretí pokus. Prvé dva (a798494/2a499d1:
       // pás ZAČÍNAL presne na hrane obrázka, 628 px) nemiešali nič, len

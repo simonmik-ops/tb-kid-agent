@@ -2428,12 +2428,6 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   const box = resolveSideSafeContentBox(format);
   const { x, y, contentW, contentH, pad, panelY, panelH, panelX, panelW } = box;
 
-  if (shouldShowLogo(format, layout, figmaLogo)) {
-    const logoH = Math.round(clamp(contentH * 0.08, 28, 52));
-    const logoW = Math.min(Math.round(logoH * 3.5), contentW - pad * 2);
-    placeLogo(frame, figmaLogo, x + pad, y + pad, logoW, logoH);
-  }
-
   // P0-29-E1: lokálny panel (nie celoplošný) — pomer 0,483 podľa
   // ADFORM_PSD_RULES.adform_160x600.panel (290/600). Kreslí sa PRED CTA a
   // headline, nech sedia navrchu neho.
@@ -2466,29 +2460,77 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
     frame.appendChild(panelExtension);
   }
 
-  // CTA nad spodným okrajom safe zóny — rovnaký button ako master_safe/PSD
-  // ("CTA above the bank lockup" v PSD referencii pre 160×600). Rezervuje
-  // sa PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
+  // 10.9. (zadanie E): referencia (REFERENCIA_Surdo_hodnoty_18_8.md, kap. 4)
+  // ukazuje CTA a logo na tej istej základni (jedna línia), AI tag POD nimi
+  // — nie logo hore vľavo (namerané na živom výstupe: 120×600 malo logo na
+  // 12,12) a AI NAD CTA (namerané: AI y=524, CTA y=544 — AI je vyššie, teda
+  // nad CTA, presne opačne, než referencia žiada). Príčina poradia: AI
+  // rezerva sa doteraz odpočítavala len z ctaTop (miesto pre headline), nie
+  // aj z btnY (CTA pozícia) — CTA tak vždy sedelo na úplnom spodku zóny a AI
+  // (addAiNote, orchestrácia, kreslí sa AŽ PO tomto builderi) sa vlastnou
+  // kolíznou poistkou vtesnalo NAD neho. Btn sa teraz posúva o aiRezerva
+  // vyššie, nech zostane skutočný spodný riadok voľný pre AI tag.
+  //
+  // aiRezerva MUSÍ presne kopírovať skutočný odtlačok addAiNote() (jej
+  // vlastný t.height + TB.padding), nie hrubý odhad — inak sa CTA/logo
+  // riadok len ČASTO, nie VŽDY, zmestí nad AI tag (empiricky: pri odhade
+  // fontSize*2,2 to sedelo na 160×600, ale na 120×600 aj 450×800 to
+  // nestačilo a AI tag skončil znova nad CTA/logom, presne ten istý bug).
+  const aiTextH = Math.round(aiNoteFontSize(format) * 1.3);
+  const aiPad = TB.padding(format.width, format.height);
   const showCta = layout.show_cta !== false && !!ctaText;
-  let ctaTop = y + contentH - pad;
+  const showsLogoE = shouldShowLogo(format, layout, figmaLogo);
+  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
+    ? (aiTextH + aiPad) : 0;
+  let ctaTop = y + contentH - pad - aiRezerva;
   if (showCta) {
     const btnH = Math.round(clamp(contentH * 0.08, 26, 44));
-    const btnW = contentW - pad * 2;
-    const btnY = y + contentH - pad - btnH;
+    const btnY = y + contentH - pad - aiRezerva - btnH;
+    // Logo zdieľa CTA riadok (rovnaké btnY, "jedna línia") vpravo dole,
+    // vertikálne centrované na výšku CTA — CTA sa zúži len o toľko, koľko
+    // logo reálne potrebuje, nie natvrdo napoly.
+    let logoReserve = 0;
+    if (showsLogoE) {
+      const logoHReq = Math.min(btnH, Math.round(clamp(contentH * 0.08, 28, 52)));
+      const logoWReq = Math.min(Math.round(logoHReq * 3.5), Math.round((contentW - pad * 2) * 0.42));
+      const logoYReq = btnY + Math.round((btnH - logoHReq) / 2);
+      // placeLogo() vynucuje min. 50 px na MENŠOM rozmere loga (dotazník) —
+      // keď je požadovaný box menší, dorovná ho nahor, ale rastie len z
+      // pôvodného x/y (šírka/výška navyše smerom doprava/dole), nie okolo
+      // stredu. Reálny rozmer preto POTVRĎ zo skutočného uzla (placeLogo()
+      // ho vracia, 9.9. oprava 78592db) a x/y dopočítaj znova z neho —
+      // inak logo prestane byť zarovnané vpravo aj na CTA základni presne
+      // vtedy, keď toto dorovnanie zasiahne (namerané: 120×600 44 px
+      // požiadavka → reálne 55 px, o 11 px nižšie než CTA).
+      const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
+      if (logoNode) {
+        const realW = logoNode.width, realH = logoNode.height;
+        // "základňa" = spodná hrana, nie stred — keď minLogoPx zväčší logo
+        // nad výšku CTA (bežný prípad na úzkych formátoch), logo rastie
+        // NAHOR nad btnY, spodná hrana zostáva zarovnaná s CTA.
+        logoNode.x = x + contentW - pad - realW;
+        logoNode.y = btnY + btnH - realH;
+        logoReserve = realW + Math.round(pad * 0.5);
+        ctaTop = Math.min(ctaTop, logoNode.y - Math.round(pad * 0.6));
+      }
+    }
+    const btnW = Math.max(40, contentW - pad * 2 - logoReserve);
     addMasterCta(frame, ctaText, x + pad, btnY, btnW, btnH);
-    ctaTop = btnY - Math.round(pad * 0.6);
+    ctaTop = Math.min(ctaTop, btnY - Math.round(pad * 0.6));
+  } else if (showsLogoE) {
+    // Bez CTA: logo samostatne vpravo dole (nie hore vľavo), stále nad
+    // rezervou pre AI tag.
+    const logoHReq = Math.round(clamp(contentH * 0.08, 28, 52));
+    const logoWReq = Math.min(Math.round(logoHReq * 3.5), contentW - pad * 2);
+    const logoYReq = y + contentH - pad - aiRezerva - logoHReq;
+    const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
+    if (logoNode) {
+      const realW = logoNode.width, realH = logoNode.height;
+      logoNode.x = x + contentW - pad - realW;
+      logoNode.y = y + contentH - pad - aiRezerva - realH;
+      ctaTop = logoNode.y - Math.round(pad * 0.6);
+    }
   }
-  // Zadanie 26.8 blok E: AI tag (addAiNote, orchestrácia, kreslí sa AŽ PO
-  // tomto builderi) sa ukotvuje na spodok tejto istej panel/content zóny
-  // (cb.y+cb.h == panelY+panelH == y+contentH) — doteraz sa preň nič
-  // nerezervovalo, takže headline box siahal až po ctaTop bez ohľadu naň.
-  // Namerané na živom výstupe (topky.sk 450×800/400×600/120×600/160×600):
-  // headline box preráža AI tag o ~10–13 px. Rovnaký vzor rezervy, aký už
-  // existuje pre master_safe (aiRezerva, r. ~2911) a full_bleed (AI_ON,
-  // r. ~3475) — aplikovaný tu prvýkrát na side_safe.
-  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
-    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
-  ctaTop -= aiRezerva;
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));

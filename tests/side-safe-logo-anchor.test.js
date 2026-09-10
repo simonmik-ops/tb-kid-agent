@@ -18,6 +18,17 @@
 // skutocne logo by preteklo pod CTA aj do AI rezervy. Test preto overuje
 // zdielanu ZAKLADNU (spodnu hranu), nie hornu y-suradnicu, a pocita s
 // realnym (post-rescale) rozmerom loga.
+//
+// 10.9. DODATOK (zivá regresia nahlásená priamo z vygenerovanej Figmy):
+// zdieľaný riadok (logo vedľa CTA) zúžil CTA natoľko, že text "Zistiť
+// viac ›" sa zalomil na 2 riadky ("tlačidlo je sploštené"). Oprava pridala
+// predbežnú kontrolu (measureWrappedHeight) PRED zdieľaním riadku — ak by
+// sa text nezmestil na jeden riadok, logo dostane VLASTNÝ riadok NAD CTA
+// namiesto zdieľaného, a CTA ostáva ÚPLNE NEZMENENÉ (plná šírka aj
+// pozícia). Test preto už netrvá na JEDINEJ pevnej geometrii (zdieľaná
+// základňa) — pripúšťa OBA platné usporiadania, ale vždy vyžaduje: žiadny
+// prekryv loga s CTA, a najmä že CTA text NIKDY nezalomí na viac riadkov
+// (to je jadro nahlásenej chyby).
 const assert = require("assert");
 const fs = require("fs");
 const vm = require("vm");
@@ -126,6 +137,7 @@ for (const [w, h] of [[120, 600], [160, 600], [450, 800]]) {
 
   const logo = frame.findOne((n) => n.name === "Logo");
   const cta = frame.findOne((n) => n.name === "CTA button");
+  const ctaLabel = frame.findOne((n) => n.name === "CTA text");
   const ai = frame.findOne((n) => n.name === "AI generované");
   const headline = frame.findOne((n) => n.name === "Headline");
 
@@ -133,16 +145,30 @@ for (const [w, h] of [[120, 600], [160, 600], [450, 800]]) {
   assert(cta, w + "x" + h + ": CTA button must be drawn");
   assert(ai, w + "x" + h + ": AI disclosure tag must be drawn");
 
-  // Logo v pravom dolnom rohu panelu, nie hore vlavo (stary bug: 12,12).
-  assert(logo.x >= cta.x + cta.width,
-    w + "x" + h + ": logo must sit to the right of CTA, got logo.x=" + logo.x + " cta.right=" + (cta.x + cta.width));
+  // Logo v pravej polovici, dolnej polovici - nie hore vlavo (stary bug: 12,12).
+  assert(logo.x + logo.width / 2 > w / 2,
+    w + "x" + h + ": logo must be anchored right of center, got centerX=" + (logo.x + logo.width / 2));
   assert(logo.y > h / 2,
     w + "x" + h + ": logo must be anchored in the bottom half of the format, not top-left, got logo.y=" + logo.y);
 
-  // CTA a logo zdielaju jednu "zakladnu" (spodnu hranu) - jedna linia.
-  assert.strictEqual(logo.y + logo.height, cta.y + cta.height,
-    w + "x" + h + ": logo and CTA must share the same bottom edge (baseline), got logo.bottom=" +
-    (logo.y + logo.height) + " cta.bottom=" + (cta.y + cta.height));
+  // Logo a CTA sa nesmú nikdy prekrývať, nech je usporiadanie ktorékoľvek
+  // z dvoch platných (zdieľaná základňa vedľa seba, alebo logo vo vlastnom
+  // riadku nad CTA).
+  assert(!(logo.x < cta.x + cta.width && logo.x + logo.width > cta.x &&
+    logo.y < cta.y + cta.height && logo.y + logo.height > cta.y),
+    w + "x" + h + ": logo must not overlap the CTA button");
+
+  // Jadro nahlásenej živej regresie: CTA text sa nesmie zmenšiť/zalomiť len
+  // preto, že logo zdieľa jeho riadok ("sploštené" tlačidlo). addMasterCta
+  // vždy žiada labelSize = round(btnH*0,36) — addTemplateText() vnútorne
+  // zmenšuje font LEN keď sa text nezmestí (maxRiadkov/box výška); ak
+  // renderovaný fontSize sedí s pôvodnou požiadavkou, text sa zmestil na
+  // jeden riadok v plnej veľkosti bez nutnosti zmenšenia.
+  const expectedLabelSize = Math.max(12, Math.round(cta.height * 0.36));
+  assert.strictEqual(ctaLabel.fontSize, expectedLabelSize,
+    w + "x" + h + ": CTA label must render at its full intended size, got fontSize=" + ctaLabel.fontSize +
+    " expected=" + expectedLabelSize + " (a smaller size means addTemplateText had to shrink it to avoid " +
+    "overflowing/wrapping — the button must not visually flatten to fit the logo)");
 
   // AI tag pod obomi (logo aj CTA), nie nad nimi (stary bug: AI y=524 < CTA y=544).
   assert(ai.y >= cta.y + cta.height,
@@ -150,10 +176,14 @@ for (const [w, h] of [[120, 600], [160, 600], [450, 800]]) {
   assert(ai.y >= logo.y + logo.height,
     w + "x" + h + ": AI tag must sit below logo, got ai.y=" + ai.y + " logo.bottom=" + (logo.y + logo.height));
 
-  // Headline nesmie prerastat do CTA/logo riadku.
+  // Headline nesmie prerastat do CTA ani do loga (nech je usporiadanie
+  // ktorékoľvek z dvoch platných).
   assert(headline.y + headline.height <= cta.y,
-    w + "x" + h + ": headline must not overlap the CTA/logo row, got headline.bottom=" +
+    w + "x" + h + ": headline must not overlap the CTA, got headline.bottom=" +
     (headline.y + headline.height) + " cta.y=" + cta.y);
+  assert(headline.y + headline.height <= logo.y,
+    w + "x" + h + ": headline must not overlap the logo, got headline.bottom=" +
+    (headline.y + headline.height) + " logo.y=" + logo.y);
 }
 
 // Bez CTA (len logo) - logo stale vpravo dole, AI stale pod nim.

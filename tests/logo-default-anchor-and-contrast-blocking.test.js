@@ -110,6 +110,7 @@ function middleThirdOverlap(box, frameW, frameH) {
 function checkCommon(frame, format, ctaText) {
   const logo = frame.findOne((n) => n.name === "Logo");
   const cta = ctaText ? frame.findOne((n) => n.name === "CTA button") : null;
+  const ctaLabel = ctaText ? frame.findOne((n) => n.name === "CTA text") : null;
   const headline = frame.findOne((n) => n.name === "Headline");
   assert(logo, format.id + ": logo must be drawn");
 
@@ -130,12 +131,19 @@ function checkCommon(frame, format, ctaText) {
     JSON.stringify({ x: logo.x, y: logo.y, w: logo.width, h: logo.height, frameW: format.width, frameH: format.height }));
 
   if (cta) {
+    // 10.9. dodatok (živá regresia): logo môže buď zdieľať CTA riadok
+    // (rovnaká základňa) ALEBO dostať vlastný riadok nad CTA — ktoré z
+    // dvoch platných usporiadaní nastane závisí od toho, či by zdieľanie
+    // zúžilo CTA pod hranicu jedného riadku textu. Oba prípady musia
+    // splniť: žiadny prekryv, a CTA label sa NESMIE zmenšiť/zalomiť len
+    // preto, že logo zdieľa jeho riadok ("sploštené" tlačidlo).
     assert(!(logo.x < cta.x + cta.width && logo.x + logo.width > cta.x &&
       logo.y < cta.y + cta.height && logo.y + logo.height > cta.y),
       format.id + ": logo must not overlap the CTA button");
-    assert.strictEqual(logo.y + logo.height, cta.y + cta.height,
-      format.id + ": logo and CTA must share the same baseline (bottom edge), got logo.bottom=" +
-      (logo.y + logo.height) + " cta.bottom=" + (cta.y + cta.height));
+    const expectedLabelSize = Math.max(12, Math.round(cta.height * 0.36));
+    assert.strictEqual(ctaLabel.fontSize, expectedLabelSize,
+      format.id + ": CTA label must render at its full intended size, got fontSize=" + ctaLabel.fontSize +
+      " expected=" + expectedLabelSize + " (a smaller size means the button was squeezed to fit the logo)");
   }
   if (headline) {
     assert(!(logo.x < headline.x + headline.width && logo.x + logo.width > headline.x &&

@@ -2597,35 +2597,59 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   if (showCta) {
     const btnH = Math.round(clamp(contentH * 0.08, 26, 44));
     const btnY = y + contentH - pad - aiRezerva - btnH;
-    // Logo zdieľa CTA riadok (rovnaké btnY, "jedna línia") vpravo dole,
-    // vertikálne centrované na výšku CTA — CTA sa zúži len o toľko, koľko
-    // logo reálne potrebuje, nie natvrdo napoly.
-    let logoReserve = 0;
+    const btnFullW = contentW - pad * 2;
+    let btnW = btnFullW;
     if (showsLogoE) {
       const logoHReq = Math.min(btnH, Math.round(clamp(contentH * 0.08, 28, 52)));
       const logoWReq = Math.min(Math.round(logoHReq * 3.5), Math.round((contentW - pad * 2) * 0.42));
-      const logoYReq = btnY + Math.round((btnH - logoHReq) / 2);
       // placeLogo() vynucuje min. 50 px na MENŠOM rozmere loga (dotazník) —
-      // keď je požadovaný box menší, dorovná ho nahor, ale rastie len z
-      // pôvodného x/y (šírka/výška navyše smerom doprava/dole), nie okolo
-      // stredu. Reálny rozmer preto POTVRĎ zo skutočného uzla (placeLogo()
-      // ho vracia, 9.9. oprava 78592db) a x/y dopočítaj znova z neho —
-      // inak logo prestane byť zarovnané vpravo aj na CTA základni presne
-      // vtedy, keď toto dorovnanie zasiahne (namerané: 120×600 44 px
-      // požiadavka → reálne 55 px, o 11 px nižšie než CTA).
-      const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
-      if (logoNode) {
-        const realW = logoNode.width, realH = logoNode.height;
-        // "základňa" = spodná hrana, nie stred — keď minLogoPx zväčší logo
-        // nad výšku CTA (bežný prípad na úzkych formátoch), logo rastie
-        // NAHOR nad btnY, spodná hrana zostáva zarovnaná s CTA.
-        logoNode.x = x + contentW - pad - realW;
-        logoNode.y = btnY + btnH - realH;
-        logoReserve = realW + Math.round(pad * 0.5);
-        ctaTop = Math.min(ctaTop, logoNode.y - Math.round(pad * 0.6));
+      // predpovedaný reálny rozmer (bez kreslenia) rozhodne, či sa logo
+      // ešte zmestí vedľa CTA bez toho, aby ho zúžilo pod jeden riadok
+      // textu.
+      const minDim = Math.min(logoWReq, logoHReq);
+      const predictedLogoW = minDim < STYLE.minLogoPx ? Math.round(logoWReq * (STYLE.minLogoPx / minDim)) : logoWReq;
+      const provisionalReserve = predictedLogoW + Math.round(pad * 0.5);
+      const candidateBtnW = Math.max(40, btnFullW - provisionalReserve);
+      const labelSize = Math.max(12, Math.round(btnH * 0.36));
+      // 10.9. živá regresia (nahlásené priamo z vygenerovanej Figmy, 120×600):
+      // zdieľaný riadok zúžil CTA na 40 px — text "Zistiť viac ›" sa zalomil
+      // na 2 riadky a tlačidlo vyzeralo "sploštené". Skontroluj VOPRED
+      // (measureWrappedHeight, rovnaký nástroj ako inde v súbore), či sa
+      // text ešte zmestí na jeden riadok — ak nie, logo dostane VLASTNÝ
+      // riadok NAD CTA namiesto zdieľaného, a CTA ostáva úplne nezmenené
+      // (plná šírka aj pozícia), presne podľa "Nemeň CTA".
+      const wrapH = measureWrappedHeight(frame, ctaText + "  ›", candidateBtnW, labelSize, "Bold");
+      const fitsOneLine = wrapH <= Math.round(labelSize * 1.55);
+
+      if (fitsOneLine) {
+        // Logo zdieľa CTA riadok (rovnaké btnY, "jedna línia") vpravo dole,
+        // zarovnané na spodnú hranu CTA ("základňa") — CTA sa zúži len o
+        // toľko, koľko logo reálne potrebuje, nie natvrdo napoly.
+        const logoYReq = btnY + Math.round((btnH - logoHReq) / 2);
+        const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
+        let logoReserve = provisionalReserve;
+        if (logoNode) {
+          const realW = logoNode.width, realH = logoNode.height;
+          // "základňa" = spodná hrana, nie stred — keď minLogoPx zväčší
+          // logo nad výšku CTA, logo rastie NAHOR nad btnY, spodná hrana
+          // zostáva zarovnaná s CTA.
+          logoNode.x = x + contentW - pad - realW;
+          logoNode.y = btnY + btnH - realH;
+          logoReserve = realW + Math.round(pad * 0.5);
+          ctaTop = Math.min(ctaTop, logoNode.y - Math.round(pad * 0.6));
+        }
+        btnW = Math.max(40, btnFullW - logoReserve);
+      } else {
+        const logoYReq = btnY;
+        const logoNode = placeLogo(frame, figmaLogo, x + contentW - pad - logoWReq, logoYReq, logoWReq, logoHReq);
+        if (logoNode) {
+          const realW = logoNode.width, realH = logoNode.height;
+          logoNode.x = x + contentW - pad - realW;
+          logoNode.y = btnY - Math.round(pad * 0.5) - realH;
+          ctaTop = Math.min(ctaTop, logoNode.y - Math.round(pad * 0.6));
+        }
       }
     }
-    const btnW = Math.max(40, contentW - pad * 2 - logoReserve);
     addMasterCta(frame, ctaText, x + pad, btnY, btnW, btnH);
     ctaTop = Math.min(ctaTop, btnY - Math.round(pad * 0.6));
   } else if (showsLogoE) {
@@ -2914,28 +2938,61 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
   let ctaBudget = 0;
   if (showCta) {
     const btnY = comp.panelY + comp.panelH - comp.inner - comp.btnH;
-    let logoReserve = 0;
+    const btnX = comp.panelX + comp.inner;
+    let btnW = comp.btnW;
+    let ownRowLogoBudget = 0;
     if (showsLogoI) {
       const logoHReq = Math.min(comp.btnH, Math.round(clamp(safe.h * 0.045, 34, 70)));
       const logoWReq = Math.min(Math.round(logoHReq * 3.5), Math.round((comp.panelW - comp.inner * 2) * 0.42));
-      // placeLogo() vie logo zväčšiť nad minLogoPx (50px) — reálny rozmer sa
-      // vždy potvrdí z vráteného uzla, rovnaký princíp ako v side_safe.
-      const logoNode = placeLogo(
-        frame, figmaLogo,
-        comp.panelX + comp.panelW - comp.inner - logoWReq, btnY,
-        logoWReq, logoHReq
-      );
-      if (logoNode) {
-        const realW = logoNode.width, realH = logoNode.height;
-        logoNode.x = comp.panelX + comp.panelW - comp.inner - realW;
-        logoNode.y = btnY + comp.btnH - realH;
-        logoReserve = realW + Math.round(comp.inner * 0.5);
+      // 10.9. živá regresia (nahlásené priamo z vygenerovanej Figmy, rovnaká
+      // trieda ako buildSideSafeLayout vyššie): zdieľaný riadok môže zúžiť
+      // CTA natoľko, že text sa zalomí/zmenší ("sploštené" tlačidlo) —
+      // overené na 4 zo 6 interscroller formátov (markíza, ringier, joj
+      // desktop, ženské weby). Skontroluj VOPRED (predpovedaný post-
+      // minLogoPx rozmer), či CTA text ešte sedí na jeden riadok pri plnej
+      // veľkosti — ak nie, logo dostane VLASTNÝ riadok NAD CTA namiesto
+      // zdieľaného, a CTA ostáva NEZMENENÉ (plná šírka aj pozícia).
+      const minDim = Math.min(logoWReq, logoHReq);
+      const predictedLogoW = minDim < STYLE.minLogoPx ? Math.round(logoWReq * (STYLE.minLogoPx / minDim)) : logoWReq;
+      const provisionalReserve = predictedLogoW + Math.round(comp.inner * 0.5);
+      const candidateBtnW = Math.max(60, comp.btnW - provisionalReserve);
+      const labelSize = Math.max(12, Math.round(comp.btnH * 0.36));
+      const wrapH = measureWrappedHeight(frame, ctaText + "  ›", candidateBtnW, labelSize, "Bold");
+      const fitsOneLine = wrapH <= Math.round(labelSize * 1.55);
+
+      if (fitsOneLine) {
+        // placeLogo() vie logo zväčšiť nad minLogoPx (50px) — reálny
+        // rozmer sa vždy potvrdí z vráteného uzla, rovnaký princíp ako v
+        // side_safe.
+        const logoNode = placeLogo(
+          frame, figmaLogo,
+          comp.panelX + comp.panelW - comp.inner - logoWReq, btnY,
+          logoWReq, logoHReq
+        );
+        let logoReserve = provisionalReserve;
+        if (logoNode) {
+          const realW = logoNode.width, realH = logoNode.height;
+          logoNode.x = comp.panelX + comp.panelW - comp.inner - realW;
+          logoNode.y = btnY + comp.btnH - realH;
+          logoReserve = realW + Math.round(comp.inner * 0.5);
+        }
+        btnW = Math.max(60, comp.btnW - logoReserve);
+      } else {
+        const logoNode = placeLogo(
+          frame, figmaLogo,
+          comp.panelX + comp.panelW - comp.inner - logoWReq, btnY,
+          logoWReq, logoHReq
+        );
+        if (logoNode) {
+          const realW = logoNode.width, realH = logoNode.height;
+          logoNode.x = comp.panelX + comp.panelW - comp.inner - realW;
+          logoNode.y = btnY - Math.round(comp.inner * 0.5) - realH;
+          ownRowLogoBudget = realH + Math.round(comp.inner * 0.5);
+        }
       }
     }
-    const btnX = comp.panelX + comp.inner;
-    const btnW = Math.max(60, comp.btnW - logoReserve);
     addMasterCta(frame, ctaText, btnX, btnY, btnW, comp.btnH);
-    ctaBudget = comp.btnH + Math.round(comp.inner * 0.55);
+    ctaBudget = comp.btnH + Math.round(comp.inner * 0.55) + ownRowLogoBudget;
   } else if (showsLogoI) {
     const logoHReq = Math.round(clamp(safe.h * 0.045, 34, 70));
     const logoWReq = Math.min(Math.round(logoHReq * 3.5), comp.panelW - comp.inner * 2);

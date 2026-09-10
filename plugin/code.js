@@ -1307,7 +1307,14 @@ function humanizeWarnings(warnings) {
     qa_unclipped_frame: "Frame nemá zapnuté orezanie obsahu.",
     qa_panel_gap: "Panel nenadväzuje priamo na obrazovú zónu, medzi nimi je nekrytá medzera.",
     qa_text_over_photo_alpha: "Text sedí na polopriehľadnom paneli nad fotkou, nie na čitateľnom podklade.",
-    qa_empty_surface_ratio: "Veľká časť plochy nie je krytá obrazom (plochá farba namiesto vizuálu)."
+    qa_empty_surface_ratio: "Veľká časť plochy nie je krytá obrazom (plochá farba namiesto vizuálu).",
+    // 10.9. (P0-40 C1): plugin nevidí obsah fotky (kde presne je tvár/
+    // produkt) — toto je geometrický odhad (deklarovaná centrálna zóna
+    // >= 50 % šírky formátu), nie skutočná detekcia subjektu. Pri formátoch,
+    // kde je stred ZÁMERNE prázdny (napr. "Games branding" — stred je
+    // herná plocha, nie skrytý subjekt), ide o falošný poplach — vedomé
+    // riziko tejto kontroly, potvrdené Simonou.
+    qa_publisher_zone_subject_risk: "Publisher safe zóna prekrýva >= 50 % šírky formátu — bežne centrovaný subjekt KV do nej pravdepodobne spadá. Over ručne (môže byť falošný poplach, ak je stred formátu zámerne prázdny, napr. herná plocha)."
   };
   return warnings.map(w => {
     // low_contrast_<miesto>_<pomer>_to_1 — dynamický kód z noteContrastIfLow().
@@ -1513,7 +1520,15 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
       try {
         const fill = panel && panel.fills && panel.fills[0];
         const stops = fill && fill.type === "GRADIENT_LINEAR" ? fill.gradientStops : [];
-        seamless = stops.length >= 4 && stops[stops.length - 1].color.a >= 0.98 &&
+        // 10.9.: bolo natvrdo ">= 4" stopy — Meta Automatic Placements
+        // 1200×628 (buildMasterSafeLayout, isMetaWide vetva, 9.9.) kreslí
+        // rovnaký "plne krycí na konci" panel, len s 3 stopmi (0→priehľadné,
+        // boundary→plné, 1→plné, bez samostatného jemného nábehu na
+        // začiatku) — táto kontrola ho preto falošne označovala za chybný,
+        // hoci posledné dva stopy (rovnaký test, aký sa robí aj pri 4)
+        // sú plne kryjúce. Podmienka teraz kontroluje len skutočnú
+        // vlastnosť (posledné dva stopy plne kryjú), nie počet stopov.
+        seamless = stops.length >= 3 && stops[stops.length - 1].color.a >= 0.98 &&
           stops[stops.length - 2].color.a >= 0.98;
       } catch (e) {}
       if (!seamless) add("qa_wide_color_extension");

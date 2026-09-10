@@ -191,7 +191,13 @@ function resolveCreativeRule(format) {
     branding_leader_text: { layoutType: "branding_leader_text", headline: true, subheadline: false, cta: false, logo: false, ai: true },
     branding_leader_full: { layoutType: "branding_leader_full", headline: true, subheadline: false, cta: true, logo: true, ai: true },
     interscroller: { layoutType: "interscroller_safe", headline: true, subheadline: false, cta: true, logo: true, ai: true },
-    email: { layoutType: "email_layout", headline: true, subheadline: false, cta: true, logo: true, ai: true }
+    email: { layoutType: "email_layout", headline: true, subheadline: false, cta: true, logo: true, ai: true },
+    // 10.9. (zadanie C): explicitná Adform vetva — pozri komentár pri
+    // detekcii nižšie ("adformTemplateId(format)"). Hodnoty sú zámerne
+    // identické s tým, čo Adform dostával aj predtým cez náhodný
+    // publisher_branding fallback (žiadna zmena správania), len teraz
+    // pomenované a naviazané na SUBHEADLINE_POLICY.
+    adform_psd: { layoutType: "adform_psd", headline: true, subheadline: true, cta: true, logo: true, ai: true }
   };
 
   let profile = null;
@@ -233,18 +239,80 @@ function resolveCreativeRule(format) {
     // pred dizajnovým mockupom. Katalógové formáty majú role priamo vo
     // formats.js — tento fallback sa uplatní len na budúci google_rsa*
     // formát bez explicitného role.
+    //
+    // 10.9. OTVORENÉ (zadanie C, v5): vyššie "TP vyhráva" bolo napísané ako
+    // rozhodnuté, ale v5 zadanie to výslovne rozporuje — Plugin_podla_
+    // Surdu.md vraj hovorí "headline + logo, podľa Surďovej Figmy, nie
+    // »bez textu«", zatiaľ čo formats.js notes stále hovoria "BEZ textu
+    // (TP)" na všetkých troch kkv/hyp/bsu google_rsa_* katalógových
+    // záznamoch. Toto je teda TROJCESTNÝ, NEVYRIEŠENÝ rozpor (tento
+    // komentár vs. formats.js notes vs. Plugin_podla_Surdu.md) — NEROZHODUJEM
+    // ho sám (explicitná inštrukcia: "Vypíš to, nerozhoduj sám"). Kým
+    // nepríde potvrdenie, clean_image profil (headline:false, subheadline:
+    // false nižšie) OSTÁVA NEZMENENÝ — SUBHEADLINE_POLICY (nižšie v súbore)
+    // preto necháva clean_image ako "conflict", nie ako definitívne
+    // "forbidden".
     if (id.indexOf("google_rsa") !== -1) profile = "clean_image";
     else if (id.indexOf("google_logo") !== -1) profile = "logo_only";
     else if (id.indexOf("pmax") !== -1 || channel === "Google PMax") profile = "headline_only";
     else if (id.indexOf("meta_") !== -1 || channel === "Meta") profile = "meta_full";
     else if (id.indexOf("demandgen") !== -1 || channel === "Google DemandGen") profile = "full_creative";
     else if (id.indexOf("engerio") !== -1) profile = "native_clean";
+    // 10.9. (zadanie C): Adform (4 PSD šablóny, ADFORM_PSD_RULES) predtým
+    // nemalo VÔBEC žiadnu vlastnú vetvu tu — vždy ticho padlo na
+    // "publisher_branding" catch-all nižšie. Skutočná hodnota (subheadline:
+    // true) tak vychádzala len NÁHODNE, cez fallback určený pre úplne iné
+    // formáty (Markíza/JOJ/e-mail/...), nie preto, že by to bolo overené
+    // Adform rozhodnutie. Layout SAMOTNÝ (buildAdformPsdLayout, blok
+    // "headlineNode && content.subheadline" nižšie v súbore) subheadline
+    // reálne kreslí — dynamicky pod headline, nie z pevného PSD boxu (žiadna
+    // zo 4 šablón v ADFORM_PSD_RULES nemá "subheadline" súradnice). Táto
+    // vetva NEMENÍ výsledné správanie (subheadline zostáva true, presne ako
+    // predtým) — len ho robí explicitným a naviazaným na SUBHEADLINE_POLICY
+    // nižšie, nie na náhodný fallback. Netýka sa ADFORM_PSD_RULES samotného
+    // (P0-19 zmrazené) — len tejto content-rule vrstvy. Použitá je rovnaká
+    // adformTemplateId() detekcia, akú už používa layoutType vetva vyššie
+    // (createAllFrames) — vrátane Vinted 300×600/970×250 aliasu — nie
+    // vlastná duplicitná substring-kontrola.
+    else if (adformTemplateId(format)) profile = "adform_psd";
     else profile = "publisher_branding";
   }
 
   const def = profiles[profile];
   if (!def) return { id: "publisher_branding", ...profiles.publisher_branding };
   return { id: profile, ...def };
+}
+
+// 10.9. (zadanie C): required/allowed/forbidden tabuľka pre subheadline —
+// ALE len pre profily, ktoré majú skutočnú dizajnovú predlohu (Meta,
+// Google RSA/PMax/DemandGen, Adform — presne tie, čo Surďova referenčná
+// Figma d51uxTh8YqPdHujzi1Plt6 obsahuje). Pre všetko ostatné
+// (publisher_branding a jej deriváty — branding_full/branding_side/
+// branding_leader_*/interscroller/email — Surďova Figma NEMÁ ich sekciu
+// vôbec) sa nič nehádže: subheadlinePolicyFor() vráti "unknown — čaká na
+// predlohu", presne tak, ako to zadanie žiada.
+//
+// Hodnoty:
+//   "required" — dizajn subheadline vyžaduje vždy (žiadny profil to dnes
+//                 nemá potvrdené, ponechané pre budúce použitie).
+//   "allowed"  — dizajn ho pozná/dovoľuje, skutočné zobrazenie rozhoduje
+//                 shouldShowSubheadline() podľa dostupného miesta.
+//   "forbidden"— dizajn preň nemá miesto vôbec (potvrdené meraním/PSD).
+//   "conflict" — protichodné zdroje, NEROZHODNUTÉ (pozri komentár pri
+//                 clean_image vyššie) — správa sa ako "forbidden" (dnešný
+//                 stav sa nemení), len je odlíšiteľná vo Validation reporte.
+//   "unknown"  — žiadna referencia, hardcoded false ostáva (nemení sa),
+//                 len sa to má hlásiť namiesto tichého mlčania.
+const SUBHEADLINE_POLICY = {
+  meta_full: "allowed",
+  full_creative: "allowed",
+  headline_only: "forbidden",   // Google PMax — vlastný profil názvom aj Figmou hovorí "len headline"
+  clean_image: "conflict",      // Google RSA — pozri "10.9. OTVORENÉ" komentár vyššie
+  adform_psd: "allowed"         // 4× PSD šablóna — subheadline sa kreslí dynamicky pod headline
+};
+
+function subheadlinePolicyFor(profileId) {
+  return SUBHEADLINE_POLICY[profileId] || "unknown";
 }
 
 // ── ŠTÝLOVÉ TOKENY — odčítané zo Surďovej Figmy (InvestQ predloha) ──────
@@ -1292,6 +1360,8 @@ function humanizeWarnings(warnings) {
     qa_font_fallback_inter: "Použil sa Inter namiesto Tatra banka Sans.",
     qa_missing_headline: "Chýba headline, hoci ho pravidlo vyžaduje.",
     qa_missing_subheadline: "Chýba subheadline, hoci ho pravidlo vyžaduje.",
+    qa_subheadline_policy_unknown: "Dodaný je text podnadpisu, ale tento formát nemá potvrdenú predlohu (unknown — čaká na predlohu) — zatiaľ sa nezobrazuje.",
+    qa_subheadline_policy_conflict: "Dodaný je text podnadpisu, ale zdroje si protirečia, či ho má formát vôbec mať (pozri kód, clean_image) — zatiaľ sa nezobrazuje.",
     qa_missing_cta: "Chýba CTA, hoci ho pravidlo vyžaduje.",
     qa_missing_logo: "Chýba logo, hoci ho pravidlo vyžaduje.",
     qa_content_overflow: "Obsah presahuje mimo frame.",
@@ -1440,6 +1510,15 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
 
   if (supportsCopy && layout.show_headline !== false && content.headline && !headline) add("qa_missing_headline");
   if (supportsSubheadline && layout.show_subheadline !== false && content.subheadline && !subheadline) add("qa_missing_subheadline");
+  // 10.9. (zadanie C): subheadline text bol dodaný, ale formát nemá
+  // potvrdenú predlohu (SUBHEADLINE_POLICY "unknown"/"conflict") — hardcoded
+  // false ostáva (nemení sa), toto len HLÁSI stav namiesto tichého mlčania,
+  // presne podľa zadania ("nech to Validation report vidí").
+  if (content.subheadline && !subheadline) {
+    const subPolicy = subheadlinePolicyFor(layout.creative_profile);
+    if (subPolicy === "unknown") add("qa_subheadline_policy_unknown");
+    else if (subPolicy === "conflict") add("qa_subheadline_policy_conflict");
+  }
   if (supportsCta && layout.show_cta !== false && content.ctaText && !cta) add("qa_missing_cta");
   if (layoutType !== "clean_image" && layoutType !== "native_center" &&
       layout.show_logo !== false && content.hasLogo && !format.noLogo && !logo) add("qa_missing_logo");

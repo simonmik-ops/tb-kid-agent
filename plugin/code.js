@@ -1385,7 +1385,8 @@ function humanizeWarnings(warnings) {
     // kde je stred ZÁMERNE prázdny (napr. "Games branding" — stred je
     // herná plocha, nie skrytý subjekt), ide o falošný poplach — vedomé
     // riziko tejto kontroly, potvrdené Simonou.
-    qa_publisher_zone_subject_risk: "Publisher safe zóna prekrýva >= 50 % šírky formátu — bežne centrovaný subjekt KV do nej pravdepodobne spadá. Over ručne (môže byť falošný poplach, ak je stred formátu zámerne prázdny, napr. herná plocha)."
+    qa_publisher_zone_subject_risk: "Publisher safe zóna prekrýva >= 50 % šírky formátu — bežne centrovaný subjekt KV do nej pravdepodobne spadá. Over ručne (môže byť falošný poplach, ak je stred formátu zámerne prázdny, napr. herná plocha).",
+    qa_subject_in_dead_zone: "KV obrázok zasahuje do publisher mŕtvej zóny (web/hra prekryje stred KV) — v produkcii ho nikto neuvidí. BLOCKING (P0-24)."
   };
   return warnings.map(w => {
     // low_contrast_<miesto>_<pomer>_to_1 — dynamický kód z noteContrastIfLow().
@@ -1460,6 +1461,24 @@ function qaLargestImageNode(frame) {
     }
   }
   return img;
+}
+
+// 11.9. (P0-24): qaLargestImageNode() vracia len JEDEN (najväčší) image
+// uzol — nestačí pre qa_subject_in_dead_zone nižšie, kde treba skontrolovať
+// KAŽDÝ image uzol vo frame (napr. buildBrandingSkinLayout po tejto
+// oprave kreslí tri samostatné KV orezy, top strip + dva bočné stĺpce).
+function qaAllImageNodes(frame) {
+  const out = [];
+  const stack = [frame];
+  while (stack.length) {
+    const n = stack.pop();
+    const kids = n.children || [];
+    for (const k of kids) {
+      if (Array.isArray(k.fills) && k.fills.some(function (f) { return f.type === "IMAGE"; })) out.push(k);
+      if (k.children) stack.push(k);
+    }
+  }
+  return out;
 }
 
 // Alfa na parametri t (0..1) pozdĺž lineárneho gradientu, lineárna
@@ -1811,6 +1830,27 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
   if (format.safeZones && format.safeZones.centerWidth && format.width > 0 &&
       format.safeZones.centerWidth / format.width >= 0.5) {
     add("qa_publisher_zone_subject_risk");
+  }
+
+  // 5) qa_subject_in_dead_zone (11.9., P0-24/P0-40): qa_publisher_zone_
+  // subject_risk vyššie je len GEOMETRICKÝ odhad rizika (zóna je veľká,
+  // preto tam subjekt MOŽNO je) — toto je overiteľný FAKT: keď formát
+  // deklaruje publisher mŕtvu zónu (centerWidth+topOffset — web/hra
+  // prekryje stred KV), žiadny KV image uzol do nej nesmie geometricky
+  // zasahovať vôbec. Presne tento bug spôsobil P0-24
+  // (buildBrandingSkinLayout kreslilo KV ako jeden FILL cez celý rám,
+  // vrátane mŕtvej zóny) — predtým prešiel ako PASS, lebo žiadny check
+  // porovnal polohu obrázka s mŕtvou zónou.
+  if (format.safeZones && format.safeZones.centerWidth && format.safeZones.topOffset !== undefined) {
+    const deadX = Math.round((format.width - format.safeZones.centerWidth) / 2);
+    const deadY = format.safeZones.topOffset;
+    const deadW = format.safeZones.centerWidth;
+    const deadH = format.height - format.safeZones.topOffset;
+    const overlapsDeadZone = qaAllImageNodes(frame).some(function (img) {
+      return img.x < deadX + deadW && img.x + img.width > deadX &&
+        img.y < deadY + deadH && img.y + img.height > deadY;
+    });
+    if (overlapsDeadZone) add("qa_subject_in_dead_zone");
   }
 
   return { status: issues.length ? "FAIL" : "PASS", issues: issues };
@@ -2313,7 +2353,6 @@ function buildHeadlineOnlyLayout(frame, format, layout, headline, figmaImage) {
 // Full page branding: keep central website content readable/empty.
 function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figmaImage, figmaLogo) {
   frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
-  addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
 
   const topOffset = (format.safeZones && format.safeZones.topOffset) || 200;
   const centerW = (format.safeZones && format.safeZones.centerWidth) || 1000;
@@ -2324,6 +2363,9 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
   // 1200×200 frame je iba horný pás; nesmie dostať vertikálny side-skin
   // layout, ktorý by umiestnil headline a CTA stovky pixelov pod frame.
   if (format.height <= topOffset || sideW <= pad * 2) {
+    // Tento pás nemá centrálnu mŕtvu zónu (je príliš nízky/úzky na to, aby
+    // do neho publisher web vôbec zasahoval) — fotka smie ostať celoplošná.
+    addImageRect(frame, figmaImage, "Background image", 0, 0, format.width, format.height, "FILL");
     // Tento pás nemá headline/CTA (len logá, viz nižšie) — celoplošné 34%
     // krytie tu negatuje žiadny biely text, takže P0-29-E2 sa ho netýka
     // (na rozdiel od vetvy nižšie). Ponechané pôvodné, nemenené.
@@ -2337,6 +2379,25 @@ function buildBrandingSkinLayout(frame, format, layout, headline, ctaText, figma
     }
     return;
   }
+
+  // 11.9. (P0-24): KV bolo doteraz jeden "Background image" FILL cez CELÝ
+  // rám (0,0,format.width,format.height) — vrátane centrálnej mŕtvej zóny
+  // x[sideW,sideW+centerW] y[topOffset,H], ktorú publisher (Markíza/JOJ)
+  // prekryje vlastným webom. safeZoneRect/resolveContentBox inde v tomto
+  // súbore tú istú centerWidth/topOffset dvojicu už interpretuje správne
+  // opačne (obsah patrí do bočného pásu MIMO nej) — táto oprava zosúlaďuje
+  // obrázok s rovnakým pravidlom. Horný pás (y 0..topOffset, celá šírka)
+  // NIE JE súčasť mŕtvej zóny (tá začína až na y=topOffset), takže fotka
+  // tam smie ostať celoplošná — mŕtva je LEN stredný obdĺžnik pod ňou.
+  //
+  // Čo presne majú bočné stĺpce obsahovať namiesto fotky (jedna fotka v
+  // jednom páse / fotka len hore / žiadna fotka) je vedome NEROZHODNUTÉ
+  // (úloha B, čaká na B-8) — táto oprava preto len rozdelí ROVNAKÚ fotku
+  // na tri samostatné orezy (top strip + oba stĺpce), namiesto redizajnu:
+  // vizuálne najbližšie k pôvodnému stavu, žiadna nová dizajnová voľba.
+  addImageRect(frame, figmaImage, "Background image — top strip", 0, 0, format.width, topOffset, "FILL");
+  addImageRect(frame, figmaImage, "Background image — left column", 0, topOffset, sideW, format.height - topOffset, "FILL");
+  addImageRect(frame, figmaImage, "Background image — right column", format.width - sideW, topOffset, sideW, format.height - topOffset, "FILL");
 
   // P0-29-E2 (25.8.): predošlé celoplošné 34% krytie namieralo WCAG fail
   // (1,54:1 na svetlom podklade voči #C55E4D) presne tam, kde sedí biely

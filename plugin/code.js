@@ -3975,7 +3975,25 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   // 2:1099). Úzko orezané na channel === "Meta" + presné rozmery, aby sa
   // nedotklo žiadneho iného kanála ani formátu — TB.headline, KV geometria
   // square/wide a headline veľkosti ostávajú presne také, ako sú.
-  const isMetaChannel = String(format.channel || "").toLowerCase() === "meta";
+  // 🔴 16.9. — príčina, prečo sa Meta kompozícia nikdy nespúšťala.
+  // Pôvodne presná rovnosť s "meta". V katalógu majú Meta formáty kanál
+  // presne "Meta", takže kampaňová cesta fungovala. Produkt je ale Excel
+  // od mediálky a tam kanál prichádza v znení z TP:
+  //     "Meta (Facebook & Instagram) - Automatic placements"
+  // → rovnosť zlyhala → isMetaSquare/isMetaWide/isMetaPortrait všetky false
+  // → kreslil sa generický master_safe a commit 2c1f910 sa preskočil.
+  // Namerané na sade 16.9. (Figma 252:27560): 1080×1920 malo KV 1080×1080
+  // @0,0, panel y=1080, headline y=1648 a logo — presne pred-2c1f910 stav,
+  // hoci leaderboardy v tom istom behu (headline 154 a 152 px) dokazovali,
+  // že kód je nový.
+  // Test je na dvoch nezávislých znakoch, aby o kompozícii nerozhodovalo
+  // jedno znenie kanála: kanál začínajúci na "meta" (v katalógu je jediný
+  // kanál obsahujúci "meta" — overené na všetkých 32), alebo rola
+  // meta_full (nesie ju presne 13 Meta formátov; Google DemandGen 1200×628
+  // má full_creative, takže sa naň wide vetva Mety nerozšíri).
+  const metaChannelName = String(format.channel || "").trim().toLowerCase();
+  const isMetaChannel = metaChannelName.indexOf("meta") === 0 ||
+    String(format.role || "") === "meta_full";
   const isMetaSquare = isMetaChannel && format.width === 1200 && format.height === 1200;
   const isMetaWide = isMetaChannel && format.width === 1200 && format.height === 628;
   const isMetaPortrait = isMetaChannel && format.width === 1080 && format.height === 1920;

@@ -5,6 +5,7 @@
     "start": "node server.js",
     "test": "node scripts/run-tests.js",
     "visual:compare": "node scripts/visual-regression.js",
+    "qa:presentation": "node scripts/qa-presentation.js",
     "catalog:build": "node scripts/generate-format-catalog.js"
   },
   "dependencies": {

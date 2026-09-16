@@ -317,12 +317,28 @@ function resolveCreativeRule(format) {
 //                 stav sa nemení), len je odlíšiteľná vo Validation reporte.
 //   "unknown"  — žiadna referencia, hardcoded false ostáva (nemení sa),
 //                 len sa to má hlásiť namiesto tichého mlčania.
+// 13.9. OPRAVA (logo/subheadline zadanie, systémová oprava #2):
+// adform_psd bolo označené "allowed" 10.9. na základe toho, že
+// buildAdformPsdLayout() subheadline REÁLNE kreslí (dynamicky pod
+// headline) — ale to je dôkaz, že sa to DEJE, nie že to má PSD predlohu.
+// docs/PSD_ADFORM_REFERENCE.md (kánonický zdroj ADFORM_PSD_RULES,
+// rozpis z Adform_dievca.psd) vymenúva presný zoznam vrstiev pre všetky
+// 4 artboardy (300×600/160×600/300×250/970×250) — slogan, badge,
+// headline, alternate hidden headline, legal, CTA, bank lockup, AI
+// disclosure — a "subheadline" medzi nimi NIE JE, ani raz. PSD teda
+// subheadline NEPOTVRDZUJE ANI NEVYVRACIA ako "forbidden" element by —
+// jednoducho ho nemá. Podľa pravidla "zákaz len pre headline-only/
+// logo-only/potvrdené clean-image, inak unknown, kým sa nevydá výsledok
+// ako úspešný" patrí adform_psd medzi "unknown", nie "allowed" — dynamické
+// kreslenie subheadline v buildAdformPsdLayout je ponechané (je to
+// existujúci, doladený mechanizmus, nie omyl na zmazanie), len už nie je
+// tichým PASS-om bez potvrdenia.
 const SUBHEADLINE_POLICY = {
   meta_full: "allowed",
   full_creative: "allowed",
   headline_only: "forbidden",   // Google PMax — vlastný profil názvom aj Figmou hovorí "len headline"
   clean_image: "conflict",      // Google RSA — pozri "10.9. OTVORENÉ" komentár vyššie
-  adform_psd: "allowed"         // 4× PSD šablóna — subheadline sa kreslí dynamicky pod headline
+  adform_psd: "unknown"         // PSD (docs/PSD_ADFORM_REFERENCE.md) nemá subheadline vrstvu na ŽIADNOM zo 4 artboardov
 };
 
 function subheadlinePolicyFor(profileId) {
@@ -888,25 +904,35 @@ async function createAllFrames({
   // Vyberie tmavy/biely variant loga podla toho, na com logo realne sedi
   // pre dany format — nie natvrdo jeden variant vzdy. Bez bieleho uploadu
   // (figmaLogoWhite chyba) sa vzdy pouzije tmavy, spravanie beze zmeny.
-  // Zdroj farby pozadia (v poradi priority): layout.bg_bottom_r/g/b (realny
-  // pixel vzorok z dolneho okraja KV — tam, kde vacsina layoutov logo kladie),
-  // inak layout.bg_r/g/b (AI odhad), inak BRAND_COLOR fallback.
-  function pickLogoForLayout(layout) {
+  //
+  // 13.9. (logo variant, systémová oprava): predošlý default
+  // (brandEdgeColor(layout,"bottom")) vzorkoval SPODNÝ OKRAJ CELÉHO KV —
+  // jednu globálnu hodnotu, rovnakú pre všetky formáty bez ohľadu na to,
+  // ČO sa reálne kreslí za logom. Overené naprieč builder-mi (side_safe,
+  // branding_skin, interscroller, branding_leader_full, full_bleed): logo
+  // vo všetkých z nich sedí na plnokrycom paneli/scrime odvodenom z
+  // campaignSurface(layout) — presne tá istá funkcia, akú tieto panely
+  // reálne používajú na svoju farbu (sampledLowerPanelGradient, "Dim
+  // brand background", "Bottom readability gradient" atď.), nie na
+  // surovom pixeli fotky. bgOverride umožňuje volajúcemu (orchestrácia)
+  // zadať skutočné pozadie tam, kde sa systematicky líši od
+  // campaignSurface — e-mail (biela content area, vždy) a logo-only
+  // (priehľadné plátno, otvorená otázka P2-7 — zachované pôvodné
+  // správanie, nerozhoduje sa tu).
+  function pickLogoForLayout(layout, bgOverride) {
     if (!figmaLogoDark && !figmaLogoWhite) return null;
     if (!figmaLogoDark) return figmaLogoWhite;
+    const bg = bgOverride || campaignSurface(layout);
+    const luma = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
     if (!figmaLogoWhite) {
       // 10.9. (P0-40 C3): predtým tichý — vždy tmavé, bez ohľadu na to, či
       // by pozadie bolo dosť tmavé na to, aby si vyžiadalo biely variant
       // (Simonino pravidlo: farebné/tmavé plochy = biele logo). Teraz sa
       // luma stále počíta, aby sa dalo zistiť, či tento fallback reálne
       // niečo zhoršuje, a ak áno, nahlási sa namiesto tichého priechodu.
-      const bg = brandEdgeColor(layout, "bottom");
-      const luma = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
       if (luma < 0.5) noteLogoFallback(layout, "white_missing_on_dark_surface");
       return figmaLogoDark;
     }
-    const bg = brandEdgeColor(layout, "bottom");
-    const luma = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
     return luma < 0.5 ? figmaLogoWhite : figmaLogoDark;
   }
 
@@ -1107,7 +1133,18 @@ async function createAllFrames({
       frame.y = runYOffset;
       frame.clipsContent = true;
 
-      figmaLogo = pickLogoForLayout(layout);
+      // 13.9. (logo variant): e-mail loguje na trvale bielu "Content area"
+      // (addSolidRect biela, nie campaignSurface) — vždy potrebuje tmavé
+      // logo, nezávisle od kampanovej farby. logo_only kreslí na
+      // priehľadné plátno (frame.fills = []) — otvorená otázka P2-7, ktorú
+      // som už raz dostal pokyn NEROZHODOVAŤ; zachovaný presne PÔVODNÝ
+      // zdroj farby (brandEdgeColor), nech sa jeho výsledok nezmení touto
+      // opravou.
+      const logoBgOverride =
+        layoutType === "email_layout" ? { r: 1, g: 1, b: 1 } :
+        layoutType === "logo_only" ? brandEdgeColor(layout, "bottom") :
+        undefined;
+      figmaLogo = pickLogoForLayout(layout, logoBgOverride);
 
       if (layoutType === "video_placeholder") {
         buildVideoPlaceholderLayout(frame, format, layout, hl, figmaImage, figmaLogo);
@@ -1392,8 +1429,8 @@ function humanizeWarnings(warnings) {
     qa_font_fallback_inter: "Použil sa Inter namiesto Tatra banka Sans.",
     qa_missing_headline: "Chýba headline, hoci ho pravidlo vyžaduje.",
     qa_missing_subheadline: "Chýba subheadline, hoci ho pravidlo vyžaduje.",
-    qa_subheadline_policy_unknown: "Dodaný je text podnadpisu, ale tento formát nemá potvrdenú predlohu (unknown — čaká na predlohu) — zatiaľ sa nezobrazuje.",
-    qa_subheadline_policy_conflict: "Dodaný je text podnadpisu, ale zdroje si protirečia, či ho má formát vôbec mať (pozri kód, clean_image) — zatiaľ sa nezobrazuje.",
+    qa_subheadline_policy_unknown: "Dodaný je text podnadpisu, ale tento formát nemá potvrdenú predlohu (unknown — čaká na predlohu) — bez ohľadu na to, či sa aktuálne zobrazuje alebo nie, výsledok nie je potvrdený ako správny.",
+    qa_subheadline_policy_conflict: "Dodaný je text podnadpisu, ale zdroje si protirečia, či ho má formát vôbec mať (pozri kód, clean_image) — bez ohľadu na to, či sa aktuálne zobrazuje alebo nie, výsledok nie je potvrdený ako správny.",
     qa_logo_contrast_variant_missing: "Chýba požadovaný kontrastný variant loga (biele na tmavom/farebnom podklade) — zobrazený je tmavý variant, ktorý sa na toto pozadie nehodí. BLOCKING pred deliverom.",
     qa_missing_cta: "Chýba CTA, hoci ho pravidlo vyžaduje.",
     qa_missing_logo: "Chýba logo, hoci ho pravidlo vyžaduje.",
@@ -1566,7 +1603,17 @@ function validateGeneratedFrame(frame, format, layout, layoutType, content, temp
   // potvrdenú predlohu (SUBHEADLINE_POLICY "unknown"/"conflict") — hardcoded
   // false ostáva (nemení sa), toto len HLÁSI stav namiesto tichého mlčania,
   // presne podľa zadania ("nech to Validation report vidí").
-  if (content.subheadline && !subheadline) {
+  //
+  // 13.9. dodatok (systémová oprava #2): pôvodne len keď `!subheadline`
+  // (uzol sa NEKRESLIL) — nepokrývalo to adform_psd, kde profil má
+  // subheadline:true (buildAdformPsdLayout ho reálne vykreslí, dynamicky
+  // pod headline) AJ KEĎ jeho PSD predloha ho vôbec neobsahuje
+  // (docs/PSD_ADFORM_REFERENCE.md). Taký prípad by prešiel ako tichý PASS
+  // — presne to, čo "ak pravidlo nie je potvrdené, nevydávaj výsledok ako
+  // úspešný" zakazuje. Kontrola teraz beží nezávisle od toho, či sa uzol
+  // reálne nakreslil — "unknown"/"conflict" politika sa musí nahlásiť,
+  // nech dnešný kód subheadline potichu ukáže alebo potichu skryje.
+  if (content.subheadline) {
     const subPolicy = subheadlinePolicyFor(layout.creative_profile);
     if (subPolicy === "unknown") add("qa_subheadline_policy_unknown");
     else if (subPolicy === "conflict") add("qa_subheadline_policy_conflict");
@@ -2668,27 +2715,31 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   // CTA nad spodným okrajom safe zóny — rovnaký button ako master_safe/PSD
   // ("CTA above the bank lockup" v PSD referencii pre 160×600). Rezervuje
   // sa PRED headlineom, nech text nikdy nekoliduje s tlačidlom.
+  //
+  // 13.9. (kontrola regresie spôsobenej a09af6c): a09af6c revertlo CELÝ
+  // zadanie-E commit vrátane logo geometrie AJ tejto AI rezervy — logo
+  // presun bol správne stiahnutý späť (na úzkych formátoch nemal dosť
+  // miesta vedľa CTA), ale AI rezerva bola nezávislý, samostatný fix na
+  // úplne iný bug (AI tag nad CTA namiesto pod ním), ktorý s pozíciou loga
+  // nesúvisí vôbec — btnY sa počítal len z pad/btnH, aiRezerva sa
+  // odpočítavala LEN z ctaTop (priestor pre headline), nikdy nie z btnY
+  // (CTA pozícia). CTA tak vždy sedelo na úplnom spodku zóny a AI tag
+  // (addAiNote, orchestrácia, kreslí sa AŽ PO tomto builderi) sa vlastnou
+  // kolíznou poistkou vtesnal NAD neho — presný pôvodný nález zadania E,
+  // znovu prítomný po revertu. Vrátené LEN toto (btnY posunuté o
+  // aiRezerva), logo zostáva na pôvodnej (revertnutej) pozícii nezmenené.
+  const aiTextH = Math.round(aiNoteFontSize(format) * 1.3);
+  const aiPad = TB.padding(format.width, format.height);
   const showCta = layout.show_cta !== false && !!ctaText;
-  let ctaTop = y + contentH - pad;
+  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false) ? (aiTextH + aiPad) : 0;
+  let ctaTop = y + contentH - pad - aiRezerva;
   if (showCta) {
     const btnH = Math.round(clamp(contentH * 0.08, 26, 44));
     const btnW = contentW - pad * 2;
-    const btnY = y + contentH - pad - btnH;
+    const btnY = y + contentH - pad - aiRezerva - btnH;
     addMasterCta(frame, ctaText, x + pad, btnY, btnW, btnH);
     ctaTop = btnY - Math.round(pad * 0.6);
   }
-  // Zadanie 26.8 blok E: AI tag (addAiNote, orchestrácia, kreslí sa AŽ PO
-  // tomto builderi) sa ukotvuje na spodok tejto istej panel/content zóny
-  // (cb.y+cb.h == panelY+panelH == y+contentH) — doteraz sa preň nič
-  // nerezervovalo, takže headline box siahal až po ctaTop bez ohľadu naň.
-  // Namerané na živom výstupe (topky.sk 450×800/400×600/120×600/160×600):
-  // headline box preráža AI tag o ~10–13 px. Rovnaký vzor rezervy, aký už
-  // existuje pre master_safe (aiRezerva, r. ~2911) a full_bleed (AI_ON,
-  // r. ~3475) — aplikovaný tu prvýkrát na side_safe.
-  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
-    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
-  ctaTop -= aiRezerva;
-
   if (shouldShowHeadline(layout, headline)) {
     // 14.9. — headline bol na celej tejto rodine JEDEN riadok a panel mal
     // preto v strede dieru. Namerané na sade zo `stav-11-9`:
@@ -3010,22 +3061,25 @@ function buildInterscrollerSafeLayout(frame, format, layout, headline, ctaText, 
   // CTA v spodnej časti panelu — rovnaký button ako master_safe/PSD
   // ("CTA bottom-left" v PSD referencii pre 300×600). Rezervované miesto
   // sa odráta od výšky headlinu, nech nekolidujú.
+  //
+  // 13.9. (kontrola regresie spôsobenej a09af6c): rovnaký nález a rovnaká
+  // oprava ako v buildSideSafeLayout vyššie — a09af6c revertlo logo
+  // geometriu AJ túto AI rezervu naraz, hoci sú nezávislé. aiRezerva sa
+  // predtým odpočítavala LEN z ctaBudget (priestor pre headline), nikdy
+  // nie z btnY (CTA pozícia) — CTA tak vždy sedelo na úplnom spodku panelu
+  // a AI tag (addAiNote, orchestrácia) sa vlastnou kolíznou poistkou
+  // vtesnal NAD neho. Vrátené LEN toto (btnY posunuté o aiRezerva), logo
+  // zostáva na pôvodnej (revertnutej, hore vľavo) pozícii nezmenené.
+  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
+    ? Math.round(aiNoteFontSize(format) * 1.3) + TB.padding(format.width, format.height) : 0;
   const showCta = layout.show_cta !== false && !!ctaText;
-  let ctaBudget = 0;
+  let ctaBudget = aiRezerva;
   if (showCta) {
     const btnX = comp.panelX + comp.inner;
-    const btnY = comp.panelY + comp.panelH - comp.inner - comp.btnH;
+    const btnY = comp.panelY + comp.panelH - comp.inner - aiRezerva - comp.btnH;
     addMasterCta(frame, ctaText, btnX, btnY, comp.btnW, comp.btnH);
-    ctaBudget = comp.btnH + Math.round(comp.inner * 0.55);
+    ctaBudget = comp.btnH + Math.round(comp.inner * 0.55) + aiRezerva;
   }
-  // Zadanie 26.8 blok E: rovnaký problém a rovnaká oprava ako
-  // buildSideSafeLayout vyššie — AI tag sa ukotvuje na comp.panelY+comp.panelH
-  // (rovnaká zóna, akú tu používa headline), ale doteraz preň nebola žiadna
-  // rezerva, len pre CTA. Namerané na topky.sk 400×600: headline preráža AI
-  // tag o 12 px.
-  const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
-    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
-  ctaBudget += aiRezerva;
 
   if (shouldShowHeadline(layout, headline)) {
     const fontSize = Math.round(clamp(comp.panelH * 0.16, 18, 46));
@@ -4134,6 +4188,13 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // proti I2:1134;96:1994 x≈1014,y≈446) — jediný rozdiel je variant.
       const metaWLogo = TB.logoBox(format.width, format.height);
       if (shouldShowLogo(format, layout, figmaLogo)) {
+        // 13.9. (logo variant): figmaLogoWhite||figmaLogo — keď biely
+        // asset chýba, figmaLogo (parameter, z orchestrácie) UŽ JE presne
+        // figmaLogoDark a pickLogoForLayout() už nahlásila
+        // white_missing_on_dark_surface pri jeho výbere (rovnaký
+        // campaignSurface(layout) zdroj, rovnaká podmienka) — netreba
+        // duplicitnú kontrolu tu, len bezpodmienečná preferencia bieleho,
+        // keď je k dispozícii.
         placeLogo(frame, figmaLogoWhite || figmaLogo,
           cb.x + cb.w - pad - metaWLogo.width, cb.y + cb.h - pad - metaWLogo.height,
           metaWLogo.width, metaWLogo.height);

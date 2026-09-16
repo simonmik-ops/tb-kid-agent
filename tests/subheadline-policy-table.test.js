@@ -94,7 +94,16 @@ function policyFor(id) {
 }
 assert.strictEqual(policyFor("meta_full"), "allowed", "Meta must be 'allowed' (has a design reference)");
 assert.strictEqual(policyFor("full_creative"), "allowed", "Google DemandGen must be 'allowed'");
-assert.strictEqual(policyFor("adform_psd"), "allowed", "Adform must be 'allowed'");
+// 13.9. VYRIEŠENÉ (systémová oprava #2): "allowed" bolo napísané 10.9. na
+// základe toho, že buildAdformPsdLayout() subheadline reálne kreslí — ale
+// to dokazuje len že sa to DEJE, nie že to má PSD predlohu.
+// docs/PSD_ADFORM_REFERENCE.md (kánonický zdroj ADFORM_PSD_RULES) vymenúva
+// presný zoznam vrstiev pre všetky 4 artboardy a "subheadline" medzi nimi
+// NIE JE. Správna klasifikácia je preto "unknown", nie "allowed" — dynamické
+// kreslenie v buildAdformPsdLayout zostáva nezmenené (existujúci, doladený
+// mechanizmus), len už nie je tichým PASS-om bez potvrdenia.
+assert.strictEqual(policyFor("adform_psd"), "unknown",
+  "Adform's PSD (docs/PSD_ADFORM_REFERENCE.md) has no subheadline layer on any of its 4 artboards — must be 'unknown', not 'allowed'");
 assert.strictEqual(policyFor("headline_only"), "forbidden", "Google PMax must be 'forbidden' (design confirms headline-only)");
 assert.strictEqual(policyFor("clean_image"), "conflict", "Google RSA must be 'conflict' (unresolved 3-way source conflict), not silently decided");
 for (const unresolved of ["branding_full", "branding_side", "branding_leader_text", "branding_leader_full", "interscroller", "email", "publisher_branding"]) {
@@ -136,5 +145,34 @@ assert(!forbiddenQa.issues.includes("qa_subheadline_policy_unknown") && !forbidd
 const noTextQa = runQa("branding_skin", "branding_full", false);
 assert(!noTextQa.issues.includes("qa_subheadline_policy_unknown"),
   "without any supplied subheadline text there is nothing to flag, got " + JSON.stringify(noTextQa.issues));
+
+// 13.9. (systémová oprava #2): Adform's own case — buildAdformPsdLayout
+// actually RENDERS a "Subheadline" node (dynamically, under headline),
+// unlike branding_full/side/etc. which suppress it entirely. The old
+// check only fired when the node was ABSENT (!subheadline), so this exact
+// scenario — text supplied, policy unconfirmed, but rendered anyway —
+// used to pass silently. It must now be flagged regardless.
+function runQaWithRenderedSubheadline(creativeProfile) {
+  const frame = makeNode();
+  frame.width = 300; frame.height = 600; frame.clipsContent = true;
+  const renderedSubheadline = makeNode();
+  renderedSubheadline.name = "Subheadline";
+  frame.appendChild(renderedSubheadline);
+  const layout = { creative_profile: creativeProfile, show_subheadline: true };
+  const content = {
+    headline: "Investovanie", subheadline: "Od 50 eur mesačne.",
+    ctaText: null, legalText: null, badgeText: null, hasLogo: false
+  };
+  context.__frame = frame; context.__format = { width: 300, height: 600 };
+  context.__layout = layout; context.__content = content;
+  return vm.runInContext(
+    "validateGeneratedFrame(__frame, __format, __layout, \"adform_psd\", __content, null);",
+    context
+  );
+}
+const renderedUnknownQa = runQaWithRenderedSubheadline("adform_psd");
+assert(renderedUnknownQa.issues.includes("qa_subheadline_policy_unknown"),
+  "adform_psd must be flagged even when its subheadline WAS actually rendered (unconfirmed by the PSD either way), got " +
+  JSON.stringify(renderedUnknownQa.issues));
 
 console.log("subheadline required/allowed/forbidden/unknown policy table (zadanie C): ok");

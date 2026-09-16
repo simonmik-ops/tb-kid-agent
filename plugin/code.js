@@ -4012,6 +4012,10 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     t.x = centered ? Math.round((format.width - t.width) / 2) : x;
     t.y = y;
     t.locked = true;
+    // 16.9.: vracia uzol, aby si volajúci vedel zistiť jeho skutočnú spodnú
+    // hranu. Portrétová vetva ju potrebuje — legal text sa inak kreslí NAD
+    // tag a prekryje ho (pozri komentár pri jeho volaní nižšie).
+    return t;
   }
   // Referenčné layouty nemajú viditeľný subheadline/legal (LAYOUT-VYSKA/
   // LAYOUT-SIRKA/LAYOUT-SQUARE majú len HEADLINE a AI generované) — ak ich
@@ -4393,8 +4397,29 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       // AI generované centrované na šírku rámu (I2:1106;96:1126, box
       // 222×38,5 pri x=432 na šírke 1080 — teda centrované, nie pevné x),
       // y=1189.
-      drawMetaAiNote(true, null, 1189);
-      drawMetaLegal(metaContainerX, metaContainerBottom + metaGap, metaContainerW, "CENTER");
+      const metaAiNode = drawMetaAiNote(true, null, 1189);
+      // 16.9. — prekryv AI tagu a legal textu na 1080x1920.
+      // Namerané na živej sade (Figma 252:28496, prvý beh s odomknutou Meta
+      // vetvou): legal [71,1177,938,24] a AI tag [474,1189,132,19] —
+      // prekryv 12 px zvisle a celý tag vodorovne vnútri legalu.
+      //
+      // Prečo vznikol: y AI tagu je pevná referenčná hodnota (1189), kým
+      // legal sa počítal z metaContainerBottom + metaGap — a ten vyšiel
+      // VYŠŠIE než tag. Referenčný LAYOUT-VYSKA legal vôbec nemá (nesie len
+      // headline a AI tag), takže sa tá kolízia nemala kde prejaviť, kým
+      // kampaňové pravidlá legal nevyžiadali.
+      //
+      // Riešenie drží referenčnú pozíciu tagu nedotknutú a posúva LEN legal
+      // pod jeho skutočnú spodnú hranu. drawMetaLegal si sám stráži, aby
+      // nespadol pod spodný okraj rámu (maxY), takže sa tým nedá pretiecť.
+      let metaLegalY = metaContainerBottom + metaGap;
+      if (metaAiNode) {
+        metaLegalY = Math.max(
+          metaLegalY,
+          metaAiNode.y + metaAiNode.height + Math.round(metaGap * 0.5)
+        );
+      }
+      drawMetaLegal(metaContainerX, metaLegalY, metaContainerW, "CENTER");
       return;
     }
     const adaptedPortrait = family === "portrait";

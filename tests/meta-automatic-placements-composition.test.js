@@ -230,4 +230,34 @@ function runMeta(width, height, opts) {
     "1200x1200: logo must use the white variant per reference");
 }
 
+// ── 16.9.: AI tag a legal text sa na 1080×1920 nesmú prekrývať ───────────
+//
+// Prvý beh s odomknutou Meta vetvou (Figma 252:28496) ukázal prekryv:
+//   Legal text    [71, 1177, 938, 24]  →  y 1177..1201
+//   AI generované [474, 1189, 132, 19] →  y 1189..1208
+// teda 12 px zvisle a celý tag vodorovne vnútri legalu. y AI tagu je pevná
+// referenčná hodnota (1189), legal sa počítal z metaContainerBottom +
+// metaGap a vyšiel VYŠŠIE než tag.
+//
+// Referenčný LAYOUT-VYSKA legal vôbec nemá, takže kolízia sa nemala kde
+// prejaviť, kým ho nevyžiadali kampaňové pravidlá. Tag musí zostať na
+// referenčnej pozícii, legal sa posúva pod neho.
+{
+  const frame = runMeta(1080, 1920);
+  const ai = frame.findOne((n) => n.name === "AI generované");
+  const legal = frame.findOne((n) => n.name === "Legal text");
+  assert(ai && legal, "1080x1920: AI tag aj legal text musia byť nakreslené");
+  assert.strictEqual(ai.y, 1189,
+    "1080x1920: AI tag musí zostať na referenčnej pozícii y=1189, got " + ai.y);
+  assert(
+    legal.y >= ai.y + ai.height,
+    "1080x1920: legal text (y=" + legal.y + ") musí začínať POD spodnou hranou " +
+    "AI tagu (" + (ai.y + ai.height) + ") — inak ho prekryje"
+  );
+  assert(
+    legal.y + legal.height <= 1920,
+    "1080x1920: legal text nesmie pretiecť cez spodný okraj rámu"
+  );
+}
+
 console.log("Meta Automatic Placements composition (9.9.2026): ok");

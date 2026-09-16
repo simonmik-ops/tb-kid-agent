@@ -61,7 +61,24 @@ assert(source.includes('function pickAdaptiveKV(format)'), "single-master inputs
 assert(source.includes('function addProtectedImageFrame'), "single-master fallbacks must preserve the complete KV");
 assert(source.includes('Adaptive portrait content panel'), "portrait fallbacks must use a dedicated colour-extension panel");
 assert(source.includes('function sampledPortraitOverlayGradient'), "portrait fallbacks must blend the text panel through the image boundary");
-assert(source.includes('family === "wide" ? { x: 0, y: 0.5 }'), "clean wide assets must anchor the protected master to the left instead of centering two colour bars");
+// 14.9. — tento assert bol zastaraný a doteraz ho nebolo vidieť: padal až za
+// prvým padajúcim assertom vyššie (TB.headline 1920×1080), takže ho `npm test`
+// nikdy nedosiahol. Kontroloval doslovný reťazec `family === "wide" ? { x: 0,
+// y: 0.5 }`, ktorý v kóde už NIE JE — commit b0fefbe (P0-34) nahradil celú tú
+// vetvu vlastným COVER blokom ("Adapted clean master — full composition" +
+// coverScale = Math.max(...)). Chyba, ktorú assert chránil, boli DVA farebné
+// pásy po stranách, čo je symptóm CONTAIN škálovania; pri COVER nemôžu
+// vzniknúť vôbec. Kontroluje sa preto mechanizmus, ktorý to garantuje, nie
+// zmazaný reťazec.
+// ⚠️ Otvorené (pre Simonu): b0fefbe pri tej príležitosti zmenil vodorovné
+// kotvenie z ĽAVÉHO na STREDOVÉ (coverRect.x = (W − renderedW) / 2). Pre
+// clean_image (bez textového stĺpca) to môže byť správne, ale Surďov model
+// hovorí „fokus vľavo". Tento test to zámerne NEROZHODUJE — kontroluje len,
+// že pásy nemôžu vzniknúť.
+assert(source.includes('const coverScale = Math.max(format.width / CUR_IMG_W, format.height / CUR_IMG_H);'),
+  "clean wide assets must COVER the frame (Math.max scale) so the two colour bars cannot appear");
+assert(source.includes('coverHolder.clipsContent = true;'),
+  "the clean wide cover crop must be clipped to the frame");
 assert(source.includes('Clean portrait colour extension'), "clean portrait assets must continue from the master's bottom edge without a light horizontal band");
 assert(source.includes('[0, 0, imageW, format.height], { x: 0, y: 0.5 }'), "wide creative masters must keep the focal visual on the left as in the Surd reference");
 assert(source.includes('ratio >= 1.25 ? "wide" : (ratio <= 0.8 ? "portrait" : "square")'), "4:5 and other orientation boundaries must match the KV picker exactly");

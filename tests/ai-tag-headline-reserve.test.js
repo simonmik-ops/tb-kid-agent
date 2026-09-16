@@ -146,5 +146,41 @@ const leaderBoxNoAi = headlineBox(
 assert.strictEqual(leaderBoxNoAi.height, 200,
   "1000x200 branding_leader_text bez AI tagu: box výška musí byť presne format.height (200), žiadna zbytočná rezerva, got " + leaderBoxNoAi.height);
 
+// ── 14.9.: rezerva musí zodpovedať tomu, KDE addAiNote() tag naozaj kreslí ──
+//
+// Doterajšie asserty kontrolovali len smer („s AI_ON je box nižší") a hrubý
+// strop („box nesiaha na spodok rámu"). Obe prešli aj vtedy, keď bola rezerva
+// príliš MALÁ — a presne to sa dialo: rezerva sa počítala ako
+// aiNoteFontSize * 2,2, ale addAiNote() kladie tag na
+//     y = spodok − výška_tagu − TB.padding(W, H)
+// čiže od spodku zaberie výška_tagu + padding. Na leaderboardoch je samotný
+// padding (25–27 px) väčší než celá vtedajšia rezerva (26 px).
+// Namerané na živom výstupe 14. 9. (Figma 218:25206 a 218:25349, sada zo
+// stav-11-9): 1000×200 headline box [·,0,·,174] vs. AI tag y=162 → prekryv
+// 12 px; 1200×200 headline box [·,0,·,174] vs. tag y=160 → prekryv 14 px.
+//
+// Tento assert porovnáva spodok headline boxu priamo s hornou hranou tagu,
+// vypočítanou z tých istých veličín, aké používa addAiNote(). Tag nikdy nie je
+// nižší než jeho vlastný fontSize, takže je to bezpečná dolná hranica aj bez
+// verného textového layoutu vo Figme.
+vm.runInContext("this.__aiNoteFontSize = aiNoteFontSize; this.__TB = TB;", context);
+const aiNoteFontSizeFn = context.__aiNoteFontSize;
+const TBscale = context.__TB;
+
+vm.runInContext("__setAiOn(true);", context);
+for (const dims of [[1000, 200, 720], [1200, 200, 1056], [1240, 200, 1056]]) {
+  const w = dims[0], h = dims[1], safeW = dims[2];
+  const box = headlineBox(
+    "buildBrandingLeaderTextLayout", w, h, { safeInner: { width: safeW, height: h } }
+  );
+  const tagTop = h - aiNoteFontSizeFn({ width: w, height: h }) - TBscale.padding(w, h);
+  assert(
+    box.y + box.height <= tagTop,
+    w + "x" + h + " branding_leader_text: spodok headline boxu (" + (box.y + box.height) +
+    ") musí byť nad hornou hranou AI tagu (" + tagTop + ") — rezerva musí počítať " +
+    "s TB.padding, nie len s násobkom fontSize"
+  );
+}
+
 vm.runInContext("__setAiOn(false);", context);
 console.log("AI tag headline reservation: ok");

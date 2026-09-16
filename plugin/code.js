@@ -20,7 +20,21 @@ var TB = {
     // veľkosti (1200×1200: 67 vs. 80; 1080×1920: 65 vs. 81; 1200×628: 51
     // vs. 60) — prepočítané na 0,0667 / 0,075 / 0,0955. Strop 68 (square aj
     // portrait vetva) zdvihnutý na 96, inak by 80 aj 81 doň narazili.
-    if (r > 1.45) return Math.round(clamp(H * 0.0955, 18, 96));
+    // 14.9. (rieši červený visual-system.test.js): wide vetva obsluhovala dva
+    // nezlučiteľné referenčné body naraz — 1200×628 musí dať 60 (H*0,0955,
+    // optická rekalibrácia z 9.9. proti Meta referencii) a 1920×1080 musí dať
+    // 89 (H*0,0824, pôvodná hodnota podržaná na výslovnú žiadosť). Jeden
+    // koeficient ich nevie dať oba, takže sa strop 96 len tichom orezával na
+    // 96 a test padal. Vetva sa preto delí podľa výšky: 9,55 % bolo merané na
+    // banner-vysokých wide rámoch (v katalógu ich je 20 a najvyšší okrem
+    // 1920×1080 má H=720), zatiaľ čo 1920×1080 je jediný full-HD wide rám —
+    // a podľa P1-8 je to vôbec špecifikácia videa, nie display formát.
+    // Blast radius overený proti katalógu: zo všetkých 20 wide formátov mení
+    // toto JEDINE 1920×1080 (96 -> 89), žiadny iný sa stropu ani nepriblíži.
+    if (r > 1.45) {
+      if (H >= 1000) return Math.round(clamp(H * 0.0824, 18, 96));
+      return Math.round(clamp(H * 0.0955, 18, 96));
+    }
     if (r < 0.75) return Math.round(clamp(W * 0.075, 22, 96));
     return Math.round(clamp(Math.min(W, H) * 0.0667, 22, 96));
   },
@@ -651,6 +665,24 @@ function sampledPortraitOverlayGradient(layout, imageBoundaryStop, bottomShade, 
 // Veľkosť „AI generované" textu — jednotná pre vykreslenie aj rezervu miesta.
 function aiNoteFontSize(format) {
   return Math.round(clamp(Math.min(format.width, format.height) * 0.024, 12, 18));
+}
+
+// Koľko miesta si musí builder odložiť ZDOLA, aby doň addAiNote() nespadol.
+// 14.9.: rezerva sa päťkrát v súbore počítala ako aiNoteFontSize * 2,2, ale
+// addAiNote() kladie tag na `y = spodok - t.height - TB.padding(...)`, čiže
+// od spodku zaberie t.height + padding. Na leaderboardoch je padding sám
+// väčší než celá tá rezerva (1000×200: rezerva 26 px, ale tag začína 38 px
+// nad spodkom), takže headline box tag prekrýval — namerané na živom výstupe
+// 14. 9.: 1000×200 headline [0,0,·,174] vs. AI tag y=162 (prekryv 12 px),
+// 1200×200 headline [·,0,·,174] vs. tag y=160 (prekryv 14 px).
+// Rezerva sa preto počíta z tých istých veličín, aké tag reálne používa.
+// Pozn.: ostatné štyri výskyty vzorca *2,2 kotvia tag na spodok OBRÁZKA
+// (imgBottom), nie rámu — tam prekryv nameraný nebol a zámerne sa nemenia.
+function aiNoteReserve(format) {
+  const velkost = aiNoteFontSize(format);
+  const vyskaRiadku = Math.round(velkost * 1.25);   // reálna výška jedného riadku
+  const pad = TB.padding(format.width, format.height);
+  return vyskaRiadku + pad + Math.round(velkost * 0.5);  // + dýchacia medzera
 }
 
 // AI disclosure — jemný, integrovaný text vľavo dole (potvrdené z Figmy).
@@ -2658,7 +2690,57 @@ function buildSideSafeLayout(frame, format, layout, headline, ctaText, figmaImag
   ctaTop -= aiRezerva;
 
   if (shouldShowHeadline(layout, headline)) {
-    const fontSize = Math.round(clamp(contentW * 0.12, 13, 24));
+    // 14.9. — headline bol na celej tejto rodine JEDEN riadok a panel mal
+    // preto v strede dieru. Namerané na sade zo `stav-11-9`:
+    //   120×600 / 160×600  panel 310..600 (290 px), headline 14 px  → 177 px prázdnych
+    //   450×800            panel 410..700 (290 px), headline 19 px  → 146 px prázdnych
+    //
+    // Príčina: výška panelu je pomer 0,483 prevzatý z
+    // `ADFORM_PSD_RULES.adform_160x600.panel` (290/600) — ale typografia sa
+    // z tej istej PSD predlohy neprevzala. Zostal vzorec riadený ŠÍRKOU
+    // obsahového boxu s podlahou 13 px, na ktorú úzke formáty vždy spadnú:
+    //     clamp(contentW * 0,12, 13, 24)  →  na 160×600 dá 13 px
+    // PSD pritom pre ten istý rám hovorí jednoznačne:
+    //     headline [12, 316, 136, 54], headlineSize: 22
+    // Teda 22 px v boxe vysokom 54 px — čo je priestor na DVA riadky, nie
+    // jeden. 22 / 160 = 0,1375 × format.width, a to je kotva použitá nižšie.
+    //
+    // Potvrdzujú to nezávisle aj obe ďalšie referencie
+    // (`REFERENCIA_Surdo_hodnoty_18_8.md`, kap. 4 bod 3): Surdo má na
+    // `300×600` headline blok 259×158 proti pluginovým 230×25 a na `970×250`
+    // 368×132 proti 330×36. **Všetky tri merania hovoria to isté — blok
+    // počíta s 2–3 riadkami.**
+    //
+    // ⚠️ Kotva vychádza zo ZÁKLADNÉHO ADFORM_PSD_RULES, nie z compact
+    // variantu nižšie v súbore (ten hovorí 22 a je to iná, zmenšená sada).
+    // Základné pravidlá dávajú DVA merané body pre túto rodinu:
+    //     adform_160x600   headline [11, 175, 138, 143]   headlineSize 24
+    //     adform_300x600   headline [21, 367, 260,  75]   headlineSize 26
+    //
+    // 🔴 A to je vlastne celá diagnóza: **v PSD veľkosť headlinu od šírky
+    // takmer nezávisí** — 160 px rám má 24, skoro dvojnásobne široký 300 px
+    // rám má 26. Plugin z nej spravil priamu úmeru šírky obsahového boxu
+    // (`contentW * 0,12`), takže na úzkych formátoch skolabovala na podlahu
+    // 13 px. Preto je headline jeden riadok a panel má v strede dieru.
+    //
+    // Škála je preto lineárna interpolácia medzi tými dvoma bodmi:
+    //     24 px pri W = 160 · 26 px pri W = 300  →  +0,0143 px na px šírky
+    // Mimo meraného rozsahu sa len dopočíta a zoškrtí (13–34), lebo pre
+    // 120×600 ani 450×800 meranú hodnotu nemáme.
+    //
+    // addTemplateText() si font ešte zmenší podľa najdlhšieho slova a
+    // max. počtu riadkov, takže toto je horná hranica, nie pevná veľkosť.
+    // ⚠️ Na 120×600 a 160×600 je skutočným obmedzením ŠÍRKA STĹPCA (96 px
+    // po odpočítaní paddingu zo `safeInner` 120) — v nej sa 24 px dlhé
+    // slovo nezmestí a fitter font zmenší. Plná PSD veľkosť sa prejaví až
+    // pri širšom stĺpci; `safeInner` som ZÁMERNE nemenila (pozri poznámku
+    // v `OPRAVY_14_9...`, je to otvorená otázka na médiá).
+    const PSD_W1 = 160, PSD_S1 = 24;   // ADFORM_PSD_RULES.adform_160x600
+    const PSD_W2 = 300, PSD_S2 = 26;   // ADFORM_PSD_RULES.adform_300x600
+    const fontSize = Math.round(clamp(
+      PSD_S1 + (format.width - PSD_W1) * ((PSD_S2 - PSD_S1) / (PSD_W2 - PSD_W1)),
+      13, 34
+    ));
     // P0-29-E1: presunuté z y = contentH*0,28 (na surovej fotke — kolidovalo
     // s "50 €" lockupom v hornej časti KV, biele na bielom) na začiatok
     // panelu, nech headline vždy sedí na čitateľnom pozadí bez ohľadu na to,
@@ -2703,8 +2785,13 @@ function buildBrandingLeaderTextLayout(frame, format, layout, headline) {
   // volajúcich builderov nedostáva `content` ako parameter, všetky čítajú
   // AI_ON). Skráti sa len výška boxu, nie pozícia — headline ostáva
   // vertikálne centrovaný v zvyšnom priestore nad AI tagom.
+  // 14.9.: rezerva prešla z aiNoteFontSize*2,2 na aiNoteReserve(), ktorá
+  // počíta tie isté veličiny, aké addAiNote() reálne používa na umiestnenie
+  // (výška riadku + TB.padding). Stará hodnota padding vôbec nezapočítala, a
+  // práve na tejto rodine (1000×200, 1200×200) je padding 25–27 px, čiže
+  // väčší než celá rezerva — headline box tag prekrýval o 12–14 px.
   const aiRezerva = (AI_ON && layout.show_ai_disclosure !== false)
-    ? Math.round(aiNoteFontSize(format) * 2.2) : 0;
+    ? aiNoteReserve(format) : 0;
   const txt = figma.createText();
   txt.fontName = FONT;
   txt.characters = headline || "HEADLINE";
@@ -3943,6 +4030,18 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
   // bez kalibracie, WCAG 2,62:1 pre biely text, pod 3:1 prahom).
   frame.fills = [{ type: "SOLID", color: campaignSurface(layout) }];
 
+  // P1-15 (14.9.): generický legal blok na konci tohto buildera kotví text na
+  // cb (celý rám), kým headline/subheadline/CTA/AI tag sledujú OBSAHOVÝ
+  // STĹPEC. Na square a portrait je to to isté číslo (textX == cb.x + pad),
+  // na wide nie — tam stĺpec začína až na ~54 % šírky. Namerané na Google
+  // Demand gen 1200×628: headline/subheadline/CTA/AI tag x=648 (šírka 321),
+  // legal x=48, šírka 1104 — teda cez celý rám pod fotkou, ~600 px od zvyšku
+  // textu. Pre Metu to už rieši drawMetaLegal(), ale isMetaWide/isMetaPortrait
+  // končia early returnom, takže Google, Adform a každý ďalší wide
+  // master_safe formát išiel starou cestou. Wide vetva si sem preto uloží
+  // svoj stĺpec a legal blok ho použije, ak existuje.
+  let legalColumn = null;
+
   if (family === "wide") {
     if (isMetaWide) {
       // Meta Automatic Placements 1200×628 — samostatná, uzavretá vetva
@@ -4067,6 +4166,11 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
       ? TB.logoBox(format.width, format.height).width + TB.logoClear(format.width, format.height)
       : 0;
     const textW = Math.max(60, textRight - textX - wLogoReserve);
+    // P1-15: stĺpec pre legal blok na konci buildera. Šírka je textRight-textX
+    // (BEZ wLogoReserve) — legal si logo rieši vlastným dvojkrokovým zúžením
+    // nižšie, rovnako ako doteraz; rezervovať ho dvakrát by text zbytočne
+    // stlačilo.
+    legalColumn = { x: textX, w: Math.max(60, textRight - textX) };
     const panel = figma.createFrame();
     panel.name = "Wide content panel";
     panel.resize(format.width - panelX, format.height);
@@ -4646,7 +4750,12 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // v tomto súbore) zmeria skutočnú výšku PRED umiestnením, takže sa dá
     // kotviť zdola nahor a padding zostane zachovaný bez ohľadu na počet
     // riadkov.
-    let legalW = cb.w - pad * 2;
+    // P1-15: na wide formátoch sa legal kotví na obsahový stĺpec (legalColumn),
+    // rovnako ako headline/subheadline/CTA/AI tag. Na square a portrait je
+    // legalColumn null a platí pôvodné kotvenie na cb — tam sa nič nemení,
+    // lebo textX sa tam aj tak rovná cb.x + pad.
+    let legalX = legalColumn ? legalColumn.x : cb.x + pad;
+    let legalW = legalColumn ? legalColumn.w : cb.w - pad * 2;
     let legalH = measureWrappedHeight(frame, content.legalText, legalW, legalFontSize, "Regular");
     let legalY = cb.y + cb.h - legalH - legalBottomMargin;
     // Druhý nález pri tej istej kontrole: Logo (wide aj portrait/square
@@ -4658,16 +4767,16 @@ function buildMasterSafeLayout(frame, format, layout, content, figmaImage, image
     // zasahuje do zvislého pásma loga.
     const legalLogoNode = frame.findOne(function (q) { return q.name === "Logo"; });
     if (legalLogoNode &&
-        legalLogoNode.x + legalLogoNode.width > cb.x + pad &&
+        legalLogoNode.x + legalLogoNode.width > legalX &&
         legalY < legalLogoNode.y + legalLogoNode.height &&
         legalY + legalH > legalLogoNode.y) {
-      legalW = Math.max(60, legalLogoNode.x - Math.round(pad * 0.4) - (cb.x + pad));
+      legalW = Math.max(60, legalLogoNode.x - Math.round(pad * 0.4) - legalX);
       legalH = measureWrappedHeight(frame, content.legalText, legalW, legalFontSize, "Regular");
       legalY = cb.y + cb.h - legalH - legalBottomMargin;
     }
     addTemplateText(
       frame, "Legal text", content.legalText,
-      [cb.x + pad, legalY, legalW, legalH],
+      [legalX, legalY, legalW, legalH],
       legalFontSize,
       { r: 1, g: 1, b: 1 }, "Regular", "LEFT"
     );

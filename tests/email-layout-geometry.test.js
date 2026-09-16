@@ -71,13 +71,25 @@ function runEmailLayout(width, height, opts) {
   return { logo: logo, headline: headline, cta: cta };
 }
 
+// 14.9. — tento blok bol zastaraný a NIKDY nebežal: `npm test` reťazil súbory
+// cez `&&` a padal už na siedmom (visual-system), takže tento (jedenásty) sa
+// nespustil ani raz. Pôvodne tvrdil „headline musí začínať POD spodkom loga",
+// čo platilo, kým logo sedelo hore vľavo pod hero fotkou. Zadanie z 10. 9.
+// (logo, úloha 5) logo presunulo DOLE VPRAVO do CTA riadku — odvtedy headline
+// správne sedí NAD logom a assert padal na geometrii, ktorá je zámerná
+// (namerané azet 640×500: headline y=333, logo 400..455).
+// Kontroluje sa preto to, čo assert naozaj chránil — že sa headline a logo
+// neprekrývajú — a nie poradie, ktoré medzitým prestalo platiť.
 for (const dims of [[640, 500, "azet_dm"], [730, 1000, "modrykonik_email"], [500, 800, "nmh_dm"]]) {
   const [w, h, id] = dims;
   const { logo, headline } = runEmailLayout(w, h);
   assert(logo && headline, id + ": logo and headline must both be drawn");
-  const logoBottom = logo.y + logo.height;
-  assert(headline.y >= logoBottom,
-    id + " (" + w + "×" + h + "): headline (y=" + headline.y + ") must start at or below logo bottom (y=" + logoBottom + ")");
+  const prekryvY = headline.y < logo.y + logo.height && headline.y + headline.height > logo.y;
+  const prekryvX = headline.x < logo.x + logo.width && headline.x + headline.width > logo.x;
+  assert(!(prekryvY && prekryvX),
+    id + " (" + w + "×" + h + "): headline [" + headline.x + "," + headline.y + "," +
+    headline.width + "×" + headline.height + "] must not overlap the logo [" +
+    logo.x + "," + logo.y + "," + logo.width + "×" + logo.height + "]");
 }
 
 // Bez loga sa spravanie nesmie zmenit (rovnaky kotviaci bod ako predtym).

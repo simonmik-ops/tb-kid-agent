@@ -515,6 +515,22 @@
       });
       dim.candidates = candidates;
       dim.selectedId = candidates.length ? candidates[0].id : null;
+      // Rovnaký rozmer má často viac katalógových záznamov — 1200×1200 ich má
+      // 23 naprieč piatimi rolami (clean_image = bez textu … full_creative =
+      // všetko). Keď sa najlepší kandidáti zhodujú v skóre, ale nie v role,
+      // víťaza určí len poradie v katalógu, čiže je to tip. A rola rozhoduje,
+      // či sa vôbec kreslí headline/subheadline/CTA/logo — preto to označíme,
+      // nech sa nerozhoduje ticho.
+      var topScore = candidates.length ? scoreCandidate(candidates[0], dim.context, dim.roleHint) : 0;
+      var tied = candidates.filter(function (format) {
+        return scoreCandidate(format, dim.context, dim.roleHint) === topScore;
+      });
+      var tiedRoles = [];
+      tied.forEach(function (format) {
+        if (tiedRoles.indexOf(format.role) === -1) tiedRoles.push(format.role);
+      });
+      dim.tiedCount = tied.length;
+      dim.roleIsGuess = tiedRoles.length > 1;
       return dim;
     });
   }
@@ -614,12 +630,26 @@
         dim.candidates.forEach(function (format) {
           const option = document.createElement("option");
           option.value = format.id;
-          option.textContent = format.channel + " — " + format.name;
+          // Rola je to jediné, čo naozaj rozhoduje o výstupe — bez nej sa
+          // z "Social — Meta video 1:1" nedá poznať, že to znamená
+          // headline + subheadline + CTA + logo.
+          option.textContent = format.channel + " — " + format.name + "  ·  " + (format.role || "?");
           select.appendChild(option);
         });
         select.value = dim.selectedId;
-        select.onchange = function () { excelDims[index].selectedId = select.value; };
+        select.onchange = function () {
+          excelDims[index].selectedId = select.value;
+          renderExcelReview();
+        };
         row.appendChild(select);
+        if (dim.roleIsGuess) {
+          const guess = document.createElement("span");
+          guess.style.cssText = "color:#a15c00;white-space:nowrap;font-weight:600";
+          guess.title = "Pri tomto rozmere malo " + dim.tiedCount + " záznamov rovnaké skóre, ale rôznu rolu. " +
+            "Vybral sa prvý v poradí katalógu — over, či je rola správna.";
+          guess.textContent = "⚠ rola je tip (" + dim.tiedCount + " zhodných)";
+          row.appendChild(guess);
+        }
       }
       box.appendChild(row);
     });
@@ -636,9 +666,12 @@
         const dims = extractDims(wb);
         excelDims = await resolveExcelDims(dims);
         renderExcelReview();
-        const ambiguous = excelDims.filter(function (d) { return d.candidates && d.candidates.length > 1; }).length;
+        // Predtým sa počítal každý rozmer s viac ako jedným kandidátom — to je
+        // pri bežnom pláne väčšina riadkov, takže hláška varovala pred všetkým
+        // a tým pádom pred ničím. Teraz počítame len tie, kde je rola naozaj tip.
+        const ambiguous = excelDims.filter(function (d) { return d.roleIsGuess; }).length;
         hint.textContent = dims.length
-          ? ("✓ Našiel som " + dims.length + " rozmerov." + (ambiguous ? " Skontroluj kanál pri " + ambiguous + " nejednoznačných rozmeroch." : "") + (formatCatalogSyncNote ? " ⚠ " + formatCatalogSyncNote : ""))
+          ? ("✓ Našiel som " + dims.length + " rozmerov." + (ambiguous ? " ⚠ Pri " + ambiguous + " rozmeroch je rola len tip — skontroluj ich nižšie." : "") + (formatCatalogSyncNote ? " ⚠ " + formatCatalogSyncNote : ""))
           : "Nenašiel som rozmery — použi výber kampane.";
       } catch (err) { hint.textContent = "Nepodarilo sa načítať tabuľku: " + err.message; excelDims = null; }
     };
